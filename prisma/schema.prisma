@@ -1,0 +1,367 @@
+// VSys Next - Module 1: Core Wash Registration & Wash Ledger
+// Prisma Schema Definition
+// Version: v0.1.0
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum WashEventStatus {
+  CREATED
+  AUTHORIZED
+  IN_PROGRESS
+  COMPLETED
+  LOCKED
+  REJECTED
+}
+
+enum WashEntryMode {
+  QR_DRIVER
+  MANUAL_OPERATOR
+}
+
+enum VehicleType {
+  TRACTOR
+  TRAILER
+}
+
+enum DriverInviteStatus {
+  PENDING
+  ACTIVATED
+  EXPIRED
+  REVOKED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  START
+  COMPLETE
+  REJECT
+  AUTHORIZE
+  LOCK
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  DRIVER
+}
+
+// =============================================================================
+// NETWORK (Tenant)
+// =============================================================================
+
+model Network {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  locations                   Location[]
+  partnerCompanies            PartnerCompany[]
+  drivers                     Driver[]
+  driverInvites               DriverInvite[]
+  vehicles                    Vehicle[]
+  servicePackages             ServicePackage[]
+  locationServiceAvailability LocationServiceAvailability[]
+  washEvents                  WashEvent[]
+  auditLogs                   AuditLog[]
+
+  @@map("networks")
+}
+
+// =============================================================================
+// LOCATION (Wash Station)
+// =============================================================================
+
+model Location {
+  id          String   @id @default(uuid())
+  networkId   String   @map("network_id")
+  name        String
+  code        String   // Short code for QR
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?  @map("zip_code")
+  country     String   @default("US")
+  timezone    String   @default("UTC")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  network                     Network                       @relation(fields: [networkId], references: [id])
+  serviceAvailability         LocationServiceAvailability[]
+  washEvents                  WashEvent[]
+
+  @@unique([networkId, code])
+  @@index([networkId])
+  @@map("locations")
+}
+
+// =============================================================================
+// PARTNER COMPANY
+// =============================================================================
+
+model PartnerCompany {
+  id          String   @id @default(uuid())
+  networkId   String   @map("network_id")
+  name        String
+  code        String   // Short identifier
+  contactName String?  @map("contact_name")
+  email       String?
+  phone       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  network     Network   @relation(fields: [networkId], references: [id])
+  drivers     Driver[]
+  vehicles    Vehicle[]
+  washEvents  WashEvent[]
+
+  @@unique([networkId, code])
+  @@index([networkId])
+  @@map("partner_companies")
+}
+
+// =============================================================================
+// DRIVER
+// =============================================================================
+
+model Driver {
+  id               String   @id @default(uuid())
+  networkId        String   @map("network_id")
+  partnerCompanyId String   @map("partner_company_id")
+  firstName        String   @map("first_name")
+  lastName         String   @map("last_name")
+  phone            String?
+  email            String?
+  pinHash          String   @map("pin_hash") // Hashed PIN for PWA authentication
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  network        Network        @relation(fields: [networkId], references: [id])
+  partnerCompany PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  invite         DriverInvite?
+  washEvents     WashEvent[]
+
+  @@index([networkId])
+  @@index([partnerCompanyId])
+  @@map("drivers")
+}
+
+// =============================================================================
+// DRIVER INVITE
+// =============================================================================
+
+model DriverInvite {
+  id          String             @id @default(uuid())
+  networkId   String             @map("network_id")
+  driverId    String             @unique @map("driver_id")
+  inviteCode  String             @unique @map("invite_code") // e.g., ABC123
+  status      DriverInviteStatus @default(PENDING)
+  expiresAt   DateTime           @map("expires_at")
+  activatedAt DateTime?          @map("activated_at")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relations
+  network Network @relation(fields: [networkId], references: [id])
+  driver  Driver  @relation(fields: [driverId], references: [id])
+
+  @@index([networkId])
+  @@index([inviteCode])
+  @@map("driver_invites")
+}
+
+// =============================================================================
+// VEHICLE
+// =============================================================================
+
+model Vehicle {
+  id               String      @id @default(uuid())
+  networkId        String      @map("network_id")
+  partnerCompanyId String      @map("partner_company_id")
+  type             VehicleType
+  plateNumber      String      @map("plate_number")
+  plateState       String?     @map("plate_state")
+  make             String?
+  model            String?
+  year             Int?
+  isActive         Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  network              Network        @relation(fields: [networkId], references: [id])
+  partnerCompany       PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  washEventsAsTractor  WashEvent[]    @relation("TractorVehicle")
+  washEventsAsTrailer  WashEvent[]    @relation("TrailerVehicle")
+
+  @@unique([networkId, plateNumber, plateState])
+  @@index([networkId])
+  @@index([partnerCompanyId])
+  @@map("vehicles")
+}
+
+// =============================================================================
+// SERVICE PACKAGE
+// =============================================================================
+
+model ServicePackage {
+  id          String   @id @default(uuid())
+  networkId   String   @map("network_id")
+  name        String
+  code        String   // Short identifier
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  network              Network                       @relation(fields: [networkId], references: [id])
+  locationAvailability LocationServiceAvailability[]
+  washEvents           WashEvent[]
+
+  @@unique([networkId, code])
+  @@index([networkId])
+  @@map("service_packages")
+}
+
+// =============================================================================
+// LOCATION SERVICE AVAILABILITY (Junction Table)
+// =============================================================================
+
+model LocationServiceAvailability {
+  id               String   @id @default(uuid())
+  networkId        String   @map("network_id")
+  locationId       String   @map("location_id")
+  servicePackageId String   @map("service_package_id")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  network        Network        @relation(fields: [networkId], references: [id])
+  location       Location       @relation(fields: [locationId], references: [id])
+  servicePackage ServicePackage @relation(fields: [servicePackageId], references: [id])
+
+  @@unique([locationId, servicePackageId])
+  @@index([networkId])
+  @@index([locationId])
+  @@map("location_service_availability")
+}
+
+// =============================================================================
+// WASH EVENT (Core Ledger Entry)
+// =============================================================================
+
+model WashEvent {
+  id                   String          @id @default(uuid())
+  networkId            String          @map("network_id")
+  locationId           String          @map("location_id")
+  partnerCompanyId     String          @map("partner_company_id")
+  servicePackageId     String          @map("service_package_id")
+
+  // Entry mode and status
+  entryMode            WashEntryMode   @map("entry_mode")
+  status               WashEventStatus @default(CREATED)
+
+  // Driver info (for QR_DRIVER mode, driver_id is required; for MANUAL_OPERATOR, name is manual)
+  driverId             String?         @map("driver_id")
+  driverNameManual     String?         @map("driver_name_manual")
+
+  // Vehicle info - Tractor (required)
+  tractorVehicleId     String?         @map("tractor_vehicle_id")
+  tractorPlateManual   String?         @map("tractor_plate_manual")
+
+  // Vehicle info - Trailer (optional)
+  trailerVehicleId     String?         @map("trailer_vehicle_id")
+  trailerPlateManual   String?         @map("trailer_plate_manual")
+
+  // Operator who created the event (for MANUAL_OPERATOR mode)
+  createdByUserId      String?         @map("created_by_user_id")
+
+  // Timestamps for state transitions
+  authorizedAt         DateTime?       @map("authorized_at")
+  startedAt            DateTime?       @map("started_at")
+  completedAt          DateTime?       @map("completed_at")
+  lockedAt             DateTime?       @map("locked_at")
+  rejectedAt           DateTime?       @map("rejected_at")
+  rejectionReason      String?         @map("rejection_reason")
+
+  // Audit timestamps
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  // Relations
+  network        Network        @relation(fields: [networkId], references: [id])
+  location       Location       @relation(fields: [locationId], references: [id])
+  partnerCompany PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  servicePackage ServicePackage @relation(fields: [servicePackageId], references: [id])
+  driver         Driver?        @relation(fields: [driverId], references: [id])
+  tractorVehicle Vehicle?       @relation("TractorVehicle", fields: [tractorVehicleId], references: [id])
+  trailerVehicle Vehicle?       @relation("TrailerVehicle", fields: [trailerVehicleId], references: [id])
+  auditLogs      AuditLog[]
+
+  @@index([networkId])
+  @@index([locationId])
+  @@index([partnerCompanyId])
+  @@index([driverId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("wash_events")
+}
+
+// =============================================================================
+// AUDIT LOG (Append-Only)
+// =============================================================================
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  networkId    String      @map("network_id")
+  washEventId  String?     @map("wash_event_id")
+  action       AuditAction
+  actorType    ActorType   @map("actor_type")
+  actorId      String?     @map("actor_id") // User ID, Driver ID, or null for SYSTEM
+  previousData Json?       @map("previous_data")
+  newData      Json?       @map("new_data")
+  metadata     Json?       // Additional context
+  ipAddress    String?     @map("ip_address")
+  userAgent    String?     @map("user_agent")
+  createdAt    DateTime    @default(now())
+
+  // Relations
+  network   Network    @relation(fields: [networkId], references: [id])
+  washEvent WashEvent? @relation(fields: [washEventId], references: [id])
+
+  @@index([networkId])
+  @@index([washEventId])
+  @@index([action])
+  @@index([actorType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

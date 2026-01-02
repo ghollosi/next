@@ -1,0 +1,46 @@
+# VSys Next - Docker Compose (Development)
+# Module 1: Core Wash Registration & Wash Ledger
+# Version: v0.1.0
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vsys-postgres
+    environment:
+      POSTGRES_USER: vsys
+      POSTGRES_PASSWORD: vsys_dev_password
+      POSTGRES_DB: vsys_next
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vsys -d vsys_next"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: vsys-app
+    environment:
+      DATABASE_URL: postgresql://vsys:vsys_dev_password@postgres:5432/vsys_next?schema=public
+      NODE_ENV: development
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
+
+volumes:
+  postgres_data:
