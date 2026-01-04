@@ -74,8 +74,8 @@ export default function NewWashPage() {
 
     try {
       const washEvent = await api.createWashEvent(sessionId, {
-        locationCode: selectedLocation.code,
-        servicePackageCode: selectedService.code,
+        locationId: selectedLocation.id,
+        servicePackageId: selectedService.id,
         tractorPlateManual: tractorPlate.toUpperCase().trim(),
         trailerPlateManual: trailerPlate.toUpperCase().trim() || undefined,
       });

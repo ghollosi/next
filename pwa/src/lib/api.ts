@@ -136,8 +136,8 @@ class ApiClient {
   async createWashEvent(
     sessionId: string,
     data: {
-      locationCode: string;
-      servicePackageCode: string;
+      locationId: string;
+      servicePackageId: string;
       tractorPlateManual?: string;
       trailerPlateManual?: string;
     }
