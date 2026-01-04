@@ -147,6 +147,44 @@ export class PwaController {
     return { tractors, trailers };
   }
 
+  @Get('locations')
+  @ApiOperation({ summary: 'Get all available locations for the driver network' })
+  @ApiResponse({ status: 200, description: 'List of locations' })
+  async getLocations(@Req() req: Request) {
+    const session = this.getDriverSession(req);
+
+    const locations = await this.locationService.findAll(session.networkId);
+
+    return locations.map((loc) => ({
+      id: loc.id,
+      code: loc.code,
+      name: loc.name,
+      city: loc.city,
+      state: loc.state,
+    }));
+  }
+
+  @Get('locations/:code')
+  @ApiOperation({ summary: 'Get location details by code' })
+  @ApiParam({ name: 'code', description: 'Location code' })
+  @ApiResponse({ status: 200, description: 'Location details' })
+  async getLocationByCode(
+    @Param('code') code: string,
+    @Req() req: Request,
+  ) {
+    const session = this.getDriverSession(req);
+
+    const location = await this.locationService.findByCode(session.networkId, code);
+
+    return {
+      id: location.id,
+      code: location.code,
+      name: location.name,
+      city: location.city,
+      state: location.state,
+    };
+  }
+
   @Get('locations/:code/services')
   @ApiOperation({ summary: 'Get available services at a location by code' })
   @ApiParam({ name: 'code', description: 'Location code from QR' })
