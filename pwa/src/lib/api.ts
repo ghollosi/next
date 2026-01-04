@@ -235,7 +235,9 @@ class ApiClient {
       throw new Error('Failed to get wash history');
     }
 
-    return response.json();
+    const result = await response.json();
+    // API returns { data: [...], total: N }, we need just the array
+    return result.data || result;
   }
 }
 
