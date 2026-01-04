@@ -16,9 +16,25 @@ export interface WashEvent {
   status: 'CREATED' | 'AUTHORIZED' | 'IN_PROGRESS' | 'COMPLETED' | 'LOCKED' | 'REJECTED';
   locationId: string;
   servicePackageId: string;
+  tractorPlateManual?: string;
+  trailerPlateManual?: string;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
+  // Populated relations from API
+  location?: {
+    id: string;
+    name: string;
+    code: string;
+    city?: string;
+    state?: string;
+  };
+  servicePackage?: {
+    id: string;
+    name: string;
+    code: string;
+    description?: string;
+  };
 }
 
 export interface Location {

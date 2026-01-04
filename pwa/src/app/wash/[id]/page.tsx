@@ -221,12 +221,32 @@ export default function WashDetailPage() {
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-gray-500">Location</span>
-              <span className="font-medium text-gray-800">{washEvent.locationId}</span>
+              <span className="font-medium text-gray-800">
+                {washEvent.location?.name || washEvent.locationId.slice(0, 8)}
+              </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-gray-500">Service</span>
-              <span className="font-medium text-gray-800">{washEvent.servicePackageId}</span>
+              <span className="font-medium text-gray-800">
+                {washEvent.servicePackage?.name || washEvent.servicePackageId.slice(0, 8)}
+              </span>
             </div>
+            {washEvent.tractorPlateManual && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-gray-500">Tractor Plate</span>
+                <span className="font-medium text-gray-800 font-mono">
+                  {washEvent.tractorPlateManual}
+                </span>
+              </div>
+            )}
+            {washEvent.trailerPlateManual && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-gray-500">Trailer Plate</span>
+                <span className="font-medium text-gray-800 font-mono">
+                  {washEvent.trailerPlateManual}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-gray-500">Created</span>
               <span className="font-medium text-gray-800">
