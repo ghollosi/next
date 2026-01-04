@@ -255,6 +255,15 @@ export class PwaController {
     return washEvent;
   }
 
+  @Get('wash-events/:id')
+  @ApiOperation({ summary: 'Get wash event by ID' })
+  @ApiParam({ name: 'id', description: 'Wash event ID' })
+  @ApiResponse({ status: 200, description: 'Wash event details' })
+  async getWashEvent(@Param('id') id: string, @Req() req: Request) {
+    const session = this.getDriverSession(req);
+    return this.washEventService.findById(session.networkId, id);
+  }
+
   @Post('wash-events/:id/start')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Start a wash event' })
