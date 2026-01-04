@@ -46,6 +46,17 @@ class ApiClient {
     this.baseUrl = API_URL;
   }
 
+  private handleSessionError(response: Response): void {
+    // If session is invalid, clear localStorage and redirect to login
+    if (response.status === 400 || response.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('vsys_session');
+        localStorage.removeItem('vsys_driver');
+        window.location.href = '/login';
+      }
+    }
+  }
+
   async activate(inviteCode: string, pin: string): Promise<ActivateResponse> {
     const response = await fetch(`${this.baseUrl}/pwa/activate`, {
       method: 'POST',
@@ -85,6 +96,7 @@ class ApiClient {
     });
 
     if (!response.ok) {
+      this.handleSessionError(response);
       throw new Error('Failed to get locations');
     }
 
