@@ -490,6 +490,22 @@ export class OperatorController {
     return this.driverService.findAll(networkId);
   }
 
+  @Get('drivers/pending-approval')
+  @ApiOperation({ summary: 'Get drivers pending approval' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'List of pending drivers' })
+  async getPendingDrivers(@Headers('x-network-id') networkId: string) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.findPendingApproval(networkId);
+  }
+
   @Get('drivers/:id')
   @ApiOperation({ summary: 'Get driver by ID' })
   @ApiHeader({
@@ -642,22 +658,6 @@ export class OperatorController {
   // =========================================================================
   // DRIVER APPROVAL (for self-registered drivers)
   // =========================================================================
-
-  @Get('drivers/pending-approval')
-  @ApiOperation({ summary: 'Get drivers pending approval' })
-  @ApiHeader({
-    name: 'X-Network-ID',
-    description: 'Network (tenant) ID',
-    required: true,
-  })
-  @ApiResponse({ status: 200, description: 'List of pending drivers' })
-  async getPendingDrivers(@Headers('x-network-id') networkId: string) {
-    if (!networkId) {
-      throw new BadRequestException('X-Network-ID header is required');
-    }
-
-    return this.driverService.findPendingApproval(networkId);
-  }
 
   @Post('drivers/:id/approve')
   @HttpCode(HttpStatus.OK)
