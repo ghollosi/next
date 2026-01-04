@@ -156,16 +156,22 @@ export default function WashHistoryPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(event.createdAt)}
+                      <p className="font-medium text-gray-800">
+                        {event.location?.name || 'Unknown Location'}
                       </p>
+                      <p className="text-sm text-gray-500">
+                        {event.servicePackage?.name || 'Service'} • {formatDate(event.createdAt)}
+                      </p>
+                      {event.tractorPlateManual && (
+                        <p className="text-xs text-gray-400 font-mono mt-1">
+                          🚛 {event.tractorPlateManual}
+                          {event.trailerPlateManual && ` + ${event.trailerPlateManual}`}
+                        </p>
+                      )}
                     </div>
                     <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                  </div>
-                  <div className="text-xs text-gray-400 font-mono">
-                    #{event.id.slice(0, 8)}
                   </div>
                 </button>
               );
