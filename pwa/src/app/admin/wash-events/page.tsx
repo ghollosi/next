@@ -17,35 +17,45 @@ interface WashEvent {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8'; // Demo network
 
 export default function WashEventsListPage() {
   const [washEvents, setWashEvents] = useState<WashEvent[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
-    loadWashEvents();
+    loadData();
   }, []);
 
-  const loadWashEvents = async () => {
+  const loadData = async () => {
     try {
-      const response = await fetch(`${API_URL}/wash-events?limit=100`, {
-        headers: {
-          'x-network-id': 'demo', // Demo network
-        },
+      // First load locations to get location ID
+      const locResponse = await fetch(`${API_URL}/operator/locations`, {
+        headers: { 'x-network-id': NETWORK_ID },
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to load wash events');
-      }
+      if (locResponse.ok) {
+        const locs = await locResponse.json();
+        setLocations(locs);
 
-      const data = await response.json();
-      setWashEvents(data.data || []);
+        // If we have locations, load wash events for the first one
+        if (locs.length > 0) {
+          const eventsResponse = await fetch(
+            `${API_URL}/operator/wash-events?locationId=${locs[0].id}&limit=100`,
+            { headers: { 'x-network-id': NETWORK_ID } }
+          );
+
+          if (eventsResponse.ok) {
+            const data = await eventsResponse.json();
+            setWashEvents(data.data || []);
+          }
+        }
+      }
     } catch (err: any) {
-      setError(err.message);
-      // For demo, show mock data
-      setWashEvents([]);
+      setError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }

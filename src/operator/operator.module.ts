@@ -4,6 +4,7 @@ import { WashEventModule } from '../modules/wash-event/wash-event.module';
 import { PartnerCompanyModule } from '../modules/partner-company/partner-company.module';
 import { LocationModule } from '../modules/location/location.module';
 import { ServicePackageModule } from '../modules/service-package/service-package.module';
+import { DriverModule } from '../modules/driver/driver.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { ServicePackageModule } from '../modules/service-package/service-package
     PartnerCompanyModule,
     LocationModule,
     ServicePackageModule,
+    DriverModule,
   ],
   controllers: [OperatorController],
 })

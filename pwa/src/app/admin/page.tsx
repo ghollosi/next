@@ -10,6 +10,17 @@ interface DashboardStats {
   totalDrivers: number;
 }
 
+interface WashEvent {
+  id: string;
+  status: string;
+  tractorPlateManual?: string;
+  createdAt: string;
+  location?: { name: string };
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     todayWashes: 0,
@@ -26,31 +37,65 @@ export default function AdminDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      // For now, use mock data - will connect to API later
-      // In production, this would fetch from /api/admin/dashboard
+      const headers = { 'x-network-id': NETWORK_ID };
+
+      // Load locations first to get wash events
+      const locResponse = await fetch(`${API_URL}/operator/locations`, { headers });
+      let allWashEvents: WashEvent[] = [];
+
+      if (locResponse.ok) {
+        const locations = await locResponse.json();
+        if (locations.length > 0) {
+          // Load wash events for first location
+          const eventsResponse = await fetch(
+            `${API_URL}/operator/wash-events?locationId=${locations[0].id}&limit=100`,
+            { headers }
+          );
+          if (eventsResponse.ok) {
+            const data = await eventsResponse.json();
+            allWashEvents = data.data || [];
+          }
+        }
+      }
+
+      // Load drivers count
+      let driversCount = 0;
+      const driversResponse = await fetch(`${API_URL}/operator/drivers`, { headers });
+      if (driversResponse.ok) {
+        const drivers = await driversResponse.json();
+        driversCount = drivers.length;
+      }
+
+      // Calculate stats
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayWashes = allWashEvents.filter(
+        (w) => new Date(w.createdAt) >= today
+      );
+      const activeWashes = allWashEvents.filter(
+        (w) => w.status === 'IN_PROGRESS' || w.status === 'AUTHORIZED'
+      );
+      const completedToday = todayWashes.filter(
+        (w) => w.status === 'COMPLETED'
+      );
+
       setStats({
-        todayWashes: 5,
-        activeWashes: 1,
-        completedToday: 4,
-        totalDrivers: 12,
+        todayWashes: todayWashes.length,
+        activeWashes: activeWashes.length,
+        completedToday: completedToday.length,
+        totalDrivers: driversCount,
       });
 
-      setRecentWashes([
-        {
-          id: '1',
-          status: 'COMPLETED',
-          location: 'Main Wash Station',
-          plate: 'ABC123',
-          time: '10 min ago',
-        },
-        {
-          id: '2',
-          status: 'IN_PROGRESS',
-          location: 'Main Wash Station',
-          plate: 'XYZ789',
-          time: '5 min ago',
-        },
-      ]);
+      // Get recent washes (last 5)
+      const recent = allWashEvents.slice(0, 5).map((w) => ({
+        id: w.id,
+        status: w.status,
+        location: w.location?.name || 'Unknown',
+        plate: w.tractorPlateManual || '-',
+        time: formatTimeAgo(new Date(w.createdAt)),
+      }));
+      setRecentWashes(recent);
     } catch (err) {
       console.error('Failed to load dashboard data', err);
     } finally {
@@ -58,17 +103,30 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const formatTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'most';
+    if (diffMins < 60) return `${diffMins} perce`;
+    if (diffHours < 24) return `${diffHours} órája`;
+    return `${diffDays} napja`;
+  };
+
   const statCards = [
-    { label: "Today's Washes", value: stats.todayWashes, icon: '🚿', color: 'bg-blue-500' },
-    { label: 'Active Now', value: stats.activeWashes, icon: '⏳', color: 'bg-yellow-500' },
-    { label: 'Completed Today', value: stats.completedToday, icon: '✅', color: 'bg-green-500' },
-    { label: 'Total Drivers', value: stats.totalDrivers, icon: '👤', color: 'bg-purple-500' },
+    { label: 'Mai mosások', value: stats.todayWashes, icon: '🚿', color: 'bg-blue-500' },
+    { label: 'Aktív most', value: stats.activeWashes, icon: '⏳', color: 'bg-yellow-500' },
+    { label: 'Ma befejezett', value: stats.completedToday, icon: '✅', color: 'bg-green-500' },
+    { label: 'Összes sofőr', value: stats.totalDrivers, icon: '👤', color: 'bg-purple-500' },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading dashboard...</div>
+        <div className="text-gray-500">Betöltés...</div>
       </div>
     );
   }
@@ -78,14 +136,14 @@ export default function AdminDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500">Overview of wash operations</p>
+          <h1 className="text-2xl font-bold text-gray-900">Vezérlőpult</h1>
+          <p className="text-gray-500">Mosási műveletek áttekintése</p>
         </div>
         <Link
           href="/admin/wash-events/new"
           className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
         >
-          + New Wash Event
+          + Új mosás
         </Link>
       </div>
 
@@ -112,12 +170,12 @@ export default function AdminDashboardPage() {
       {/* Recent Activity */}
       <div className="bg-white rounded-xl shadow-sm">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Legutóbbi tevékenység</h2>
         </div>
         <div className="divide-y divide-gray-200">
           {recentWashes.length === 0 ? (
             <div className="px-6 py-8 text-center text-gray-500">
-              No recent activity
+              Nincs aktivitás
             </div>
           ) : (
             recentWashes.map((wash) => (
@@ -152,7 +210,7 @@ export default function AdminDashboardPage() {
             href="/admin/wash-events"
             className="text-primary-600 hover:text-primary-700 text-sm font-medium"
           >
-            View all wash events →
+            Összes mosás megtekintése →
           </Link>
         </div>
       </div>
@@ -164,32 +222,32 @@ export default function AdminDashboardPage() {
           className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
         >
           <div className="text-3xl mb-2">➕</div>
-          <h3 className="font-semibold text-gray-900">New Wash</h3>
-          <p className="text-sm text-gray-500">Create manual entry</p>
+          <h3 className="font-semibold text-gray-900">Új mosás</h3>
+          <p className="text-sm text-gray-500">Manuális rögzítés</p>
         </Link>
         <Link
           href="/admin/wash-events"
           className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
         >
           <div className="text-3xl mb-2">📋</div>
-          <h3 className="font-semibold text-gray-900">View All</h3>
-          <p className="text-sm text-gray-500">Wash event list</p>
+          <h3 className="font-semibold text-gray-900">Mosások</h3>
+          <p className="text-sm text-gray-500">Mosások listája</p>
         </Link>
         <Link
           href="/admin/locations"
           className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
         >
           <div className="text-3xl mb-2">📍</div>
-          <h3 className="font-semibold text-gray-900">Locations</h3>
-          <p className="text-sm text-gray-500">Manage wash stations</p>
+          <h3 className="font-semibold text-gray-900">Helyszínek</h3>
+          <p className="text-sm text-gray-500">Mosóállomások</p>
         </Link>
         <Link
           href="/admin/drivers"
           className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
         >
           <div className="text-3xl mb-2">👥</div>
-          <h3 className="font-semibold text-gray-900">Drivers</h3>
-          <p className="text-sm text-gray-500">Manage drivers</p>
+          <h3 className="font-semibold text-gray-900">Sofőrök</h3>
+          <p className="text-sm text-gray-500">Sofőrök kezelése</p>
         </Link>
       </div>
     </div>

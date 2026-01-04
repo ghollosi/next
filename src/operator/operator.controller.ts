@@ -24,6 +24,7 @@ import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { PartnerCompanyService } from '../modules/partner-company/partner-company.service';
 import { LocationService } from '../modules/location/location.service';
 import { ServicePackageService } from '../modules/service-package/service-package.service';
+import { DriverService } from '../modules/driver/driver.service';
 import { WashEntryMode } from '@prisma/client';
 import { CreateWashEventOperatorDto } from './dto/create-wash-event.dto';
 import { QueryWashEventsDto } from './dto/query-wash-events.dto';
@@ -36,6 +37,7 @@ export class OperatorController {
     private readonly partnerCompanyService: PartnerCompanyService,
     private readonly locationService: LocationService,
     private readonly servicePackageService: ServicePackageService,
+    private readonly driverService: DriverService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -356,5 +358,41 @@ export class OperatorController {
     }
 
     return this.servicePackageService.findAvailableAtLocation(networkId, id);
+  }
+
+  @Get('drivers')
+  @ApiOperation({ summary: 'List all drivers' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'List of drivers' })
+  async getDrivers(@Headers('x-network-id') networkId: string) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.findAll(networkId);
+  }
+
+  @Get('drivers/:id')
+  @ApiOperation({ summary: 'Get driver by ID' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiResponse({ status: 200, description: 'Driver details' })
+  async getDriver(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.findById(networkId, id);
   }
 }
