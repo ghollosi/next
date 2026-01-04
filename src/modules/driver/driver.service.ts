@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Driver, DriverInvite, DriverInviteStatus } from '@prisma/client';
+import { Driver, DriverInvite, DriverInviteStatus, DriverApprovalStatus } from '@prisma/client';
 import { createHash } from 'crypto';
 
 @Injectable()
@@ -289,5 +289,138 @@ export class DriverService {
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
+  }
+
+  // =========================================================================
+  // SELF-REGISTRATION (Önregisztráció)
+  // =========================================================================
+
+  async selfRegister(
+    networkId: string,
+    data: {
+      partnerCompanyId: string;
+      firstName: string;
+      lastName: string;
+      phone?: string;
+      email?: string;
+      pin: string;
+    },
+  ): Promise<Driver> {
+    // Create driver with PENDING approval status
+    const driver = await this.prisma.driver.create({
+      data: {
+        networkId,
+        partnerCompanyId: data.partnerCompanyId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        email: data.email,
+        pinHash: this.hashPin(data.pin),
+        approvalStatus: DriverApprovalStatus.PENDING,
+        isActive: false, // Not active until approved
+      },
+    });
+
+    return driver;
+  }
+
+  async findPendingApproval(networkId: string): Promise<Driver[]> {
+    return this.prisma.driver.findMany({
+      where: {
+        networkId,
+        approvalStatus: DriverApprovalStatus.PENDING,
+        deletedAt: null,
+      },
+      include: {
+        partnerCompany: true,
+        vehicles: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async approve(
+    networkId: string,
+    driverId: string,
+    approvedByUserId: string,
+  ): Promise<Driver & { invite: DriverInvite }> {
+    const driver = await this.findById(networkId, driverId);
+
+    if (driver.approvalStatus !== DriverApprovalStatus.PENDING) {
+      throw new BadRequestException('Driver is not pending approval');
+    }
+
+    // Update driver status
+    const updatedDriver = await this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        approvalStatus: DriverApprovalStatus.APPROVED,
+        approvedAt: new Date(),
+        approvedByUserId,
+        isActive: true,
+      },
+    });
+
+    // Generate invite code for the approved driver
+    let inviteCode: string;
+    let isUnique = false;
+
+    while (!isUnique) {
+      inviteCode = this.generateInviteCode();
+      const existing = await this.prisma.driverInvite.findUnique({
+        where: { inviteCode },
+      });
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+
+    // Create invite
+    const invite = await this.prisma.driverInvite.create({
+      data: {
+        networkId,
+        driverId,
+        inviteCode: inviteCode!,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return { ...updatedDriver, invite };
+  }
+
+  async reject(
+    networkId: string,
+    driverId: string,
+    reason: string,
+    rejectedByUserId: string,
+  ): Promise<Driver> {
+    const driver = await this.findById(networkId, driverId);
+
+    if (driver.approvalStatus !== DriverApprovalStatus.PENDING) {
+      throw new BadRequestException('Driver is not pending approval');
+    }
+
+    return this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        approvalStatus: DriverApprovalStatus.REJECTED,
+        rejectionReason: reason,
+        approvedByUserId: rejectedByUserId, // Same field for who handled it
+        approvedAt: new Date(),
+      },
+    });
+  }
+
+  async checkApprovalStatus(
+    networkId: string,
+    driverId: string,
+  ): Promise<{ status: DriverApprovalStatus; rejectionReason?: string }> {
+    const driver = await this.findById(networkId, driverId);
+    return {
+      status: driver.approvalStatus,
+      rejectionReason: driver.rejectionReason || undefined,
+    };
   }
 }

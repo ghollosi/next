@@ -41,6 +41,12 @@ enum DriverInviteStatus {
   REVOKED
 }
 
+enum DriverApprovalStatus {
+  PENDING     // Önregisztráció, admin jóváhagyásra vár
+  APPROVED    // Jóváhagyva, moshat
+  REJECTED    // Elutasítva
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -182,14 +188,22 @@ model Driver {
   updatedAt        DateTime @updatedAt
   deletedAt        DateTime?
 
+  // Jóváhagyási státusz (önregisztrációhoz)
+  approvalStatus   DriverApprovalStatus @default(APPROVED) @map("approval_status")
+  approvedAt       DateTime?            @map("approved_at")
+  approvedByUserId String?              @map("approved_by_user_id")
+  rejectionReason  String?              @map("rejection_reason")
+
   // Relations
   network        Network        @relation(fields: [networkId], references: [id])
   partnerCompany PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
   invite         DriverInvite?
   washEvents     WashEvent[]
+  vehicles       Vehicle[]      // Sofőr járművei
 
   @@index([networkId])
   @@index([partnerCompanyId])
+  @@index([approvalStatus])
   @@map("drivers")
 }
 
@@ -225,6 +239,7 @@ model Vehicle {
   id               String      @id @default(uuid())
   networkId        String      @map("network_id")
   partnerCompanyId String      @map("partner_company_id")
+  driverId         String?     @map("driver_id")  // Opcionális: melyik sofőr vitte fel
   type             VehicleType
   plateNumber      String      @map("plate_number")
   plateState       String?     @map("plate_state")
@@ -239,12 +254,14 @@ model Vehicle {
   // Relations
   network              Network        @relation(fields: [networkId], references: [id])
   partnerCompany       PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  driver               Driver?        @relation(fields: [driverId], references: [id])
   washEventsAsTractor  WashEvent[]    @relation("TractorVehicle")
   washEventsAsTrailer  WashEvent[]    @relation("TrailerVehicle")
 
   @@unique([networkId, plateNumber, plateState])
   @@index([networkId])
   @@index([partnerCompanyId])
+  @@index([driverId])
   @@map("vehicles")
 }
 

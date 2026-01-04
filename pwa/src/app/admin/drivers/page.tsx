@@ -74,12 +74,20 @@ export default function DriversPage() {
           <h1 className="text-2xl font-bold text-gray-900">Sofőrök</h1>
           <p className="text-gray-500">Regisztrált sofőrök kezelése</p>
         </div>
-        <Link
-          href="/admin/drivers/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Új sofőr
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            href="/admin/drivers/approvals"
+            className="px-4 py-2 bg-yellow-100 text-yellow-700 font-medium rounded-lg hover:bg-yellow-200 transition-colors"
+          >
+            Jóváhagyásra vár
+          </Link>
+          <Link
+            href="/admin/drivers/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Új sofőr
+          </Link>
+        </div>
       </div>
 
       {/* Search */}

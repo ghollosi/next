@@ -90,6 +90,23 @@ export class VehicleService {
     });
   }
 
+  async findByDriver(
+    networkId: string,
+    driverId: string,
+  ): Promise<Vehicle[]> {
+    return this.prisma.vehicle.findMany({
+      where: {
+        networkId,
+        driverId,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: {
+        type: 'asc', // TRACTOR first, then TRAILER
+      },
+    });
+  }
+
   async create(
     networkId: string,
     data: {
@@ -100,12 +117,14 @@ export class VehicleService {
       make?: string;
       model?: string;
       year?: number;
+      driverId?: string;
     },
   ): Promise<Vehicle> {
     return this.prisma.vehicle.create({
       data: {
         networkId,
         partnerCompanyId: data.partnerCompanyId,
+        driverId: data.driverId,
         type: data.type,
         plateNumber: data.plateNumber.toUpperCase(),
         plateState: data.plateState?.toUpperCase(),

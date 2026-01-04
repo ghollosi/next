@@ -638,4 +638,94 @@ export class OperatorController {
     // Get the invite - we need to add this method to the service
     return this.driverService.getInvite(id);
   }
+
+  // =========================================================================
+  // DRIVER APPROVAL (for self-registered drivers)
+  // =========================================================================
+
+  @Get('drivers/pending-approval')
+  @ApiOperation({ summary: 'Get drivers pending approval' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'List of pending drivers' })
+  async getPendingDrivers(@Headers('x-network-id') networkId: string) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.findPendingApproval(networkId);
+  }
+
+  @Post('drivers/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Approve a self-registered driver' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiHeader({
+    name: 'X-User-ID',
+    description: 'Approving user ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiResponse({ status: 200, description: 'Driver approved with invite code' })
+  async approveDriver(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    const { networkId: tenantId, userId: approverId } = this.getTenantContext(
+      networkId,
+      userId,
+    );
+
+    return this.driverService.approve(tenantId, id, approverId);
+  }
+
+  @Post('drivers/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reject a self-registered driver' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiHeader({
+    name: 'X-User-ID',
+    description: 'Rejecting user ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Rejection reason' },
+      },
+      required: ['reason'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Driver rejected' })
+  async rejectDriver(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Headers('x-network-id') networkId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    if (!reason) {
+      throw new BadRequestException('Rejection reason is required');
+    }
+
+    const { networkId: tenantId, userId: rejecterId } = this.getTenantContext(
+      networkId,
+      userId,
+    );
+
+    return this.driverService.reject(tenantId, id, reason, rejecterId);
+  }
 }

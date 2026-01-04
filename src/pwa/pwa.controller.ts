@@ -5,9 +5,11 @@ import {
   Body,
   Param,
   Req,
+  Headers,
   HttpCode,
   HttpStatus,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,6 +17,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { DriverService } from '../modules/driver/driver.service';
@@ -22,9 +25,16 @@ import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { VehicleService } from '../modules/vehicle/vehicle.service';
 import { ServicePackageService } from '../modules/service-package/service-package.service';
 import { LocationService } from '../modules/location/location.service';
-import { WashEntryMode } from '@prisma/client';
+import { PartnerCompanyService } from '../modules/partner-company/partner-company.service';
+import { WashEntryMode, DriverApprovalStatus } from '@prisma/client';
 import { ActivateDto, ActivateResponseDto } from './dto/activate.dto';
 import { CreateWashEventPwaDto } from './dto/create-wash-event.dto';
+import {
+  SelfRegisterDto,
+  SelfRegisterResponseDto,
+  CheckApprovalDto,
+  CheckApprovalResponseDto,
+} from './dto/register.dto';
 
 // Simple in-memory session store for activated drivers
 // In production, this would be JWT tokens or Redis sessions
@@ -32,6 +42,10 @@ const driverSessions = new Map<
   string,
   { driverId: string; networkId: string; partnerCompanyId: string }
 >();
+
+// Default network ID for self-registration
+// In production, this would come from QR code or subdomain
+const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
 
 @ApiTags('pwa')
 @Controller('pwa')
@@ -42,6 +56,7 @@ export class PwaController {
     private readonly vehicleService: VehicleService,
     private readonly servicePackageService: ServicePackageService,
     private readonly locationService: LocationService,
+    private readonly partnerCompanyService: PartnerCompanyService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -66,6 +81,154 @@ export class PwaController {
 
     return session;
   }
+
+  // =========================================================================
+  // PUBLIC ENDPOINTS (No session required)
+  // =========================================================================
+
+  @Get('partner-companies')
+  @ApiOperation({ summary: 'Get list of partner companies for registration' })
+  @ApiHeader({
+    name: 'x-network-id',
+    required: false,
+    description: 'Network ID (uses default if not provided)',
+  })
+  @ApiResponse({ status: 200, description: 'List of partner companies' })
+  async getPartnerCompanies(
+    @Headers('x-network-id') networkId?: string,
+  ) {
+    const nid = networkId || DEFAULT_NETWORK_ID;
+    const companies = await this.partnerCompanyService.findActive(nid);
+
+    return companies.map((company) => ({
+      id: company.id,
+      code: company.code,
+      name: company.name,
+    }));
+  }
+
+  @Post('register')
+  @ApiOperation({ summary: 'Self-register as a new driver' })
+  @ApiHeader({
+    name: 'x-network-id',
+    required: false,
+    description: 'Network ID (uses default if not provided)',
+  })
+  @ApiBody({ type: SelfRegisterDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Driver registered, pending approval',
+    type: SelfRegisterResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid registration data' })
+  async selfRegister(
+    @Body() dto: SelfRegisterDto,
+    @Headers('x-network-id') networkId?: string,
+  ): Promise<SelfRegisterResponseDto> {
+    const nid = networkId || DEFAULT_NETWORK_ID;
+
+    // Verify partner company exists
+    await this.partnerCompanyService.findById(nid, dto.partnerCompanyId);
+
+    // Create driver with pending status
+    const driver = await this.driverService.selfRegister(nid, {
+      partnerCompanyId: dto.partnerCompanyId,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone: dto.phone,
+      email: dto.email,
+      pin: dto.pin,
+    });
+
+    // Create vehicles if provided
+    if (dto.vehicles && dto.vehicles.length > 0) {
+      for (const vehicle of dto.vehicles) {
+        await this.vehicleService.create(nid, {
+          partnerCompanyId: dto.partnerCompanyId,
+          driverId: driver.id,
+          type: vehicle.type,
+          plateNumber: vehicle.plateNumber,
+          plateState: vehicle.plateState,
+        });
+      }
+    }
+
+    return {
+      driverId: driver.id,
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      approvalStatus: driver.approvalStatus,
+      message: 'Regisztráció sikeres! A fiókod jóváhagyásra vár. Értesítést kapsz, ha aktiválásra került.',
+    };
+  }
+
+  @Post('check-approval')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check driver approval status' })
+  @ApiHeader({
+    name: 'x-network-id',
+    required: false,
+    description: 'Network ID (uses default if not provided)',
+  })
+  @ApiBody({ type: CheckApprovalDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Approval status',
+    type: CheckApprovalResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid PIN' })
+  async checkApproval(
+    @Body() dto: CheckApprovalDto,
+    @Headers('x-network-id') networkId?: string,
+  ): Promise<CheckApprovalResponseDto> {
+    const nid = networkId || DEFAULT_NETWORK_ID;
+
+    // Verify PIN first
+    const isValid = await this.driverService.validateDriverPin(
+      nid,
+      dto.driverId,
+      dto.pin,
+    );
+
+    if (!isValid) {
+      throw new UnauthorizedException('Hibás PIN kód');
+    }
+
+    const { status, rejectionReason } = await this.driverService.checkApprovalStatus(
+      nid,
+      dto.driverId,
+    );
+
+    let message: string;
+    let inviteCode: string | undefined;
+
+    switch (status) {
+      case DriverApprovalStatus.PENDING:
+        message = 'A regisztrációd még jóváhagyásra vár. Kérjük, várj türelemmel!';
+        break;
+      case DriverApprovalStatus.APPROVED:
+        message = 'A regisztrációd jóváhagyva! Az alábbi kóddal tudsz belépni:';
+        const invite = await this.driverService.getInvite(dto.driverId);
+        inviteCode = invite?.inviteCode;
+        break;
+      case DriverApprovalStatus.REJECTED:
+        message = `Sajnáljuk, a regisztrációd elutasítva. ${rejectionReason ? `Indok: ${rejectionReason}` : ''}`;
+        break;
+      default:
+        message = 'Ismeretlen státusz';
+    }
+
+    return {
+      status,
+      rejectionReason,
+      inviteCode,
+      message,
+    };
+  }
+
+  // =========================================================================
+  // ACTIVATION ENDPOINTS
+  // =========================================================================
 
   @Post('activate')
   @HttpCode(HttpStatus.OK)
