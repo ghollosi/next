@@ -188,10 +188,8 @@ export class DriverService {
       throw new NotFoundException('Invalid invite code');
     }
 
-    if (invite.status === DriverInviteStatus.ACTIVATED) {
-      throw new BadRequestException('Invite code has already been used');
-    }
-
+    // Allow already activated drivers to login again (re-authentication)
+    // Only block expired or revoked invites
     if (invite.status === DriverInviteStatus.EXPIRED || invite.expiresAt < new Date()) {
       throw new BadRequestException('Invite code has expired');
     }
@@ -206,14 +204,16 @@ export class DriverService {
       throw new UnauthorizedException('Invalid PIN');
     }
 
-    // Activate the invite
-    await this.prisma.driverInvite.update({
-      where: { id: invite.id },
-      data: {
-        status: DriverInviteStatus.ACTIVATED,
-        activatedAt: new Date(),
-      },
-    });
+    // Activate the invite if not already activated
+    if (invite.status === DriverInviteStatus.PENDING) {
+      await this.prisma.driverInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: DriverInviteStatus.ACTIVATED,
+          activatedAt: new Date(),
+        },
+      });
+    }
 
     return invite.driver;
   }
