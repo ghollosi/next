@@ -74,12 +74,12 @@ export default function DriversPage() {
           <h1 className="text-2xl font-bold text-gray-900">Sofőrök</h1>
           <p className="text-gray-500">Regisztrált sofőrök kezelése</p>
         </div>
-        <button
+        <Link
+          href="/admin/drivers/new"
           className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-          onClick={() => alert('Új sofőr felvétele - hamarosan')}
         >
           + Új sofőr
-        </button>
+        </Link>
       </div>
 
       {/* Search */}

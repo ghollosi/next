@@ -227,6 +227,12 @@ export class DriverService {
     return driver.pinHash === this.hashPin(pin);
   }
 
+  async getInvite(driverId: string): Promise<DriverInvite | null> {
+    return this.prisma.driverInvite.findUnique({
+      where: { driverId },
+    });
+  }
+
   async regenerateInvite(
     networkId: string,
     driverId: string,

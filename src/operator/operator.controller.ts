@@ -34,6 +34,11 @@ import {
   CreatePartnerCompanyDto,
   UpdatePartnerCompanyDto,
 } from './dto/partner-company.dto';
+import {
+  CreateDriverDto,
+  UpdateDriverDto,
+  UpdateDriverPinDto,
+} from './dto/driver.dto';
 
 @ApiTags('operator')
 @Controller('operator')
@@ -503,5 +508,134 @@ export class OperatorController {
     }
 
     return this.driverService.findById(networkId, id);
+  }
+
+  @Post('drivers')
+  @ApiOperation({ summary: 'Create a new driver' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiBody({ type: CreateDriverDto })
+  @ApiResponse({ status: 201, description: 'Driver created with invite code' })
+  async createDriver(
+    @Body() dto: CreateDriverDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.create(networkId, dto);
+  }
+
+  @Put('drivers/:id')
+  @ApiOperation({ summary: 'Update a driver' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiBody({ type: UpdateDriverDto })
+  @ApiResponse({ status: 200, description: 'Driver updated' })
+  async updateDriver(
+    @Param('id') id: string,
+    @Body() dto: UpdateDriverDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.update(networkId, id, dto);
+  }
+
+  @Put('drivers/:id/pin')
+  @ApiOperation({ summary: 'Update driver PIN' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiBody({ type: UpdateDriverPinDto })
+  @ApiResponse({ status: 200, description: 'Driver PIN updated' })
+  async updateDriverPin(
+    @Param('id') id: string,
+    @Body() dto: UpdateDriverPinDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.updatePin(networkId, id, dto.pin);
+  }
+
+  @Delete('drivers/:id')
+  @ApiOperation({ summary: 'Delete a driver (soft delete)' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiResponse({ status: 200, description: 'Driver deleted' })
+  async deleteDriver(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.softDelete(networkId, id);
+  }
+
+  @Post('drivers/:id/regenerate-invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Regenerate driver invite code' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiResponse({ status: 200, description: 'New invite code generated' })
+  async regenerateDriverInvite(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.driverService.regenerateInvite(networkId, id);
+  }
+
+  @Get('drivers/:id/invite')
+  @ApiOperation({ summary: 'Get driver invite code' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Driver ID' })
+  @ApiResponse({ status: 200, description: 'Driver invite details' })
+  async getDriverInvite(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    // First verify driver exists and belongs to network
+    await this.driverService.findById(networkId, id);
+
+    // Get the invite - we need to add this method to the service
+    return this.driverService.getInvite(id);
   }
 }
