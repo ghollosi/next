@@ -1,0 +1,48 @@
+'use client';
+
+const SESSION_KEY = 'vsys_session';
+const DRIVER_KEY = 'vsys_driver';
+
+export interface DriverInfo {
+  driverId: string;
+  networkId: string;
+  partnerCompanyId: string;
+  firstName: string;
+  lastName: string;
+  partnerCompanyName: string;
+}
+
+export function saveSession(sessionId: string, driver: DriverInfo): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SESSION_KEY, sessionId);
+    localStorage.setItem(DRIVER_KEY, JSON.stringify(driver));
+  }
+}
+
+export function getSession(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(SESSION_KEY);
+  }
+  return null;
+}
+
+export function getDriver(): DriverInfo | null {
+  if (typeof window !== 'undefined') {
+    const data = localStorage.getItem(DRIVER_KEY);
+    if (data) {
+      return JSON.parse(data);
+    }
+  }
+  return null;
+}
+
+export function clearSession(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(DRIVER_KEY);
+  }
+}
+
+export function isLoggedIn(): boolean {
+  return getSession() !== null;
+}

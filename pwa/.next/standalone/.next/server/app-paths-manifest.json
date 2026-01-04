@@ -1,0 +1,10 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/wash/[id]/page": "app/wash/[id]/page.js",
+  "/wash/history/page": "app/wash/history/page.js",
+  "/page": "app/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/login/page": "app/login/page.js",
+  "/wash/scan/page": "app/wash/scan/page.js",
+  "/wash/new/page": "app/wash/new/page.js"
+}
