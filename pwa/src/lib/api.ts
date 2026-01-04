@@ -116,7 +116,9 @@ class ApiClient {
       throw new Error('Failed to get services');
     }
 
-    return response.json();
+    const data = await response.json();
+    // API returns { location, services }, we need just services
+    return data.services || data;
   }
 
   async createWashEvent(
