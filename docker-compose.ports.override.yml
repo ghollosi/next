@@ -1,0 +1,23 @@
+# VSys Next - Port Override for Windows Staging
+#
+# This override file:
+# 1. Removes PostgreSQL port exposure (database only accessible within Docker network)
+# 2. Changes API port to fallback (18080) when standard port (3000) is occupied
+#
+# SECURITY: PostgreSQL is NOT exposed to the network - only accessible by the app container.
+#
+# USAGE (Fallback Ports):
+# docker compose -f docker-compose.local-staging.yml -f docker-compose.ports.override.yml up -d --build
+#
+# PORTS:
+# - API: 18080 (fallback, instead of 3000)
+# - PostgreSQL: NOT EXPOSED (internal Docker network only)
+
+services:
+  postgres:
+    # Remove port exposure - database accessible only within Docker network
+    ports: !reset []
+
+  app:
+    ports:
+      - "18080:3000"

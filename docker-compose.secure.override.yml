@@ -1,0 +1,19 @@
+# VSys Next - Security Override for Windows Staging
+#
+# This override removes PostgreSQL port exposure for security.
+# Use this with standard ports when you want port 3000 for the API
+# but do NOT want PostgreSQL exposed to the network.
+#
+# SECURITY: PostgreSQL is NOT exposed - only accessible within Docker network.
+#
+# USAGE (Standard Port, Secure):
+# docker compose -f docker-compose.local-staging.yml -f docker-compose.secure.override.yml up -d --build
+#
+# PORTS:
+# - API: 3000 (standard)
+# - PostgreSQL: NOT EXPOSED (internal Docker network only)
+
+services:
+  postgres:
+    # Remove port exposure - database accessible only within Docker network
+    ports: !reset []
