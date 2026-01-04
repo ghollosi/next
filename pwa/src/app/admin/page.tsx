@@ -216,7 +216,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Link
           href="/admin/wash-events/new"
           className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
@@ -232,6 +232,14 @@ export default function AdminDashboardPage() {
           <div className="text-3xl mb-2">📋</div>
           <h3 className="font-semibold text-gray-900">Mosások</h3>
           <p className="text-sm text-gray-500">Mosások listája</p>
+        </Link>
+        <Link
+          href="/admin/partners"
+          className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
+        >
+          <div className="text-3xl mb-2">🏢</div>
+          <h3 className="font-semibold text-gray-900">Partnerek</h3>
+          <p className="text-sm text-gray-500">Cégek kezelése</p>
         </Link>
         <Link
           href="/admin/locations"

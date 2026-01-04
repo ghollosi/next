@@ -57,6 +57,16 @@ enum ActorType {
   DRIVER
 }
 
+enum BillingType {
+  CONTRACT    // Szerződéses partner, gyűjtőszámlázás
+  CASH        // Készpénzes/kártyás, helyben számlázás
+}
+
+enum BillingCycle {
+  MONTHLY     // Havi számlázás (1-től utolsó napig)
+  WEEKLY      // Heti számlázás (hétfő-vasárnap)
+}
+
 // =============================================================================
 // NETWORK (Tenant)
 // =============================================================================
@@ -131,6 +141,17 @@ model PartnerCompany {
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
 
+  // Számlázási adatok
+  billingType    BillingType   @default(CONTRACT) @map("billing_type")
+  billingCycle   BillingCycle? @map("billing_cycle")  // Csak CONTRACT esetén releváns
+  billingName    String?       @map("billing_name")   // Számlázási név (ha eltér a névtől)
+  billingAddress String?       @map("billing_address")
+  billingCity    String?       @map("billing_city")
+  billingZipCode String?       @map("billing_zip_code")
+  billingCountry String?       @map("billing_country") @default("HU")
+  taxNumber      String?       @map("tax_number")      // Adószám
+  euVatNumber    String?       @map("eu_vat_number")   // EU adószám (közösségi)
+
   // Relations
   network     Network   @relation(fields: [networkId], references: [id])
   drivers     Driver[]
@@ -139,6 +160,7 @@ model PartnerCompany {
 
   @@unique([networkId, code])
   @@index([networkId])
+  @@index([billingType])
   @@map("partner_companies")
 }
 

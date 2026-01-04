@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { PartnerCompany } from '@prisma/client';
+import { PartnerCompany, BillingType, BillingCycle } from '@prisma/client';
 
 @Injectable()
 export class PartnerCompanyService {
@@ -71,6 +71,15 @@ export class PartnerCompanyService {
       contactName?: string;
       email?: string;
       phone?: string;
+      billingType?: BillingType;
+      billingCycle?: BillingCycle;
+      billingName?: string;
+      billingAddress?: string;
+      billingCity?: string;
+      billingZipCode?: string;
+      billingCountry?: string;
+      taxNumber?: string;
+      euVatNumber?: string;
     },
   ): Promise<PartnerCompany> {
     return this.prisma.partnerCompany.create({
@@ -81,6 +90,15 @@ export class PartnerCompanyService {
         contactName: data.contactName,
         email: data.email,
         phone: data.phone,
+        billingType: data.billingType,
+        billingCycle: data.billingCycle,
+        billingName: data.billingName,
+        billingAddress: data.billingAddress,
+        billingCity: data.billingCity,
+        billingZipCode: data.billingZipCode,
+        billingCountry: data.billingCountry,
+        taxNumber: data.taxNumber,
+        euVatNumber: data.euVatNumber,
       },
     });
   }
@@ -94,6 +112,15 @@ export class PartnerCompanyService {
       email?: string;
       phone?: string;
       isActive?: boolean;
+      billingType?: BillingType;
+      billingCycle?: BillingCycle | null;
+      billingName?: string;
+      billingAddress?: string;
+      billingCity?: string;
+      billingZipCode?: string;
+      billingCountry?: string;
+      taxNumber?: string;
+      euVatNumber?: string;
     },
   ): Promise<PartnerCompany> {
     await this.findById(networkId, id); // Ensure exists and belongs to network

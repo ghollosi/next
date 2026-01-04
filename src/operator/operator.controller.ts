@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -25,9 +27,13 @@ import { PartnerCompanyService } from '../modules/partner-company/partner-compan
 import { LocationService } from '../modules/location/location.service';
 import { ServicePackageService } from '../modules/service-package/service-package.service';
 import { DriverService } from '../modules/driver/driver.service';
-import { WashEntryMode } from '@prisma/client';
+import { WashEntryMode, BillingType, BillingCycle } from '@prisma/client';
 import { CreateWashEventOperatorDto } from './dto/create-wash-event.dto';
 import { QueryWashEventsDto } from './dto/query-wash-events.dto';
+import {
+  CreatePartnerCompanyDto,
+  UpdatePartnerCompanyDto,
+} from './dto/partner-company.dto';
 
 @ApiTags('operator')
 @Controller('operator')
@@ -307,22 +313,125 @@ export class OperatorController {
     });
   }
 
-  // Reference data endpoints
+  // =========================================================================
+  // PARTNER COMPANY CRUD
+  // =========================================================================
+
   @Get('partner-companies')
-  @ApiOperation({ summary: 'List partner companies' })
+  @ApiOperation({ summary: 'List all partner companies' })
   @ApiHeader({
     name: 'X-Network-ID',
     description: 'Network (tenant) ID',
     required: true,
   })
   @ApiResponse({ status: 200, description: 'List of partner companies' })
-  async getPartnerCompanies(@Headers('x-network-id') networkId: string) {
+  async getPartnerCompanies(
+    @Headers('x-network-id') networkId: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
 
-    return this.partnerCompanyService.findActive(networkId);
+    if (activeOnly === 'true') {
+      return this.partnerCompanyService.findActive(networkId);
+    }
+    return this.partnerCompanyService.findAll(networkId);
   }
+
+  @Get('partner-companies/:id')
+  @ApiOperation({ summary: 'Get partner company by ID' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Partner company ID' })
+  @ApiResponse({ status: 200, description: 'Partner company details' })
+  async getPartnerCompany(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.partnerCompanyService.findById(networkId, id);
+  }
+
+  @Post('partner-companies')
+  @ApiOperation({ summary: 'Create a new partner company' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiBody({ type: CreatePartnerCompanyDto })
+  @ApiResponse({ status: 201, description: 'Partner company created' })
+  async createPartnerCompany(
+    @Body() dto: CreatePartnerCompanyDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.partnerCompanyService.create(networkId, {
+      ...dto,
+      billingType: dto.billingType as BillingType,
+      billingCycle: dto.billingCycle as BillingCycle | undefined,
+    });
+  }
+
+  @Put('partner-companies/:id')
+  @ApiOperation({ summary: 'Update a partner company' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Partner company ID' })
+  @ApiBody({ type: UpdatePartnerCompanyDto })
+  @ApiResponse({ status: 200, description: 'Partner company updated' })
+  async updatePartnerCompany(
+    @Param('id') id: string,
+    @Body() dto: UpdatePartnerCompanyDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.partnerCompanyService.update(networkId, id, {
+      ...dto,
+      billingType: dto.billingType as BillingType | undefined,
+      billingCycle: dto.billingCycle as BillingCycle | null | undefined,
+    });
+  }
+
+  @Delete('partner-companies/:id')
+  @ApiOperation({ summary: 'Delete a partner company (soft delete)' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Partner company ID' })
+  @ApiResponse({ status: 200, description: 'Partner company deleted' })
+  async deletePartnerCompany(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.partnerCompanyService.softDelete(networkId, id);
+  }
+
+  // =========================================================================
+  // REFERENCE DATA ENDPOINTS
+  // =========================================================================
 
   @Get('locations')
   @ApiOperation({ summary: 'List locations' })
