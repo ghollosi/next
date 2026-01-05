@@ -53,6 +53,14 @@ export class CreateLocationDto {
   openingHours?: string;
 
   @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
@@ -105,6 +113,14 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsString()
   openingHours?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
 
   @IsOptional()
   @IsBoolean()

@@ -193,12 +193,12 @@ export default function LocationDetailsPage() {
           >
             {location.isActive ? 'Aktív' : 'Inaktív'}
           </span>
-          <button
-            onClick={() => alert('Szerkesztés - hamarosan')}
+          <Link
+            href={`/admin/locations/${locationId}/edit`}
             className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             Szerkesztés
-          </button>
+          </Link>
         </div>
       </div>
 

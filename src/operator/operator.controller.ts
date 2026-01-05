@@ -326,6 +326,40 @@ export class OperatorController {
     });
   }
 
+  @Post('wash-events/:id/lock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lock a completed wash event' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiHeader({
+    name: 'X-User-ID',
+    description: 'Operator user ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Wash event ID' })
+  @ApiResponse({ status: 200, description: 'Wash event locked' })
+  async lockWashEvent(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Headers('x-user-id') userId: string,
+    @Req() req: Request,
+  ) {
+    const { networkId: tenantId, userId: operatorId } = this.getTenantContext(
+      networkId,
+      userId,
+    );
+    const metadata = this.getRequestMetadata(req);
+
+    return this.washEventService.lock(tenantId, id, {
+      actorType: 'USER',
+      actorId: operatorId,
+      ...metadata,
+    });
+  }
+
   // =========================================================================
   // PARTNER COMPANY CRUD
   // =========================================================================
@@ -574,6 +608,74 @@ export class OperatorController {
     }
 
     return this.servicePackageService.findAvailableAtLocation(networkId, id);
+  }
+
+  @Put('locations/:id/services')
+  @ApiOperation({ summary: 'Update available services at a location' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Location ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        servicePackageIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of service package IDs to enable at this location',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Services updated' })
+  async updateLocationServices(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Body() body: { servicePackageIds: string[] },
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    // Verify location exists
+    await this.locationService.findById(networkId, id);
+
+    // Get all service packages
+    const allServices = await this.servicePackageService.findAll(networkId);
+
+    // Update availability for each service
+    for (const service of allServices) {
+      const isEnabled = body.servicePackageIds.includes(service.id);
+      await this.servicePackageService.setLocationAvailability(
+        networkId,
+        id,
+        service.id,
+        isEnabled,
+      );
+    }
+
+    return this.servicePackageService.findAvailableAtLocation(networkId, id);
+  }
+
+  @Get('service-packages')
+  @ApiOperation({ summary: 'List all service packages' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'All service packages' })
+  async getAllServicePackages(
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.servicePackageService.findAll(networkId);
   }
 
   @Get('locations/:id/qr-code')
