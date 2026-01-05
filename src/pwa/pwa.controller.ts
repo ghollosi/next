@@ -290,7 +290,7 @@ export class PwaController {
 
   @Get('vehicles')
   @ApiOperation({ summary: 'Get driver vehicles' })
-  @ApiResponse({ status: 200, description: 'List of vehicles' })
+  @ApiResponse({ status: 200, description: 'List of vehicles split by type' })
   async getVehicles(@Req() req: Request) {
     const session = this.getDriverSession(req);
 
@@ -299,8 +299,31 @@ export class PwaController {
       session.partnerCompanyId,
     );
 
-    // Return all vehicles - the PWA will handle filtering by type as needed
-    return { vehicles };
+    // Split vehicles by type for PWA
+    // Tractor types: actual trucks that pull trailers
+    const tractorTypes = ['TRACTOR', 'SEMI_TRUCK', 'TRUCK_1_5T', 'TRUCK_3_5T', 'TRUCK_7_5T', 'TRUCK_12T', 'TRUCK_12T_PLUS', 'TANK_SOLO', 'TANK_12T', 'TANK_TRUCK'];
+    // Trailer types: things that are pulled
+    const trailerTypes = ['TRAILER_ONLY', 'TANK_SEMI_TRAILER', 'GRAIN_CARRIER', 'CONTAINER_CARRIER'];
+
+    const tractors = vehicles
+      .filter((v) => tractorTypes.includes(v.type))
+      .map((v) => ({
+        id: v.id,
+        type: v.type,
+        plateNumber: v.plateNumber,
+        plateState: v.plateState,
+      }));
+
+    const trailers = vehicles
+      .filter((v) => trailerTypes.includes(v.type))
+      .map((v) => ({
+        id: v.id,
+        type: v.type,
+        plateNumber: v.plateNumber,
+        plateState: v.plateState,
+      }));
+
+    return { tractors, trailers };
   }
 
   @Get('locations')
