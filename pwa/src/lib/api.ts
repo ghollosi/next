@@ -55,6 +55,13 @@ export interface ServicePackage {
 // Alias for backward compatibility
 export type WashService = ServicePackage;
 
+export interface Vehicle {
+  id: string;
+  type: 'TRACTOR' | 'TRAILER';
+  plateNumber: string;
+  plateState?: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -154,7 +161,9 @@ class ApiClient {
     data: {
       locationId: string;
       servicePackageId: string;
+      tractorVehicleId?: string;
       tractorPlateManual?: string;
+      trailerVehicleId?: string;
       trailerPlateManual?: string;
     }
   ): Promise<WashEvent> {
@@ -254,6 +263,21 @@ class ApiClient {
     const result = await response.json();
     // API returns { data: [...], total: N }, we need just the array
     return result.data || result;
+  }
+
+  async getVehicles(sessionId: string): Promise<{ tractors: Vehicle[]; trailers: Vehicle[] }> {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles`, {
+      headers: {
+        'x-driver-session': sessionId,
+      },
+    });
+
+    if (!response.ok) {
+      this.handleSessionError(response);
+      throw new Error('Failed to get vehicles');
+    }
+
+    return response.json();
   }
 }
 
