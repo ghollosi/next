@@ -12,6 +12,7 @@ import { WashEventModule } from './modules/wash-event/wash-event.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { PwaModule } from './pwa/pwa.module';
 import { OperatorModule } from './operator/operator.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { OperatorModule } from './operator/operator.module';
     AuditLogModule,
     PwaModule,
     OperatorModule,
+    BillingModule,
   ],
 })
 export class AppModule {}

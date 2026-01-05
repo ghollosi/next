@@ -231,7 +231,6 @@ export class WashEventService {
           id: input.trailerVehicleId,
           networkId,
           partnerCompanyId: driver.partnerCompanyId,
-          type: 'TRAILER',
           isActive: true,
           deletedAt: null,
         },

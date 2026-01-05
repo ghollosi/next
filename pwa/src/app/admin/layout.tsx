@@ -52,6 +52,7 @@ export default function AdminLayout({
     { href: '/admin/wash-events', label: 'Wash Events', icon: '🚿' },
     { href: '/admin/locations', label: 'Locations', icon: '📍' },
     { href: '/admin/drivers', label: 'Drivers', icon: '👤' },
+    { href: '/admin/prices', label: 'Árlista', icon: '💰' },
   ];
 
   const handleLogout = () => {

@@ -17,7 +17,7 @@ RUN npm ci
 
 COPY . .
 
-RUN npx prisma generate
+RUN npx prisma generate --schema=prisma/schema.prisma
 
 CMD ["npm", "run", "start:dev"]
 
@@ -29,7 +29,7 @@ RUN npm ci
 
 COPY . .
 
-RUN npx prisma generate
+RUN npx prisma generate --schema=prisma/schema.prisma
 RUN npm run build
 
 # Production stage

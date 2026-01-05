@@ -289,25 +289,18 @@ export class PwaController {
   }
 
   @Get('vehicles')
-  @ApiOperation({ summary: 'Get driver vehicles (tractors and trailers)' })
+  @ApiOperation({ summary: 'Get driver vehicles' })
   @ApiResponse({ status: 200, description: 'List of vehicles' })
   async getVehicles(@Req() req: Request) {
     const session = this.getDriverSession(req);
 
-    const [tractors, trailers] = await Promise.all([
-      this.vehicleService.findByPartnerCompanyAndType(
-        session.networkId,
-        session.partnerCompanyId,
-        'TRACTOR',
-      ),
-      this.vehicleService.findByPartnerCompanyAndType(
-        session.networkId,
-        session.partnerCompanyId,
-        'TRAILER',
-      ),
-    ]);
+    const vehicles = await this.vehicleService.findByPartnerCompany(
+      session.networkId,
+      session.partnerCompanyId,
+    );
 
-    return { tractors, trailers };
+    // Return all vehicles - the PWA will handle filtering by type as needed
+    return { vehicles };
   }
 
   @Get('locations')

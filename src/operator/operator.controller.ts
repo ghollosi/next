@@ -8,11 +8,14 @@ import {
   Param,
   Query,
   Req,
+  Res,
   Headers,
   HttpCode,
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
+import { Response } from 'express';
+import * as QRCode from 'qrcode';
 import {
   ApiTags,
   ApiOperation,
@@ -39,6 +42,11 @@ import {
   UpdateDriverDto,
   UpdateDriverPinDto,
 } from './dto/driver.dto';
+import {
+  CreateLocationDto,
+  UpdateLocationDto,
+  OperationType,
+} from './dto/location.dto';
 
 @ApiTags('operator')
 @Controller('operator')
@@ -446,12 +454,106 @@ export class OperatorController {
     required: true,
   })
   @ApiResponse({ status: 200, description: 'List of locations' })
-  async getLocations(@Headers('x-network-id') networkId: string) {
+  async getLocations(
+    @Headers('x-network-id') networkId: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
 
-    return this.locationService.findActive(networkId);
+    if (activeOnly === 'true') {
+      return this.locationService.findActive(networkId);
+    }
+    return this.locationService.findAll(networkId);
+  }
+
+  @Get('locations/:id')
+  @ApiOperation({ summary: 'Get location by ID' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Location ID' })
+  @ApiResponse({ status: 200, description: 'Location details' })
+  async getLocation(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.locationService.findById(networkId, id);
+  }
+
+  @Post('locations')
+  @ApiOperation({ summary: 'Create a new location' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiBody({ type: CreateLocationDto })
+  @ApiResponse({ status: 201, description: 'Location created' })
+  async createLocation(
+    @Body() dto: CreateLocationDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.locationService.create(networkId, {
+      ...dto,
+      operationType: dto.operationType as any,
+    });
+  }
+
+  @Put('locations/:id')
+  @ApiOperation({ summary: 'Update a location' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Location ID' })
+  @ApiBody({ type: UpdateLocationDto })
+  @ApiResponse({ status: 200, description: 'Location updated' })
+  async updateLocation(
+    @Param('id') id: string,
+    @Body() dto: UpdateLocationDto,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.locationService.update(networkId, id, {
+      ...dto,
+      operationType: dto.operationType as any,
+    });
+  }
+
+  @Delete('locations/:id')
+  @ApiOperation({ summary: 'Delete a location (soft delete)' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Location ID' })
+  @ApiResponse({ status: 200, description: 'Location deleted' })
+  async deleteLocation(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    return this.locationService.softDelete(networkId, id);
   }
 
   @Get('locations/:id/services')
@@ -472,6 +574,133 @@ export class OperatorController {
     }
 
     return this.servicePackageService.findAvailableAtLocation(networkId, id);
+  }
+
+  @Get('locations/:id/qr-code')
+  @ApiOperation({ summary: 'Generate QR code for location wash start URL' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Location ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'QR code image (PNG or SVG)',
+    content: {
+      'image/png': {},
+      'image/svg+xml': {},
+    },
+  })
+  async getLocationQRCode(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Query('format') format: 'png' | 'svg' = 'png',
+    @Query('size') size: string = '300',
+    @Query('baseUrl') baseUrl: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    // Get location to validate it exists and get the code
+    const location = await this.locationService.findById(networkId, id);
+
+    // Default base URL for PWA - can be overridden via query param
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const washUrl = `${pwaBaseUrl}/wash/new?location=${location.code}`;
+
+    const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
+
+    if (format === 'svg') {
+      const svg = await QRCode.toString(washUrl, {
+        type: 'svg',
+        width: qrSize,
+        margin: 2,
+        color: {
+          dark: '#1f2937', // gray-800
+          light: '#ffffff',
+        },
+      });
+
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="qr-${location.code}.svg"`,
+      );
+      return res.send(svg);
+    }
+
+    // Default: PNG
+    const pngBuffer = await QRCode.toBuffer(washUrl, {
+      type: 'png',
+      width: qrSize,
+      margin: 2,
+      color: {
+        dark: '#1f2937',
+        light: '#ffffff',
+      },
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="qr-${location.code}.png"`,
+    );
+    return res.send(pngBuffer);
+  }
+
+  @Get('locations/:id/qr-code-data')
+  @ApiOperation({
+    summary: 'Get QR code data as base64 (for embedding in HTML)',
+  })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Location ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'QR code data with base64 image and URL',
+  })
+  async getLocationQRCodeData(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Query('size') size: string = '300',
+    @Query('baseUrl') baseUrl?: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    // Get location to validate it exists and get the code
+    const location = await this.locationService.findById(networkId, id);
+
+    // Default base URL for PWA
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const washUrl = `${pwaBaseUrl}/wash/new?location=${location.code}`;
+
+    const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
+
+    const dataUrl = await QRCode.toDataURL(washUrl, {
+      width: qrSize,
+      margin: 2,
+      color: {
+        dark: '#1f2937',
+        light: '#ffffff',
+      },
+    });
+
+    return {
+      locationId: location.id,
+      locationCode: location.code,
+      locationName: location.name,
+      washUrl,
+      qrCodeDataUrl: dataUrl,
+      size: qrSize,
+    };
   }
 
   @Get('drivers')

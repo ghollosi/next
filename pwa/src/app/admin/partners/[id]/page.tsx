@@ -21,6 +21,29 @@ interface PartnerCompany {
   billingCountry?: string;
   taxNumber?: string;
   euVatNumber?: string;
+  paymentDueDays?: number;
+  // SAJÁT hálózat kedvezmények
+  ownDiscountThreshold1?: number | null;
+  ownDiscountPercent1?: number | null;
+  ownDiscountThreshold2?: number | null;
+  ownDiscountPercent2?: number | null;
+  ownDiscountThreshold3?: number | null;
+  ownDiscountPercent3?: number | null;
+  ownDiscountThreshold4?: number | null;
+  ownDiscountPercent4?: number | null;
+  ownDiscountThreshold5?: number | null;
+  ownDiscountPercent5?: number | null;
+  // ALVÁLLALKOZÓI hálózat kedvezmények
+  subDiscountThreshold1?: number | null;
+  subDiscountPercent1?: number | null;
+  subDiscountThreshold2?: number | null;
+  subDiscountPercent2?: number | null;
+  subDiscountThreshold3?: number | null;
+  subDiscountPercent3?: number | null;
+  subDiscountThreshold4?: number | null;
+  subDiscountPercent4?: number | null;
+  subDiscountThreshold5?: number | null;
+  subDiscountPercent5?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -275,7 +298,75 @@ export default function PartnerDetailsPage() {
             <dt className="text-sm text-gray-500">EU adószám</dt>
             <dd className="text-gray-900 font-mono">{partner.euVatNumber || '-'}</dd>
           </div>
+          <div>
+            <dt className="text-sm text-gray-500">Fizetési határidő</dt>
+            <dd className="text-gray-900">{partner.paymentDueDays ?? 8} nap</dd>
+          </div>
         </dl>
+      </div>
+
+      {/* OWN Network Discounts */}
+      <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 border-b pb-2 mb-4">
+          Kedvezmények - Saját hálózat
+        </h2>
+        {(() => {
+          const ownDiscounts = [
+            { threshold: partner.ownDiscountThreshold1, percent: partner.ownDiscountPercent1 },
+            { threshold: partner.ownDiscountThreshold2, percent: partner.ownDiscountPercent2 },
+            { threshold: partner.ownDiscountThreshold3, percent: partner.ownDiscountPercent3 },
+            { threshold: partner.ownDiscountThreshold4, percent: partner.ownDiscountPercent4 },
+            { threshold: partner.ownDiscountThreshold5, percent: partner.ownDiscountPercent5 },
+          ].filter(d => d.threshold != null && d.percent != null);
+
+          if (ownDiscounts.length === 0) {
+            return <p className="text-gray-500 text-sm">Nincs beállított kedvezmény</p>;
+          }
+
+          return (
+            <div className="space-y-2">
+              {ownDiscounts.map((d, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">{i + 1}. szint:</span>
+                  <span className="font-medium text-gray-900">{d.threshold} mosás/hó felett</span>
+                  <span className="text-primary-600 font-semibold">{d.percent}%</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* SUBCONTRACTOR Network Discounts */}
+      <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 border-b pb-2 mb-4">
+          Kedvezmények - Alvállalkozói hálózat
+        </h2>
+        {(() => {
+          const subDiscounts = [
+            { threshold: partner.subDiscountThreshold1, percent: partner.subDiscountPercent1 },
+            { threshold: partner.subDiscountThreshold2, percent: partner.subDiscountPercent2 },
+            { threshold: partner.subDiscountThreshold3, percent: partner.subDiscountPercent3 },
+            { threshold: partner.subDiscountThreshold4, percent: partner.subDiscountPercent4 },
+            { threshold: partner.subDiscountThreshold5, percent: partner.subDiscountPercent5 },
+          ].filter(d => d.threshold != null && d.percent != null);
+
+          if (subDiscounts.length === 0) {
+            return <p className="text-gray-500 text-sm">Nincs beállított kedvezmény</p>;
+          }
+
+          return (
+            <div className="space-y-2">
+              {subDiscounts.map((d, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">{i + 1}. szint:</span>
+                  <span className="font-medium text-gray-900">{d.threshold} mosás/hó felett</span>
+                  <span className="text-orange-600 font-semibold">{d.percent}%</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Actions */}
