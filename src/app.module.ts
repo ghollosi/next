@@ -13,6 +13,7 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { PwaModule } from './pwa/pwa.module';
 import { OperatorModule } from './operator/operator.module';
 import { BillingModule } from './billing/billing.module';
+import { PartnerPortalModule } from './partner-portal/partner-portal.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { BillingModule } from './billing/billing.module';
     PwaModule,
     OperatorModule,
     BillingModule,
+    PartnerPortalModule,
   ],
 })
 export class AppModule {}

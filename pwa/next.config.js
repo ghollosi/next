@@ -3,7 +3,8 @@ const nextConfig = {
   output: 'standalone',
   // Rewrite API calls to the backend
   async rewrites() {
-    const apiUrl = process.env.API_URL || 'http://localhost:3000';
+    // Use vsys-api for Docker network, localhost for local development
+    const apiUrl = process.env.API_URL || 'http://vsys-api:3000';
     return [
       {
         source: '/api/:path*',
@@ -16,6 +17,10 @@ const nextConfig = {
       {
         source: '/operator/:path*',
         destination: `${apiUrl}/operator/:path*`,
+      },
+      {
+        source: '/partner-portal/:path*',
+        destination: `${apiUrl}/partner-portal/:path*`,
       },
       {
         source: '/health',

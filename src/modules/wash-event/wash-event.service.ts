@@ -149,6 +149,58 @@ export class WashEventService {
     return { data, total };
   }
 
+  async findByPartnerCompany(
+    networkId: string,
+    partnerCompanyId: string,
+    options?: {
+      status?: WashEventStatus;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: WashEvent[]; total: number }> {
+    const where: any = {
+      networkId,
+      partnerCompanyId,
+    };
+
+    if (options?.status) {
+      where.status = options.status;
+    }
+
+    if (options?.startDate || options?.endDate) {
+      where.createdAt = {};
+      if (options.startDate) {
+        where.createdAt.gte = options.startDate;
+      }
+      if (options.endDate) {
+        where.createdAt.lte = options.endDate;
+      }
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.washEvent.findMany({
+        where,
+        include: {
+          location: true,
+          servicePackage: true,
+          driver: true,
+          tractorVehicle: true,
+          trailerVehicle: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: options?.limit || 50,
+        skip: options?.offset || 0,
+      }),
+      this.prisma.washEvent.count({ where }),
+    ]);
+
+    return { data, total };
+  }
+
   async createQrDriver(
     networkId: string,
     input: CreateWashEventQrDriverInput,
