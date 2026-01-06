@@ -878,6 +878,7 @@ export class OperatorPortalController {
             code: true,
           },
         },
+        // Új multi-service rendszer
         services: {
           include: {
             servicePackage: {
@@ -887,6 +888,14 @@ export class OperatorPortalController {
                 code: true,
               },
             },
+          },
+        },
+        // Régi single-service mező (backward compatibility)
+        servicePackage: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
           },
         },
       },
@@ -914,9 +923,10 @@ export class OperatorPortalController {
     const mostFrequentPartner = Array.from(partnerCounts.values())
       .sort((a, b) => b.count - a.count)[0]?.partner || null;
 
-    // Leggyakoribb szolgáltatások
+    // Leggyakoribb szolgáltatások (új multi-service + régi single-service)
     const serviceCounts = new Map<string, { count: number; service: any }>();
     for (const wash of recentWashes) {
+      // Új multi-service rendszer
       for (const svc of wash.services) {
         if (svc.servicePackage) {
           const key = svc.servicePackage.id;
@@ -925,13 +935,20 @@ export class OperatorPortalController {
           serviceCounts.set(key, current);
         }
       }
+      // Régi single-service mező (backward compatibility)
+      if (wash.servicePackage && wash.services.length === 0) {
+        const key = wash.servicePackage.id;
+        const current = serviceCounts.get(key) || { count: 0, service: wash.servicePackage };
+        current.count++;
+        serviceCounts.set(key, current);
+      }
     }
     const frequentServices = Array.from(serviceCounts.values())
       .sort((a, b) => b.count - a.count)
       .slice(0, 3)
       .map(s => s.service);
 
-    // Járműtípus meghatározása az első szolgáltatásból
+    // Járműtípus meghatározása (az első szolgáltatásból)
     const vehicleType = lastWash.services[0]?.vehicleType || null;
 
     // Pótkocsi rendszám (ha volt)
