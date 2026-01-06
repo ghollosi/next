@@ -39,23 +39,22 @@ export default function AdminDashboardPage() {
     try {
       const headers = { 'x-network-id': NETWORK_ID };
 
-      // Load locations first to get wash events
+      // Load locations first to get wash events from ALL locations
       const locResponse = await fetch(`${API_URL}/operator/locations`, { headers });
       let allWashEvents: WashEvent[] = [];
 
       if (locResponse.ok) {
         const locations = await locResponse.json();
-        if (locations.length > 0) {
-          // Load wash events for first location
-          const eventsResponse = await fetch(
-            `${API_URL}/operator/wash-events?locationId=${locations[0].id}&limit=100`,
-            { headers }
-          );
-          if (eventsResponse.ok) {
-            const data = await eventsResponse.json();
-            allWashEvents = data.data || [];
-          }
-        }
+        // Load wash events from ALL locations
+        const eventPromises = locations.map((loc: { id: string; name: string }) =>
+          fetch(`${API_URL}/operator/wash-events?locationId=${loc.id}&limit=100`, { headers })
+            .then(res => res.ok ? res.json() : { data: [] })
+            .then(data => (data.data || []).map((e: WashEvent) => ({ ...e, location: { name: loc.name } })))
+        );
+        const results = await Promise.all(eventPromises);
+        allWashEvents = results.flat().sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
       }
 
       // Load drivers count

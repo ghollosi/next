@@ -18,6 +18,7 @@ interface Location {
   email?: string;
   isActive: boolean;
   operationType?: 'OWN' | 'SUBCONTRACTOR';
+  washMode?: 'AUTOMATIC' | 'MANUAL';
 }
 
 interface ServicePackage {
@@ -52,6 +53,7 @@ export default function LocationEditPage() {
   const [timezone, setTimezone] = useState('Europe/Budapest');
   const [isActive, setIsActive] = useState(true);
   const [operationType, setOperationType] = useState<'OWN' | 'SUBCONTRACTOR'>('OWN');
+  const [washMode, setWashMode] = useState<'AUTOMATIC' | 'MANUAL'>('MANUAL');
 
   // Services
   const [allServices, setAllServices] = useState<ServicePackage[]>([]);
@@ -84,6 +86,7 @@ export default function LocationEditPage() {
         setTimezone(loc.timezone || 'Europe/Budapest');
         setIsActive(loc.isActive);
         setOperationType(loc.operationType || 'OWN');
+        setWashMode(loc.washMode || 'MANUAL');
       } else {
         throw new Error('Nem sikerült betölteni a helyszínt');
       }
@@ -158,6 +161,7 @@ export default function LocationEditPage() {
           timezone,
           isActive,
           operationType,
+          washMode,
         }),
       });
 
@@ -279,6 +283,21 @@ export default function LocationEditPage() {
                 <option value="OWN">Saját üzemeltetés</option>
                 <option value="SUBCONTRACTOR">Alvállalkozó</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mosás módja</label>
+              <select
+                value={washMode}
+                onChange={(e) => setWashMode(e.target.value as 'AUTOMATIC' | 'MANUAL')}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="AUTOMATIC">Automata (sofőr indítja)</option>
+                <option value="MANUAL">Személyzetes (operátor kezeli)</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Automata: a sofőr maga indítja és fejezi be a mosást. Személyzetes: az operátor kezeli a sort.
+              </p>
             </div>
 
             <div className="flex items-center gap-3">

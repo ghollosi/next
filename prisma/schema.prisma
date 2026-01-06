@@ -130,6 +130,11 @@ enum OperationType {
   SUBCONTRACTOR // Alvállalkozó által üzemeltetett
 }
 
+enum WashMode {
+  AUTOMATIC     // Automata mosó - sofőr indítja és gép állítja le
+  MANUAL        // Személyzetes mosó - operátor indítja és fejezi be
+}
+
 enum BillingCycle {
   MONTHLY     // Havi számlázás (1-től utolsó napig)
   WEEKLY      // Heti számlázás (hétfő-vasárnap)
@@ -207,6 +212,9 @@ model Location {
 
   // Üzemeltetés típusa
   operationType OperationType @default(OWN) @map("operation_type")
+
+  // Mosás mód - AUTOMATIC: sofőr indítja, MANUAL: operátor indítja
+  washMode      WashMode      @default(MANUAL) @map("wash_mode")
 
   // Koordináták
   latitude      Float?
@@ -408,6 +416,7 @@ model ServicePackage {
   network              Network                       @relation(fields: [networkId], references: [id])
   locationAvailability LocationServiceAvailability[]
   washEvents           WashEvent[]
+  washEventServices    WashEventService[]
   servicePrices        ServicePrice[]
   partnerCustomPrices  PartnerCustomPrice[]
   invoiceItems         InvoiceItem[]
@@ -450,7 +459,7 @@ model WashEvent {
   networkId            String          @map("network_id")
   locationId           String          @map("location_id")
   partnerCompanyId     String          @map("partner_company_id")
-  servicePackageId     String          @map("service_package_id")
+  servicePackageId     String?         @map("service_package_id") // DEPRECATED - használd a services relációt
 
   // Entry mode and status
   entryMode            WashEntryMode   @map("entry_mode")
@@ -500,12 +509,13 @@ model WashEvent {
   network        Network        @relation(fields: [networkId], references: [id])
   location       Location       @relation(fields: [locationId], references: [id])
   partnerCompany PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
-  servicePackage ServicePackage @relation(fields: [servicePackageId], references: [id])
+  servicePackage ServicePackage? @relation(fields: [servicePackageId], references: [id])
   driver         Driver?        @relation(fields: [driverId], references: [id])
   tractorVehicle Vehicle?       @relation("TractorVehicle", fields: [tractorVehicleId], references: [id])
   trailerVehicle Vehicle?       @relation("TrailerVehicle", fields: [trailerVehicleId], references: [id])
   auditLogs      AuditLog[]
   invoice        Invoice?       @relation(fields: [invoiceId], references: [id])
+  services       WashEventService[]  // Több szolgáltatás a mosáshoz
 
   @@index([networkId])
   @@index([locationId])
@@ -665,6 +675,36 @@ model Invoice {
   @@index([issueDate])
   @@index([dueDate])
   @@map("invoices")
+}
+
+// =============================================================================
+// WASH EVENT SERVICE (Mosáshoz kapcsolt szolgáltatások)
+// =============================================================================
+
+model WashEventService {
+  id               String      @id @default(uuid())
+  washEventId      String      @map("wash_event_id")
+  servicePackageId String      @map("service_package_id")
+  vehicleType      VehicleType @map("vehicle_type")
+
+  // Árazás (a mosás időpontjában rögzített ár)
+  unitPrice        Decimal     @db.Decimal(10, 2) @map("unit_price")
+  quantity         Int         @default(1)
+  totalPrice       Decimal     @db.Decimal(10, 2) @map("total_price")
+
+  // Járműhöz kapcsolás (opcionális - pl. vontató vs pótkocsi)
+  vehicleRole      String?     @map("vehicle_role") // 'TRACTOR' | 'TRAILER' | null
+  plateNumber      String?     @map("plate_number") // A kapcsolt jármű rendszáma
+
+  createdAt        DateTime    @default(now())
+
+  // Relations
+  washEvent      WashEvent      @relation(fields: [washEventId], references: [id], onDelete: Cascade)
+  servicePackage ServicePackage @relation(fields: [servicePackageId], references: [id])
+
+  @@index([washEventId])
+  @@index([servicePackageId])
+  @@map("wash_event_services")
 }
 
 // =============================================================================

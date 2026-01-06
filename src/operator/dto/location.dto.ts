@@ -5,6 +5,11 @@ export enum OperationType {
   SUBCONTRACTOR = 'SUBCONTRACTOR',
 }
 
+export enum WashMode {
+  AUTOMATIC = 'AUTOMATIC',
+  MANUAL = 'MANUAL',
+}
+
 export class CreateLocationDto {
   @IsString()
   name: string;
@@ -39,6 +44,10 @@ export class CreateLocationDto {
   @IsOptional()
   @IsEnum(OperationType)
   operationType?: OperationType;
+
+  @IsOptional()
+  @IsEnum(WashMode)
+  washMode?: WashMode;
 
   @IsOptional()
   @IsNumber()
@@ -101,6 +110,10 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsEnum(OperationType)
   operationType?: OperationType;
+
+  @IsOptional()
+  @IsEnum(WashMode)
+  washMode?: WashMode;
 
   @IsOptional()
   @IsNumber()

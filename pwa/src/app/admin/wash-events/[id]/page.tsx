@@ -4,6 +4,22 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+interface WashEventService {
+  id: string;
+  servicePackageId: string;
+  vehicleType: string;
+  unitPrice: string;
+  quantity: number;
+  totalPrice: string;
+  vehicleRole?: string;
+  plateNumber?: string;
+  servicePackage?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+}
+
 interface WashEvent {
   id: string;
   status: string;
@@ -11,6 +27,8 @@ interface WashEvent {
   tractorPlateManual?: string;
   trailerPlateManual?: string;
   vehicleType?: string;
+  totalPrice?: string;
+  finalPrice?: string;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -27,6 +45,7 @@ interface WashEvent {
     name: string;
     code: string;
   };
+  services?: WashEventService[];
   partnerCompany?: {
     id: string;
     name: string;
@@ -228,17 +247,12 @@ export default function WashEventDetailsPage() {
 
           {/* Location & Service */}
           <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Helyszín és szolgáltatás</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Helyszín és partner</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Helyszín</p>
                 <p className="text-gray-900 font-medium">{event.location?.name || '-'}</p>
                 <p className="text-sm text-gray-500 font-mono">{event.location?.code}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Szolgáltatás</p>
-                <p className="text-gray-900 font-medium">{event.servicePackage?.name || '-'}</p>
-                <p className="text-sm text-gray-500 font-mono">{event.servicePackage?.code}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Partner</p>
@@ -248,7 +262,56 @@ export default function WashEventDetailsPage() {
                 <p className="text-sm text-gray-500">Sofőr</p>
                 <p className="text-gray-900">{event.driver?.name || '-'}</p>
               </div>
+              <div>
+                <p className="text-sm text-gray-500">Végösszeg</p>
+                <p className="text-gray-900 font-semibold">
+                  {event.totalPrice ? `${parseFloat(event.totalPrice).toLocaleString('hu-HU')} Ft` : '-'}
+                </p>
+              </div>
             </div>
+          </div>
+
+          {/* Services */}
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Szolgáltatások
+              {event.services && event.services.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ({event.services.length} db)
+                </span>
+              )}
+            </h2>
+            {event.services && event.services.length > 0 ? (
+              <div className="space-y-3">
+                {event.services.map((svc) => (
+                  <div key={svc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">{svc.servicePackage?.name || 'Szolgáltatás'}</p>
+                      <p className="text-sm text-gray-500">
+                        {vehicleTypeLabels[svc.vehicleType] || svc.vehicleType}
+                        {svc.vehicleRole && ` (${svc.vehicleRole === 'TRACTOR' ? 'Vontató' : 'Pótkocsi'})`}
+                        {svc.plateNumber && ` - ${svc.plateNumber}`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">
+                        {parseFloat(svc.totalPrice).toLocaleString('hu-HU')} Ft
+                      </p>
+                      {svc.quantity > 1 && (
+                        <p className="text-sm text-gray-500">{svc.quantity} x {parseFloat(svc.unitPrice).toLocaleString('hu-HU')} Ft</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : event.servicePackage ? (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium text-gray-900">{event.servicePackage.name}</p>
+                <p className="text-sm text-gray-500 font-mono">{event.servicePackage.code}</p>
+              </div>
+            ) : (
+              <p className="text-gray-500">Nincs szolgáltatás rögzítve</p>
+            )}
           </div>
 
           {/* Timeline */}

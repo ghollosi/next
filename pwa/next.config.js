@@ -23,6 +23,10 @@ const nextConfig = {
         destination: `${apiUrl}/partner-portal/:path*`,
       },
       {
+        source: '/operator-portal/:path*',
+        destination: `${apiUrl}/operator-portal/:path*`,
+      },
+      {
         source: '/health',
         destination: `${apiUrl}/health`,
       },

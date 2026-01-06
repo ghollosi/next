@@ -7,13 +7,13 @@ import { api, WashEvent } from '@/lib/api';
 
 type WashStatus = 'CREATED' | 'AUTHORIZED' | 'IN_PROGRESS' | 'COMPLETED' | 'LOCKED' | 'REJECTED';
 
-const statusConfig: Record<WashStatus, { label: string; color: string; bgColor: string }> = {
-  CREATED: { label: 'Created', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
-  AUTHORIZED: { label: 'Authorized', color: 'text-green-700', bgColor: 'bg-green-100' },
-  IN_PROGRESS: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-  COMPLETED: { label: 'Completed', color: 'text-gray-700', bgColor: 'bg-gray-100' },
-  LOCKED: { label: 'Locked', color: 'text-red-700', bgColor: 'bg-red-100' },
-  REJECTED: { label: 'Rejected', color: 'text-red-700', bgColor: 'bg-red-100' },
+const statusConfig: Record<WashStatus, { label: string; labelHu: string; color: string; bgColor: string }> = {
+  CREATED: { label: 'Created', labelHu: 'Várakozik', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
+  AUTHORIZED: { label: 'Authorized', labelHu: 'Engedélyezve', color: 'text-green-700', bgColor: 'bg-green-100' },
+  IN_PROGRESS: { label: 'In Progress', labelHu: 'Folyamatban', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  COMPLETED: { label: 'Completed', labelHu: 'Befejezve', color: 'text-gray-700', bgColor: 'bg-gray-100' },
+  LOCKED: { label: 'Locked', labelHu: 'Lezárva', color: 'text-purple-700', bgColor: 'bg-purple-100' },
+  REJECTED: { label: 'Rejected', labelHu: 'Elutasítva', color: 'text-red-700', bgColor: 'bg-red-100' },
 };
 
 export default function WashDetailPage() {
@@ -52,6 +52,13 @@ export default function WashDetailPage() {
     setSessionId(session);
     setDriver(driverInfo);
     loadWashEvent(session);
+
+    // Auto-refresh every 5 seconds for non-completed statuses
+    const interval = setInterval(() => {
+      loadWashEvent(session);
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [router, loadWashEvent]);
 
   // Timer for in-progress washes
@@ -152,6 +159,7 @@ export default function WashDetailPage() {
   }
 
   const status = statusConfig[washEvent.status] || statusConfig.CREATED;
+  const isManualMode = washEvent.location?.washMode === 'MANUAL';
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -167,7 +175,7 @@ export default function WashDetailPage() {
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-semibold">Wash Details</h1>
+            <h1 className="text-lg font-semibold">Mosás részletei</h1>
             <p className="text-primary-200 text-sm">#{washId.slice(0, 8)}</p>
           </div>
         </div>
@@ -185,15 +193,28 @@ export default function WashDetailPage() {
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <div className="text-center">
             <span className={`inline-block px-4 py-2 rounded-full text-sm font-medium ${status.bgColor} ${status.color}`}>
-              {status.label}
+              {status.labelHu}
             </span>
+
+            {/* Manual mode queue info */}
+            {isManualMode && (washEvent.status === 'CREATED' || washEvent.status === 'AUTHORIZED') && (
+              <div className="mt-6">
+                <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-8 h-8 text-yellow-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-lg font-medium text-gray-800">Várakozás a sorban</p>
+                <p className="text-sm text-gray-500 mt-1">Az operátor hamarosan indítja a mosást</p>
+              </div>
+            )}
 
             {washEvent.status === 'IN_PROGRESS' && (
               <div className="mt-6">
                 <div className="text-5xl font-mono font-bold text-primary-600">
                   {formatTime(elapsedTime)}
                 </div>
-                <p className="text-gray-500 mt-2">Time Elapsed</p>
+                <p className="text-gray-500 mt-2">Eltelt idő</p>
               </div>
             )}
 
@@ -206,7 +227,18 @@ export default function WashDetailPage() {
                     )
                   )}
                 </div>
-                <p className="text-gray-500 mt-2">Total Duration</p>
+                <p className="text-gray-500 mt-2">Teljes időtartam</p>
+              </div>
+            )}
+
+            {washEvent.status === 'REJECTED' && (
+              <div className="mt-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <p className="text-lg font-medium text-gray-800">Mosás elutasítva</p>
               </div>
             )}
           </div>
@@ -216,24 +248,24 @@ export default function WashDetailPage() {
       {/* Wash Info */}
       <div className="px-4 flex-1">
         <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
-          <h3 className="font-semibold text-gray-800">Wash Information</h3>
+          <h3 className="font-semibold text-gray-800">Mosás adatai</h3>
 
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-500">Location</span>
+              <span className="text-gray-500">Helyszín</span>
               <span className="font-medium text-gray-800">
                 {washEvent.location?.name || washEvent.locationId.slice(0, 8)}
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-500">Service</span>
+              <span className="text-gray-500">Szolgáltatás</span>
               <span className="font-medium text-gray-800">
                 {washEvent.servicePackage?.name || washEvent.servicePackageId.slice(0, 8)}
               </span>
             </div>
             {washEvent.tractorPlateManual && (
               <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                <span className="text-gray-500">Tractor Plate</span>
+                <span className="text-gray-500">Vontató</span>
                 <span className="font-medium text-gray-800 font-mono">
                   {washEvent.tractorPlateManual}
                 </span>
@@ -241,31 +273,31 @@ export default function WashDetailPage() {
             )}
             {washEvent.trailerPlateManual && (
               <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                <span className="text-gray-500">Trailer Plate</span>
+                <span className="text-gray-500">Pótkocsi</span>
                 <span className="font-medium text-gray-800 font-mono">
                   {washEvent.trailerPlateManual}
                 </span>
               </div>
             )}
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-500">Created</span>
+              <span className="text-gray-500">Létrehozva</span>
               <span className="font-medium text-gray-800">
-                {new Date(washEvent.createdAt).toLocaleTimeString()}
+                {new Date(washEvent.createdAt).toLocaleTimeString('hu-HU')}
               </span>
             </div>
             {washEvent.startedAt && (
               <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                <span className="text-gray-500">Started</span>
+                <span className="text-gray-500">Indítva</span>
                 <span className="font-medium text-gray-800">
-                  {new Date(washEvent.startedAt).toLocaleTimeString()}
+                  {new Date(washEvent.startedAt).toLocaleTimeString('hu-HU')}
                 </span>
               </div>
             )}
             {washEvent.completedAt && (
               <div className="flex justify-between items-center py-2">
-                <span className="text-gray-500">Completed</span>
+                <span className="text-gray-500">Befejezve</span>
                 <span className="font-medium text-gray-800">
-                  {new Date(washEvent.completedAt).toLocaleTimeString()}
+                  {new Date(washEvent.completedAt).toLocaleTimeString('hu-HU')}
                 </span>
               </div>
             )}
@@ -275,7 +307,8 @@ export default function WashDetailPage() {
 
       {/* Action Buttons */}
       <div className="px-4 py-6 space-y-3 safe-area-bottom">
-        {(washEvent.status === 'CREATED' || washEvent.status === 'AUTHORIZED') && (
+        {/* AUTOMATIC mode: Show start/complete buttons */}
+        {!isManualMode && (washEvent.status === 'CREATED' || washEvent.status === 'AUTHORIZED') && (
           <button
             onClick={handleStartWash}
             disabled={isActionLoading}
@@ -291,7 +324,7 @@ export default function WashDetailPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Starting...
+                Indítás...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -299,13 +332,23 @@ export default function WashDetailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Start Wash
+                Mosás indítása
               </span>
             )}
           </button>
         )}
 
-        {washEvent.status === 'IN_PROGRESS' && (
+        {/* MANUAL mode: Show info message when waiting */}
+        {isManualMode && (washEvent.status === 'CREATED' || washEvent.status === 'AUTHORIZED') && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <p className="text-blue-700 text-sm">
+              Ez egy személyzetes mosó. Az operátor fogja elindítani a mosást amikor sorra kerülsz.
+            </p>
+          </div>
+        )}
+
+        {/* AUTOMATIC mode: Complete button */}
+        {!isManualMode && washEvent.status === 'IN_PROGRESS' && (
           <button
             onClick={handleCompleteWash}
             disabled={isActionLoading}
@@ -321,17 +364,26 @@ export default function WashDetailPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Completing...
+                Befejezés...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Complete Wash
+                Mosás befejezése
               </span>
             )}
           </button>
+        )}
+
+        {/* MANUAL mode: In progress info */}
+        {isManualMode && washEvent.status === 'IN_PROGRESS' && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+            <p className="text-yellow-700 text-sm">
+              A mosás folyamatban. Az operátor fogja befejezettnek jelölni.
+            </p>
+          </div>
         )}
 
         {washEvent.status === 'COMPLETED' && (
@@ -341,14 +393,26 @@ export default function WashDetailPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Wash Completed!</h3>
-            <p className="text-gray-500 mb-6">Great job! You can start a new wash.</p>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Mosás befejezve!</h3>
+            <p className="text-gray-500 mb-6">Köszönjük! Indíthatsz új mosást.</p>
             <button
               onClick={handleGoHome}
               className="px-8 py-3 bg-primary-600 text-white font-semibold rounded-xl
                          hover:bg-primary-700 active:scale-[0.98] transition-all"
             >
-              Back to Dashboard
+              Vissza a főoldalra
+            </button>
+          </div>
+        )}
+
+        {washEvent.status === 'REJECTED' && (
+          <div className="text-center">
+            <button
+              onClick={handleGoHome}
+              className="px-8 py-3 bg-primary-600 text-white font-semibold rounded-xl
+                         hover:bg-primary-700 active:scale-[0.98] transition-all"
+            >
+              Vissza a főoldalra
             </button>
           </div>
         )}

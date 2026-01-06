@@ -1,5 +1,32 @@
-import { IsString, IsOptional, IsUUID, ValidateIf } from 'class-validator';
+import { IsString, IsOptional, IsUUID, ValidateIf, IsArray, ValidateNested, IsNumber, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+export class WashServiceItemDto {
+  @ApiProperty({ description: 'Service package ID' })
+  @IsUUID()
+  servicePackageId: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle type for pricing' })
+  @IsOptional()
+  @IsString()
+  vehicleType?: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle role (TRACTOR or TRAILER)' })
+  @IsOptional()
+  @IsIn(['TRACTOR', 'TRAILER'])
+  vehicleRole?: 'TRACTOR' | 'TRAILER';
+
+  @ApiPropertyOptional({ description: 'Plate number for this service' })
+  @IsOptional()
+  @IsString()
+  plateNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Quantity', default: 1 })
+  @IsOptional()
+  @IsNumber()
+  quantity?: number;
+}
 
 export class CreateWashEventPwaDto {
   @ApiProperty({
@@ -9,12 +36,23 @@ export class CreateWashEventPwaDto {
   @IsUUID()
   locationId: string;
 
-  @ApiProperty({
-    description: 'Service package ID',
+  @ApiPropertyOptional({
+    description: 'DEPRECATED - Single service package ID. Use "services" array instead.',
     example: 'uuid-service-package-id',
   })
+  @IsOptional()
   @IsUUID()
-  servicePackageId: string;
+  servicePackageId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Multiple services for this wash event',
+    type: [WashServiceItemDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WashServiceItemDto)
+  services?: WashServiceItemDto[];
 
   @ApiPropertyOptional({
     description: 'Tractor vehicle ID (if selecting from registered vehicles)',

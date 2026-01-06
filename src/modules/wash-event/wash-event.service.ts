@@ -55,6 +55,11 @@ export class WashEventService {
         driver: true,
         tractorVehicle: true,
         trailerVehicle: true,
+        services: {
+          include: {
+            servicePackage: true,
+          },
+        },
       },
     });
 
@@ -104,6 +109,11 @@ export class WashEventService {
           driver: true,
           tractorVehicle: true,
           trailerVehicle: true,
+          services: {
+            include: {
+              servicePackage: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',
@@ -234,13 +244,23 @@ export class WashEventService {
       throw new BadRequestException('Location not found or inactive');
     }
 
-    // Validate service package is available at location
+    // Determine services to use (new or legacy format)
+    const hasMultipleServices = input.services && input.services.length > 0;
+    const primaryServicePackageId = hasMultipleServices
+      ? input.services![0].servicePackageId
+      : input.servicePackageId;
+
+    if (!primaryServicePackageId) {
+      throw new BadRequestException('At least one service package is required');
+    }
+
+    // Validate primary service package is available at location
     const serviceAvailability =
       await this.prisma.locationServiceAvailability.findFirst({
         where: {
           networkId,
           locationId: input.locationId,
-          servicePackageId: input.servicePackageId,
+          servicePackageId: primaryServicePackageId,
           isActive: true,
         },
       });
@@ -293,13 +313,30 @@ export class WashEventService {
       }
     }
 
+    // Prepare services data if using multiple services
+    const servicesData = hasMultipleServices
+      ? input.services!.map((svc) => ({
+          servicePackageId: svc.servicePackageId,
+          vehicleType: (svc.vehicleType || 'SEMI_TRUCK') as any,
+          unitPrice: 0, // Will be calculated by billing
+          quantity: svc.quantity || 1,
+          totalPrice: 0, // Will be calculated by billing
+          vehicleRole: svc.vehicleRole || null,
+          plateNumber: svc.plateNumber?.toUpperCase() ||
+            (svc.vehicleRole === 'TRAILER'
+              ? input.trailerPlateManual?.toUpperCase()
+              : input.tractorPlateManual?.toUpperCase()) ||
+            null,
+        }))
+      : undefined;
+
     // Create the wash event
     const washEvent = await this.prisma.washEvent.create({
       data: {
         networkId,
         locationId: input.locationId,
         partnerCompanyId: driver.partnerCompanyId,
-        servicePackageId: input.servicePackageId,
+        servicePackageId: primaryServicePackageId,
         entryMode: WashEntryMode.QR_DRIVER,
         status: WashEventStatus.CREATED,
         driverId: input.driverId,
@@ -307,6 +344,7 @@ export class WashEventService {
         tractorPlateManual: input.tractorPlateManual?.toUpperCase(),
         trailerVehicleId: input.trailerVehicleId,
         trailerPlateManual: input.trailerPlateManual?.toUpperCase(),
+        services: servicesData ? { create: servicesData } : undefined,
       },
       include: {
         location: true,
@@ -315,6 +353,11 @@ export class WashEventService {
         driver: true,
         tractorVehicle: true,
         trailerVehicle: true,
+        services: {
+          include: {
+            servicePackage: true,
+          },
+        },
       },
     });
 

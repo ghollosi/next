@@ -197,12 +197,15 @@ export class BillingService {
     }> = [];
 
     for (const event of washEvents) {
+      // Skip if no servicePackageId
+      if (!event.servicePackageId) continue;
+
       // Add tractor wash
       if (event.tractorPrice) {
         const price = Number(event.tractorPrice);
         subtotal += price;
         items.push({
-          description: `${event.servicePackage.name} - Vontató (${event.tractorVehicle?.plateNumber || event.tractorPlateManual})`,
+          description: `${event.servicePackage?.name || 'Szolgáltatás'} - Vontató (${event.tractorVehicle?.plateNumber || event.tractorPlateManual})`,
           quantity: 1,
           unitPrice: price,
           totalPrice: price,
@@ -218,7 +221,7 @@ export class BillingService {
         const price = Number(event.trailerPrice);
         subtotal += price;
         items.push({
-          description: `${event.servicePackage.name} - Pótkocsi (${event.trailerVehicle?.plateNumber || event.trailerPlateManual})`,
+          description: `${event.servicePackage?.name || 'Szolgáltatás'} - Pótkocsi (${event.trailerVehicle?.plateNumber || event.trailerPlateManual})`,
           quantity: 1,
           unitPrice: price,
           totalPrice: price,
@@ -429,11 +432,11 @@ export class BillingService {
       vehicleType: VehicleType | null;
     }> = [];
 
-    if (washEvent.tractorPrice) {
+    if (washEvent.tractorPrice && washEvent.servicePackageId) {
       const price = Number(washEvent.tractorPrice);
       subtotal += price;
       items.push({
-        description: `${washEvent.servicePackage.name} - Vontató`,
+        description: `${washEvent.servicePackage?.name || 'Szolgáltatás'} - Vontató`,
         quantity: 1,
         unitPrice: price,
         totalPrice: price,
@@ -443,11 +446,11 @@ export class BillingService {
       });
     }
 
-    if (washEvent.trailerPrice) {
+    if (washEvent.trailerPrice && washEvent.servicePackageId) {
       const price = Number(washEvent.trailerPrice);
       subtotal += price;
       items.push({
-        description: `${washEvent.servicePackage.name} - Pótkocsi`,
+        description: `${washEvent.servicePackage?.name || 'Szolgáltatás'} - Pótkocsi`,
         quantity: 1,
         unitPrice: price,
         totalPrice: price,

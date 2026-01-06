@@ -14,6 +14,7 @@ import { PwaModule } from './pwa/pwa.module';
 import { OperatorModule } from './operator/operator.module';
 import { BillingModule } from './billing/billing.module';
 import { PartnerPortalModule } from './partner-portal/partner-portal.module';
+import { OperatorPortalModule } from './operator-portal/operator-portal.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { PartnerPortalModule } from './partner-portal/partner-portal.module';
     OperatorModule,
     BillingModule,
     PartnerPortalModule,
+    OperatorPortalModule,
   ],
 })
 export class AppModule {}

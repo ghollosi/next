@@ -28,6 +28,7 @@ export interface WashEvent {
     code: string;
     city?: string;
     state?: string;
+    washMode?: 'AUTOMATIC' | 'MANUAL';
   };
   servicePackage?: {
     id: string;
@@ -43,6 +44,7 @@ export interface Location {
   name: string;
   city?: string;
   state?: string;
+  washMode?: 'AUTOMATIC' | 'MANUAL';
 }
 
 export interface ServicePackage {
@@ -160,7 +162,16 @@ class ApiClient {
     sessionId: string,
     data: {
       locationId: string;
-      servicePackageId: string;
+      // DEPRECATED - régi egyetlen szolgáltatás
+      servicePackageId?: string;
+      // ÚJ - Több szolgáltatás támogatása
+      services?: Array<{
+        servicePackageId: string;
+        vehicleType?: string;
+        vehicleRole?: 'TRACTOR' | 'TRAILER';
+        plateNumber?: string;
+        quantity?: number;
+      }>;
       tractorVehicleId?: string;
       tractorPlateManual?: string;
       trailerVehicleId?: string;

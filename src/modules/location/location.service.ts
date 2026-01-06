@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Location, OperationType } from '@prisma/client';
+import { Location, OperationType, WashMode } from '@prisma/client';
 
 @Injectable()
 export class LocationService {
@@ -75,6 +75,7 @@ export class LocationService {
       country?: string;
       timezone?: string;
       operationType?: OperationType;
+      washMode?: WashMode;
       latitude?: number;
       longitude?: number;
       openingHours?: string;
@@ -92,6 +93,7 @@ export class LocationService {
         country: data.country || 'HU',
         timezone: data.timezone || 'Europe/Budapest',
         operationType: data.operationType || 'OWN',
+        washMode: data.washMode || 'MANUAL',
         latitude: data.latitude,
         longitude: data.longitude,
         openingHours: data.openingHours,
@@ -112,6 +114,7 @@ export class LocationService {
       country?: string;
       timezone?: string;
       operationType?: OperationType;
+      washMode?: WashMode;
       latitude?: number;
       longitude?: number;
       openingHours?: string;

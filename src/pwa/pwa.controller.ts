@@ -340,6 +340,7 @@ export class PwaController {
       name: loc.name,
       city: loc.city,
       state: loc.state,
+      washMode: loc.washMode,
     }));
   }
 
@@ -361,6 +362,7 @@ export class PwaController {
       name: location.name,
       city: location.city,
       state: location.state,
+      washMode: location.washMode,
     };
   }
 
@@ -389,6 +391,7 @@ export class PwaController {
         id: location.id,
         name: location.name,
         code: location.code,
+        washMode: location.washMode,
       },
       services,
     };
@@ -412,6 +415,15 @@ export class PwaController {
       );
     }
 
+    // Validate that at least one service is provided (new or old way)
+    const hasServices = dto.services && dto.services.length > 0;
+    const hasLegacyService = !!dto.servicePackageId;
+    if (!hasServices && !hasLegacyService) {
+      throw new BadRequestException(
+        'At least one service is required',
+      );
+    }
+
     const washEvent = await this.washEventService.createQrDriver(
       session.networkId,
       {
@@ -419,6 +431,7 @@ export class PwaController {
         locationId: dto.locationId,
         driverId: session.driverId,
         servicePackageId: dto.servicePackageId,
+        services: dto.services,
         tractorVehicleId: dto.tractorVehicleId,
         tractorPlateManual: dto.tractorPlateManual,
         trailerVehicleId: dto.trailerVehicleId,
