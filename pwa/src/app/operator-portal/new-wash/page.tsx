@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -32,6 +32,16 @@ interface SelectedService {
   id: string;
   servicePackageId: string;
   price: number;
+}
+
+interface PlateSuggestion {
+  partner: { id: string; name: string; code: string } | null;
+  vehicleType: string | null;
+  trailerPlate: string | null;
+  driverName: string | null;
+  frequentServices: Array<{ id: string; name: string; code: string }>;
+  lastWashDate: string;
+  totalWashes: number;
 }
 
 // Vehicle types with Hungarian labels
@@ -89,6 +99,10 @@ export default function NewWashPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
 
+  // Plate lookup
+  const [suggestion, setSuggestion] = useState<PlateSuggestion | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
   // Form state - in order of the form
   // 1. Rendszamok
   const [tractorPlate, setTractorPlate] = useState('');
@@ -126,16 +140,103 @@ export default function NewWashPage() {
   const showTrailerPlate = selectedVehicleTypeInfo?.hasTrailer ?? false;
 
   // Get price for a service + vehicle type combination
-  const getPrice = (servicePackageId: string, vType: string): number => {
+  const getPrice = useCallback((servicePackageId: string, vType: string): number => {
     const price = prices.find(
       p => p.servicePackageId === servicePackageId && p.vehicleType === vType
     );
     return price ? parseFloat(price.price) : 0;
-  };
+  }, [prices]);
 
   // Calculate total price
   const calculateTotalPrice = () => {
     return selectedServices.reduce((sum, svc) => sum + svc.price, 0);
+  };
+
+  // Lookup plate in previous wash events
+  const lookupPlate = useCallback(async (plate: string) => {
+    if (plate.length < 3) {
+      setSuggestion(null);
+      return;
+    }
+
+    const session = localStorage.getItem('operator_session');
+    if (!session) return;
+
+    setLookupLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/operator-portal/lookup-plate/${encodeURIComponent(plate)}`, {
+        headers: { 'x-operator-session': session },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.found) {
+          setSuggestion(data.suggestion);
+        } else {
+          setSuggestion(null);
+        }
+      }
+    } catch (err) {
+      console.error('Plate lookup error:', err);
+    } finally {
+      setLookupLoading(false);
+    }
+  }, []);
+
+  // Debounced plate lookup
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (tractorPlate.length >= 3) {
+        lookupPlate(tractorPlate);
+      } else {
+        setSuggestion(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [tractorPlate, lookupPlate]);
+
+  // Apply suggestion to form
+  const applySuggestion = () => {
+    if (!suggestion) return;
+
+    if (suggestion.partner) {
+      setSelectedPartnerId(suggestion.partner.id);
+      setCustomerType('CONTRACT');
+    }
+
+    if (suggestion.vehicleType) {
+      setVehicleType(suggestion.vehicleType);
+    }
+
+    if (suggestion.trailerPlate) {
+      setTrailerPlate(suggestion.trailerPlate);
+    }
+
+    if (suggestion.driverName) {
+      setDriverName(suggestion.driverName);
+    }
+
+    // Add frequent services
+    if (suggestion.frequentServices && suggestion.frequentServices.length > 0) {
+      const newServices: SelectedService[] = [];
+      for (const svc of suggestion.frequentServices) {
+        const price = getPrice(svc.id, suggestion.vehicleType || vehicleType);
+        if (price > 0 && !selectedServices.some(s => s.servicePackageId === svc.id)) {
+          newServices.push({
+            id: `${Date.now()}-${Math.random()}-${svc.id}`,
+            servicePackageId: svc.id,
+            price,
+          });
+        }
+      }
+      if (newServices.length > 0) {
+        setSelectedServices([...selectedServices, ...newServices]);
+      }
+    }
+
+    // Clear suggestion after applying
+    setSuggestion(null);
   };
 
   // Add a service to the list
@@ -194,7 +295,7 @@ export default function NewWashPage() {
       setSelectedServices(updatedServices);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleType]);
+  }, [vehicleType, getPrice]);
 
   useEffect(() => {
     const session = localStorage.getItem('operator_session');
@@ -390,6 +491,7 @@ export default function NewWashPage() {
                 setEmail('');
                 setPaymentMethod('CASH');
                 setCustomerType('CONTRACT');
+                setSuggestion(null);
               }}
               className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
             >
@@ -442,16 +544,69 @@ export default function NewWashPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Rendszam (vontato) *
                 </label>
-                <input
-                  type="text"
-                  value={tractorPlate}
-                  onChange={(e) => setTractorPlate(e.target.value.toUpperCase())}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-lg"
-                  placeholder="ABC-123"
-                  autoFocus
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={tractorPlate}
+                    onChange={(e) => setTractorPlate(e.target.value.toUpperCase())}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-lg"
+                    placeholder="ABC-123"
+                    autoFocus
+                  />
+                  {lookupLoading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Suggestion box */}
+              {suggestion && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-medium text-blue-800">Korabbi mosas talalhato!</span>
+                      </div>
+                      <div className="text-sm text-blue-700 space-y-1">
+                        {suggestion.partner && (
+                          <p>Partner: <span className="font-medium">{suggestion.partner.name}</span></p>
+                        )}
+                        {suggestion.vehicleType && (
+                          <p>Jarmutipus: <span className="font-medium">{VEHICLE_TYPES.find(t => t.value === suggestion.vehicleType)?.label || suggestion.vehicleType}</span></p>
+                        )}
+                        {suggestion.trailerPlate && (
+                          <p>Potkocsi: <span className="font-medium">{suggestion.trailerPlate}</span></p>
+                        )}
+                        {suggestion.driverName && (
+                          <p>Sofor: <span className="font-medium">{suggestion.driverName}</span></p>
+                        )}
+                        {suggestion.frequentServices.length > 0 && (
+                          <p>Szolgaltatasok: <span className="font-medium">{suggestion.frequentServices.map(s => s.name).join(', ')}</span></p>
+                        )}
+                        <p className="text-xs text-blue-500 mt-1">
+                          Utolso mosas: {new Date(suggestion.lastWashDate).toLocaleDateString('hu-HU')} ({suggestion.totalWashes} mosas osszesen)
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={applySuggestion}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      Atvesz
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {showTrailerPlate && (
                 <div>

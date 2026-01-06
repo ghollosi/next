@@ -845,6 +845,115 @@ export class OperatorPortalController {
     };
   }
 
+  // ==================== Rendszám alapú keresés ====================
+
+  @Get('lookup-plate/:plate')
+  async lookupPlate(
+    @Param('plate') plate: string,
+    @Headers('x-operator-session') sessionId: string,
+  ) {
+    const session = this.getSession(sessionId);
+
+    if (!plate || plate.length < 3) {
+      return { found: false };
+    }
+
+    const normalizedPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    // Keresünk korábbi mosásokat ezzel a rendszámmal
+    const recentWashes = await this.prisma.washEvent.findMany({
+      where: {
+        networkId: session.networkId,
+        OR: [
+          { tractorPlateManual: { contains: normalizedPlate } },
+          { trailerPlateManual: { contains: normalizedPlate } },
+        ],
+        status: 'COMPLETED',
+      },
+      include: {
+        partnerCompany: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        services: {
+          include: {
+            servicePackage: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    if (recentWashes.length === 0) {
+      return { found: false };
+    }
+
+    // Legutóbbi mosás adatai
+    const lastWash = recentWashes[0];
+
+    // Leggyakoribb partner (legtöbb mosás)
+    const partnerCounts = new Map<string, { count: number; partner: any }>();
+    for (const wash of recentWashes) {
+      if (wash.partnerCompany) {
+        const key = wash.partnerCompany.id;
+        const current = partnerCounts.get(key) || { count: 0, partner: wash.partnerCompany };
+        current.count++;
+        partnerCounts.set(key, current);
+      }
+    }
+    const mostFrequentPartner = Array.from(partnerCounts.values())
+      .sort((a, b) => b.count - a.count)[0]?.partner || null;
+
+    // Leggyakoribb szolgáltatások
+    const serviceCounts = new Map<string, { count: number; service: any }>();
+    for (const wash of recentWashes) {
+      for (const svc of wash.services) {
+        if (svc.servicePackage) {
+          const key = svc.servicePackage.id;
+          const current = serviceCounts.get(key) || { count: 0, service: svc.servicePackage };
+          current.count++;
+          serviceCounts.set(key, current);
+        }
+      }
+    }
+    const frequentServices = Array.from(serviceCounts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+      .map(s => s.service);
+
+    // Járműtípus meghatározása az első szolgáltatásból
+    const vehicleType = lastWash.services[0]?.vehicleType || null;
+
+    // Pótkocsi rendszám (ha volt)
+    const trailerPlate = recentWashes.find(w => w.trailerPlateManual)?.trailerPlateManual || null;
+
+    // Sofőr név (legutóbbi)
+    const driverName = recentWashes.find(w => w.driverNameManual)?.driverNameManual || null;
+
+    return {
+      found: true,
+      suggestion: {
+        partner: mostFrequentPartner,
+        vehicleType,
+        trailerPlate,
+        driverName,
+        frequentServices,
+        lastWashDate: lastWash.createdAt,
+        totalWashes: recentWashes.length,
+      },
+    };
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(
