@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthModule } from './common/health/health.module';
 import { NetworkModule } from './modules/network/network.module';
@@ -13,6 +14,7 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { EmailModule } from './modules/email/email.module';
 import { SmsModule } from './modules/sms/sms.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { PwaModule } from './pwa/pwa.module';
 import { OperatorModule } from './operator/operator.module';
 import { BillingModule } from './billing/billing.module';
@@ -28,6 +30,7 @@ import { StripeModule } from './stripe/stripe.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     HealthModule,
     NetworkModule,
@@ -41,6 +44,7 @@ import { StripeModule } from './stripe/stripe.module';
     EmailModule,
     SmsModule,
     NotificationModule,
+    ExchangeRateModule,
     PwaModule,
     OperatorModule,
     BillingModule,

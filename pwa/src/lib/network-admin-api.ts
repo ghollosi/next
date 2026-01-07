@@ -657,4 +657,49 @@ export const networkAdminApi = {
       body: JSON.stringify({ note }),
     });
   },
+
+  // =========================================================================
+  // AUDIT LOGS
+  // =========================================================================
+
+  async getAuditLogs(queryString?: string): Promise<{
+    data: {
+      id: string;
+      action: string;
+      actorType: string;
+      actorId?: string;
+      createdAt: string;
+      previousData?: any;
+      newData?: any;
+      metadata?: any;
+      ipAddress?: string;
+      washEvent?: {
+        id: string;
+        status: string;
+        tractorPlateManual?: string;
+        trailerPlateManual?: string;
+        location?: {
+          name: string;
+          code: string;
+        };
+      };
+    }[];
+    total: number;
+  }> {
+    const query = queryString ? `?${queryString}` : '';
+    return fetchWithAuth(`/network-admin/audit-logs${query}`);
+  },
+
+  async getWashEventAuditLogs(washEventId: string): Promise<{
+    id: string;
+    action: string;
+    actorType: string;
+    actorId?: string;
+    createdAt: string;
+    previousData?: any;
+    newData?: any;
+    metadata?: any;
+  }[]> {
+    return fetchWithAuth(`/network-admin/audit-logs/wash-event/${washEventId}`);
+  },
 };

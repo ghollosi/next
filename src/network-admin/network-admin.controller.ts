@@ -797,4 +797,50 @@ export class NetworkAdminController {
     const { networkId, adminId } = await this.validateAuth(auth);
     return this.networkAdminService.rejectDeleteRequest(networkId, id, adminId, dto.note);
   }
+
+  // ==========================================================================
+  // AUDIT LOGS
+  // ==========================================================================
+
+  @Get('audit-logs')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get audit logs' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of audit logs',
+  })
+  async getAuditLogs(
+    @Query('action') action?: string,
+    @Query('actorType') actorType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getAuditLogs(networkId, {
+      action: action as any,
+      actorType: actorType as any,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      limit: limit ? parseInt(limit, 10) : 100,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
+  }
+
+  @Get('audit-logs/wash-event/:washEventId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get audit logs for a specific wash event' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of audit logs for wash event',
+  })
+  async getWashEventAuditLogs(
+    @Param('washEventId') washEventId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getWashEventAuditLogs(networkId, washEventId);
+  }
 }

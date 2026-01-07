@@ -20,6 +20,7 @@ import {
 import { Request } from 'express';
 import { PartnerCompanyService } from '../modules/partner-company/partner-company.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { createHash } from 'crypto';
 
 // Simple in-memory session store for partner portals
@@ -43,6 +44,7 @@ export class PartnerPortalController {
   constructor(
     private readonly partnerCompanyService: PartnerCompanyService,
     private readonly washEventService: WashEventService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private getPartnerSession(req: Request) {
@@ -266,6 +268,143 @@ export class PartnerPortalController {
     });
 
     return stats;
+  }
+
+  @Get('invoices')
+  @ApiOperation({ summary: 'Get partner invoices' })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Start date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'End date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
+  @ApiResponse({ status: 200, description: 'List of invoices' })
+  async getInvoices(
+    @Req() req: Request,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('status') status?: string,
+  ) {
+    const session = this.getPartnerSession(req);
+
+    const where: any = {
+      partnerCompanyId: session.partnerId,
+    };
+
+    if (startDate) {
+      where.issueDate = { ...where.issueDate, gte: new Date(startDate) };
+    }
+    if (endDate) {
+      where.issueDate = { ...where.issueDate, lte: new Date(endDate + 'T23:59:59') };
+    }
+    if (status) {
+      where.status = status;
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where,
+      include: {
+        items: {
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            vatRate: true,
+          },
+        },
+      },
+      orderBy: { issueDate: 'desc' },
+    });
+
+    return {
+      data: invoices.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        status: inv.status,
+        issueDate: inv.issueDate,
+        dueDate: inv.dueDate,
+        paidDate: inv.paidDate,
+        subtotal: Number(inv.subtotal),
+        vatAmount: Number(inv.vatAmount),
+        total: Number(inv.total),
+        currency: inv.currency,
+        paymentMethod: inv.paymentMethod,
+        externalInvoiceId: inv.externalInvoiceId,
+        externalInvoiceUrl: inv.externalInvoiceUrl,
+        items: inv.items.map((item) => ({
+          id: item.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+          vatRate: item.vatRate,
+        })),
+      })),
+      total: invoices.length,
+    };
+  }
+
+  @Get('invoices/summary')
+  @ApiOperation({ summary: 'Get invoice summary statistics' })
+  @ApiQuery({ name: 'startDate', required: false })
+  @ApiQuery({ name: 'endDate', required: false })
+  @ApiResponse({ status: 200, description: 'Invoice summary' })
+  async getInvoiceSummary(
+    @Req() req: Request,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const session = this.getPartnerSession(req);
+
+    const where: any = {
+      partnerCompanyId: session.partnerId,
+    };
+
+    if (startDate) {
+      where.issueDate = { ...where.issueDate, gte: new Date(startDate) };
+    }
+    if (endDate) {
+      where.issueDate = { ...where.issueDate, lte: new Date(endDate + 'T23:59:59') };
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where,
+      select: {
+        status: true,
+        total: true,
+        currency: true,
+      },
+    });
+
+    const summary = {
+      totalCount: invoices.length,
+      totalAmount: 0,
+      paidAmount: 0,
+      unpaidAmount: 0,
+      overdueAmount: 0,
+      byStatus: {} as Record<string, { count: number; amount: number }>,
+    };
+
+    invoices.forEach((inv) => {
+      const amount = Number(inv.total);
+      summary.totalAmount += amount;
+
+      if (!summary.byStatus[inv.status]) {
+        summary.byStatus[inv.status] = { count: 0, amount: 0 };
+      }
+      summary.byStatus[inv.status].count += 1;
+      summary.byStatus[inv.status].amount += amount;
+
+      if (inv.status === 'PAID') {
+        summary.paidAmount += amount;
+      } else if (inv.status === 'OVERDUE') {
+        summary.overdueAmount += amount;
+        summary.unpaidAmount += amount;
+      } else if (inv.status === 'ISSUED' || inv.status === 'SENT') {
+        summary.unpaidAmount += amount;
+      }
+    });
+
+    return summary;
   }
 
   @Post('logout')

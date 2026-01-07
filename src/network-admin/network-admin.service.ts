@@ -1766,4 +1766,112 @@ export class NetworkAdminService {
       message: 'Törlési kérelem elutasítva',
     };
   }
+
+  // ==========================================================================
+  // AUDIT LOGS
+  // ==========================================================================
+
+  async getAuditLogs(
+    networkId: string,
+    options: {
+      action?: string;
+      actorType?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: any[]; total: number }> {
+    const where: any = {
+      networkId,
+    };
+
+    if (options.action) {
+      where.action = options.action;
+    }
+
+    if (options.actorType) {
+      where.actorType = options.actorType;
+    }
+
+    if (options.startDate || options.endDate) {
+      where.createdAt = {};
+      if (options.startDate) {
+        where.createdAt.gte = options.startDate;
+      }
+      if (options.endDate) {
+        where.createdAt.lte = options.endDate;
+      }
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        include: {
+          washEvent: {
+            select: {
+              id: true,
+              status: true,
+              tractorPlateManual: true,
+              trailerPlateManual: true,
+              location: {
+                select: {
+                  name: true,
+                  code: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: options.limit || 100,
+        skip: options.offset || 0,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return {
+      data: data.map((log) => ({
+        id: log.id,
+        action: log.action,
+        actorType: log.actorType,
+        actorId: log.actorId,
+        createdAt: log.createdAt,
+        previousData: log.previousData,
+        newData: log.newData,
+        metadata: log.metadata,
+        ipAddress: log.ipAddress,
+        washEvent: log.washEvent,
+      })),
+      total,
+    };
+  }
+
+  async getWashEventAuditLogs(
+    networkId: string,
+    washEventId: string,
+  ): Promise<any[]> {
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        networkId,
+        washEventId,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      actorType: log.actorType,
+      actorId: log.actorId,
+      createdAt: log.createdAt,
+      previousData: log.previousData,
+      newData: log.newData,
+      metadata: log.metadata,
+    }));
+  }
 }
