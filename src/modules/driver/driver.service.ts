@@ -168,6 +168,54 @@ export class DriverService {
     });
   }
 
+  async activateByPhone(
+    phone: string,
+    pin: string,
+  ): Promise<Driver & { partnerCompany: { id: string; name: string; networkId: string } }> {
+    // Normalize phone number (remove spaces, dashes, etc.)
+    const normalizedPhone = phone.replace(/[\s\-\(\)+]/g, '');
+    const lastNineDigits = normalizedPhone.slice(-9);
+
+    // Find all active drivers and match by normalized phone
+    const drivers = await this.prisma.driver.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+        phone: { not: null },
+      },
+      include: {
+        partnerCompany: true,
+      },
+    });
+
+    // Find driver with matching phone (normalize both sides)
+    const driver = drivers.find(d => {
+      if (!d.phone) return false;
+      const driverPhoneNormalized = d.phone.replace(/[\s\-\(\)+]/g, '');
+      return driverPhoneNormalized.slice(-9) === lastNineDigits;
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Nem található sofőr ezzel a telefonszámmal');
+    }
+
+    // Check if driver is approved
+    if (driver.approvalStatus !== DriverApprovalStatus.APPROVED) {
+      if (driver.approvalStatus === DriverApprovalStatus.PENDING) {
+        throw new BadRequestException('A regisztrációd még jóváhagyásra vár');
+      }
+      throw new BadRequestException('A regisztrációd el lett utasítva');
+    }
+
+    // Verify PIN
+    const hashedPin = this.hashPin(pin);
+    if (driver.pinHash !== hashedPin) {
+      throw new UnauthorizedException('Hibás PIN kód');
+    }
+
+    return driver;
+  }
+
   async activateByInviteCode(
     inviteCode: string,
     pin: string,

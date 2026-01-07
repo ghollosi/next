@@ -34,6 +34,7 @@ function RegisterContent() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
 
@@ -47,7 +48,13 @@ function RegisterContent() {
   const [registrationResult, setRegistrationResult] = useState<{
     driverId: string;
     message: string;
+    verificationRequired?: 'EMAIL' | 'PHONE' | 'BOTH';
   } | null>(null);
+
+  // Verification state
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     loadPartners();
@@ -78,6 +85,16 @@ function RegisterContent() {
     }
     if (!lastName.trim() || lastName.length < 2) {
       setError('Add meg a vezetékneved!');
+      return false;
+    }
+    // At least email OR phone is required
+    if (!email.trim() && !phone.trim()) {
+      setError('Email cím VAGY telefonszám megadása kötelező!');
+      return false;
+    }
+    // Validate email format if provided
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Érvénytelen email cím formátum!');
       return false;
     }
     return true;
@@ -139,6 +156,7 @@ function RegisterContent() {
           firstName,
           lastName,
           phone: phone || undefined,
+          email: email || undefined,
           pin,
           vehicles,
         }),
@@ -158,8 +176,82 @@ function RegisterContent() {
     }
   };
 
-  // Success screen
+  // Verification handlers
+  const handleVerifyPhone = async () => {
+    if (verificationCode.length !== 6) {
+      setError('A kód 6 számjegyből kell álljon!');
+      return;
+    }
+
+    setVerifying(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_URL}/pwa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: verificationCode,
+          type: 'PHONE',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setRegistrationResult({
+          ...registrationResult!,
+          verificationRequired: registrationResult?.verificationRequired === 'BOTH' ? 'EMAIL' : undefined,
+          message: 'Telefonszám megerősítve! ' + (registrationResult?.verificationRequired === 'BOTH'
+            ? 'Még az email címed megerősítése van hátra.'
+            : 'A fiókod jóváhagyásra vár.'),
+        });
+        setVerificationCode('');
+      } else {
+        setError(result.message || 'Hibás kód');
+      }
+    } catch {
+      setError('Hiba történt a megerősítés során');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendVerification = async (type: 'EMAIL' | 'PHONE') => {
+    setResending(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_URL}/pwa/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: registrationResult!.driverId,
+          type,
+          pin,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setError(''); // Clear error
+        alert(result.message);
+      } else {
+        setError(result.message || 'Nem sikerült újraküldeni');
+      }
+    } catch {
+      setError('Hiba történt az újraküldés során');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // Success screen with verification
   if (registrationResult) {
+    const needsPhoneVerification = registrationResult.verificationRequired === 'PHONE' || registrationResult.verificationRequired === 'BOTH';
+    const needsEmailVerification = registrationResult.verificationRequired === 'EMAIL' || registrationResult.verificationRequired === 'BOTH';
+
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
@@ -170,17 +262,79 @@ function RegisterContent() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Regisztráció sikeres!
+            {registrationResult.verificationRequired ? 'Megerősítés szükséges!' : 'Regisztráció sikeres!'}
           </h1>
           <p className="text-gray-600 mb-6">
             {registrationResult.message}
           </p>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-            <p className="text-sm text-yellow-800">
-              <strong>Figyelem:</strong> A fiókod aktiválásra vár. Amint a cég jóváhagyta a regisztrációdat, SMS-ben vagy itt értesítünk.
-            </p>
-          </div>
+          {/* Email verification notice */}
+          {needsEmailVerification && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-left">
+              <h3 className="font-medium text-blue-900 mb-1">Email megerősítés</h3>
+              <p className="text-sm text-blue-800">
+                Küldtünk egy linket az email címedre. Kattints rá a megerősítéshez!
+              </p>
+              <button
+                onClick={() => handleResendVerification('EMAIL')}
+                disabled={resending}
+                className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
+              >
+                {resending ? 'Küldés...' : 'Link újraküldése'}
+              </button>
+            </div>
+          )}
+
+          {/* Phone verification form */}
+          {needsPhoneVerification && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4 text-left">
+              <h3 className="font-medium text-orange-900 mb-1">SMS megerősítés</h3>
+              <p className="text-sm text-orange-800 mb-3">
+                Add meg a telefonodra küldött 6 számjegyű kódot:
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  maxLength={6}
+                  inputMode="numeric"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-center text-xl font-mono tracking-widest"
+                />
+                <button
+                  onClick={handleVerifyPhone}
+                  disabled={verifying || verificationCode.length !== 6}
+                  className="px-4 py-3 bg-orange-600 text-white font-medium rounded-xl hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {verifying ? '...' : 'OK'}
+                </button>
+              </div>
+              <button
+                onClick={() => handleResendVerification('PHONE')}
+                disabled={resending}
+                className="mt-2 text-sm text-orange-600 hover:text-orange-800 underline disabled:opacity-50"
+              >
+                {resending ? 'Küldés...' : 'Kód újraküldése'}
+              </button>
+            </div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm mb-4">
+              {error}
+            </div>
+          )}
+
+          {/* Approval waiting notice */}
+          {!registrationResult.verificationRequired && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+              <p className="text-sm text-yellow-800">
+                <strong>Figyelem:</strong> A fiókod aktiválásra vár. Amint a cég jóváhagyta a regisztrációdat, értesítünk.
+              </p>
+            </div>
+          )}
 
           <Link
             href={`/check-status?driverId=${registrationResult.driverId}`}
@@ -281,9 +435,31 @@ function RegisterContent() {
                 </div>
               </div>
 
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-2">
+                <p className="text-sm text-blue-800">
+                  <strong>Fontos:</strong> Email cím VAGY telefonszám megadása kötelező a regisztráció megerősítéséhez.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefonszám (opcionális)
+                  Email cím
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="pelda@email.hu"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Megerősítő linket küldünk az email címedre.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefonszám
                 </label>
                 <input
                   type="tel"
@@ -292,6 +468,9 @@ function RegisterContent() {
                   placeholder="+36 30 123 4567"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Megerősítő kódot küldünk SMS-ben.
+                </p>
               </div>
             </div>
           )}

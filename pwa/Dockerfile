@@ -14,8 +14,14 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Build-time argument for API URL
+# For server-side rewrites (internal Docker network)
 ARG API_URL=http://localhost:3000
 ENV API_URL=${API_URL}
+
+# For client-side API calls - should be empty to use relative URLs via reverse proxy
+# or set to the public API URL if needed
+ARG NEXT_PUBLIC_API_URL=
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules

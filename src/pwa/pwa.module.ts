@@ -6,15 +6,21 @@ import { VehicleModule } from '../modules/vehicle/vehicle.module';
 import { ServicePackageModule } from '../modules/service-package/service-package.module';
 import { LocationModule } from '../modules/location/location.module';
 import { PartnerCompanyModule } from '../modules/partner-company/partner-company.module';
+import { NotificationModule } from '../modules/notification/notification.module';
+import { NetworkModule } from '../modules/network/network.module';
+import { PrismaModule } from '../common/prisma/prisma.module';
 
 @Module({
   imports: [
+    PrismaModule,
     DriverModule,
     WashEventModule,
     VehicleModule,
     ServicePackageModule,
     LocationModule,
     PartnerCompanyModule,
+    NotificationModule,
+    NetworkModule,
   ],
   controllers: [PwaController],
 })

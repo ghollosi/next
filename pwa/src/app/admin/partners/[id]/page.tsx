@@ -48,6 +48,17 @@ interface PartnerCompany {
   updatedAt: string;
 }
 
+interface RegistrationQRData {
+  partnerCompanyId: string;
+  partnerCompanyCode: string;
+  partnerCompanyName: string;
+  networkSlug: string;
+  networkName: string;
+  registerUrl: string;
+  qrCodeDataUrl: string;
+  size: number;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
 
@@ -58,10 +69,19 @@ export default function PartnerDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [qrData, setQrData] = useState<RegistrationQRData | null>(null);
+  const [loadingQr, setLoadingQr] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
     loadPartner();
   }, [params.id]);
+
+  useEffect(() => {
+    if (partner) {
+      loadQRCode();
+    }
+  }, [partner?.id]);
 
   const loadPartner = async () => {
     try {
@@ -79,6 +99,56 @@ export default function PartnerDetailsPage() {
       setError(err.message || 'Hiba történt');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadQRCode = async () => {
+    setLoadingQr(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/operator/partner-companies/${params.id}/registration-qr-data?size=300`,
+        { headers: { 'x-network-id': NETWORK_ID } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setQrData(data);
+      }
+    } catch (err) {
+      console.error('Failed to load QR code:', err);
+    } finally {
+      setLoadingQr(false);
+    }
+  };
+
+  const downloadQRCode = async (format: 'png' | 'svg') => {
+    if (!partner) return;
+    try {
+      const response = await fetch(
+        `${API_URL}/operator/partner-companies/${params.id}/registration-qr-code?format=${format}&size=600`,
+        { headers: { 'x-network-id': NETWORK_ID } }
+      );
+
+      if (!response.ok) throw new Error('Letöltés sikertelen');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `registration-qr-${partner.code}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Hiba történt');
+    }
+  };
+
+  const copyRegisterUrl = () => {
+    if (qrData?.registerUrl) {
+      navigator.clipboard.writeText(qrData.registerUrl);
+      alert('Link kimásolva a vágólapra!');
     }
   };
 
@@ -369,6 +439,89 @@ export default function PartnerDetailsPage() {
         })()}
       </div>
 
+      {/* Registration QR Code */}
+      <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 border-b pb-2 mb-4">
+          Sofőr regisztrációs QR kód
+        </h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Ezzel a QR kóddal a sofőrök közvetlenül ehhez a partner céghez tudnak regisztrálni.
+          Nyomtasd ki és helyezd el a cég irodájában vagy küldd el a sofőröknek.
+        </p>
+
+        {loadingQr ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="text-gray-500 mt-2 text-sm">QR kód betöltése...</p>
+          </div>
+        ) : qrData ? (
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            {/* QR Code Preview */}
+            <div className="flex-shrink-0">
+              <button
+                onClick={() => setShowQrModal(true)}
+                className="block border-2 border-gray-200 rounded-xl p-2 hover:border-primary-500 transition-colors"
+              >
+                <img
+                  src={qrData.qrCodeDataUrl}
+                  alt="Regisztrációs QR kód"
+                  className="w-40 h-40"
+                />
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Kattints a nagyításhoz
+              </p>
+            </div>
+
+            {/* QR Info and Actions */}
+            <div className="flex-1 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500 mb-1">Regisztrációs link:</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs text-gray-700 break-all flex-1">
+                    {qrData.registerUrl}
+                  </code>
+                  <button
+                    onClick={copyRegisterUrl}
+                    className="p-1 text-gray-500 hover:text-primary-600"
+                    title="Link másolása"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => downloadQRCode('png')}
+                  className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Letöltés PNG
+                </button>
+                <button
+                  onClick={() => downloadQRCode('svg')}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Letöltés SVG
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>Nem sikerült betölteni a QR kódot</p>
+            <button
+              onClick={loadQRCode}
+              className="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium"
+            >
+              Újrapróbálás
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Actions */}
       <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
@@ -403,6 +556,56 @@ export default function PartnerDetailsPage() {
           </button>
         </div>
       </div>
+
+      {/* QR Code Modal */}
+      {showQrModal && qrData && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowQrModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Regisztrációs QR kód</h3>
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="p-1 text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="text-center">
+              <img
+                src={qrData.qrCodeDataUrl}
+                alt="Regisztrációs QR kód"
+                className="w-64 h-64 mx-auto"
+              />
+              <p className="mt-4 font-semibold text-gray-900">{partner.name}</p>
+              <p className="text-sm text-gray-500">{partner.code}</p>
+            </div>
+
+            <div className="mt-6 flex gap-2">
+              <button
+                onClick={() => downloadQRCode('png')}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                Letöltés PNG
+              </button>
+              <button
+                onClick={() => downloadQRCode('svg')}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Letöltés SVG
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

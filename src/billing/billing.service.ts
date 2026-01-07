@@ -212,7 +212,7 @@ export class BillingService {
           vatRate: 27,
           washEventId: event.id,
           servicePackageId: event.servicePackageId,
-          vehicleType: event.tractorVehicle?.type || null,
+          vehicleType: null, // Vehicle type now stored in WashEventService, not Vehicle
         });
       }
 
@@ -228,7 +228,7 @@ export class BillingService {
           vatRate: 27,
           washEventId: event.id,
           servicePackageId: event.servicePackageId,
-          vehicleType: event.trailerVehicle?.type || null,
+          vehicleType: null, // Vehicle type now stored in WashEventService, not Vehicle
         });
       }
     }
@@ -442,7 +442,7 @@ export class BillingService {
         totalPrice: price,
         vatRate: 27,
         servicePackageId: washEvent.servicePackageId,
-        vehicleType: washEvent.tractorVehicle?.type || null,
+        vehicleType: null, // Vehicle type now stored in WashEventService, not Vehicle
       });
     }
 
@@ -456,7 +456,7 @@ export class BillingService {
         totalPrice: price,
         vatRate: 27,
         servicePackageId: washEvent.servicePackageId,
-        vehicleType: washEvent.trailerVehicle?.type || null,
+        vehicleType: null, // Vehicle type now stored in WashEventService, not Vehicle
       });
     }
 

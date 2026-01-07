@@ -25,6 +25,27 @@ export class ActivateDto {
   pin: string;
 }
 
+export class ActivateByPhoneDto {
+  @ApiProperty({
+    description: 'Phone number of the driver',
+    example: '+36301234567',
+  })
+  @IsString()
+  @Length(9, 20)
+  phone: string;
+
+  @ApiProperty({
+    description: '4-digit PIN',
+    example: '1234',
+  })
+  @IsString()
+  @Length(4, 4)
+  @Matches(/^\d{4}$/, {
+    message: 'PIN must be exactly 4 digits',
+  })
+  pin: string;
+}
+
 export class ActivateResponseDto {
   @ApiProperty()
   driverId: string;

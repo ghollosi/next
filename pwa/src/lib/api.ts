@@ -57,11 +57,19 @@ export interface ServicePackage {
 // Alias for backward compatibility
 export type WashService = ServicePackage;
 
+export type VehicleCategory = 'SOLO' | 'TRACTOR' | 'TRAILER';
+
 export interface Vehicle {
   id: string;
-  type: 'TRACTOR' | 'TRAILER';
+  category: VehicleCategory;
   plateNumber: string;
-  plateState?: string;
+  nickname?: string;
+}
+
+export interface VehiclesResponse {
+  solos: Vehicle[];
+  tractors: Vehicle[];
+  trailers: Vehicle[];
 }
 
 class ApiClient {
@@ -94,6 +102,23 @@ class ApiClient {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message || 'Activation failed');
+    }
+
+    return response.json();
+  }
+
+  async loginByPhone(phone: string, pin: string): Promise<ActivateResponse> {
+    const response = await fetch(`${this.baseUrl}/pwa/login-phone`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone, pin }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Bejelentkezés sikertelen');
     }
 
     return response.json();
@@ -276,7 +301,7 @@ class ApiClient {
     return result.data || result;
   }
 
-  async getVehicles(sessionId: string): Promise<{ tractors: Vehicle[]; trailers: Vehicle[] }> {
+  async getVehicles(sessionId: string): Promise<VehiclesResponse> {
     const response = await fetch(`${this.baseUrl}/pwa/vehicles`, {
       headers: {
         'x-driver-session': sessionId,
@@ -289,6 +314,45 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  async createVehicle(
+    sessionId: string,
+    data: {
+      category: VehicleCategory;
+      plateNumber: string;
+      nickname?: string;
+    }
+  ): Promise<Vehicle> {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-driver-session': sessionId,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Nem sikerult a jarmu mentese');
+    }
+
+    return response.json();
+  }
+
+  async deleteVehicle(sessionId: string, vehicleId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles/${vehicleId}`, {
+      method: 'DELETE',
+      headers: {
+        'x-driver-session': sessionId,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Nem sikerult torolni a jarmut');
+    }
   }
 }
 

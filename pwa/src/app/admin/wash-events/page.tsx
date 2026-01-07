@@ -32,7 +32,7 @@ export default function WashEventsListPage() {
 
   const loadData = async () => {
     try {
-      // First load locations to get location ID
+      // First load locations
       const locResponse = await fetch(`${API_URL}/operator/locations`, {
         headers: { 'x-network-id': NETWORK_ID },
       });
@@ -41,17 +41,15 @@ export default function WashEventsListPage() {
         const locs = await locResponse.json();
         setLocations(locs);
 
-        // If we have locations, load wash events for the first one
-        if (locs.length > 0) {
-          const eventsResponse = await fetch(
-            `${API_URL}/operator/wash-events?locationId=${locs[0].id}&limit=100`,
-            { headers: { 'x-network-id': NETWORK_ID } }
-          );
+        // Load wash events for ALL locations (no locationId filter)
+        const eventsResponse = await fetch(
+          `${API_URL}/operator/wash-events?limit=100`,
+          { headers: { 'x-network-id': NETWORK_ID } }
+        );
 
-          if (eventsResponse.ok) {
-            const data = await eventsResponse.json();
-            setWashEvents(data.data || []);
-          }
+        if (eventsResponse.ok) {
+          const data = await eventsResponse.json();
+          setWashEvents(data.data || []);
         }
       }
     } catch (err: any) {

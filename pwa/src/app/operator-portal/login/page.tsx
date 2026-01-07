@@ -18,7 +18,7 @@ export default function OperatorLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/operator-portal/login`, {
+      const response = await fetch(`${API_URL}/operator-portal/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

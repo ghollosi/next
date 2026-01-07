@@ -164,7 +164,7 @@ export default function NewWashPage() {
 
     setLookupLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/operator-portal/lookup-plate/${encodeURIComponent(plate)}`, {
+      const res = await fetch(`${API_URL}/operator-portal/lookup-plate/${encodeURIComponent(plate)}`, {
         headers: { 'x-operator-session': session },
       });
 
@@ -307,13 +307,13 @@ export default function NewWashPage() {
     const loadData = async () => {
       try {
         const [partnersRes, servicesRes, pricesRes] = await Promise.all([
-          fetch(`${API_URL}/api/operator-portal/partners`, {
+          fetch(`${API_URL}/operator-portal/partners`, {
             headers: { 'x-operator-session': session },
           }),
-          fetch(`${API_URL}/api/operator-portal/services`, {
+          fetch(`${API_URL}/operator-portal/services`, {
             headers: { 'x-operator-session': session },
           }),
-          fetch(`${API_URL}/api/operator-portal/prices`, {
+          fetch(`${API_URL}/operator-portal/prices`, {
             headers: { 'x-operator-session': session },
           }),
         ]);
@@ -417,7 +417,7 @@ export default function NewWashPage() {
         body.paymentMethod = paymentMethod;
       }
 
-      const response = await fetch(`${API_URL}/api/operator-portal/wash-events/create`, {
+      const response = await fetch(`${API_URL}/operator-portal/wash-events/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -845,6 +845,10 @@ export default function NewWashPage() {
                   </svg>
                   Szolgaltatas hozzaadasa
                 </button>
+
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  * Az arak listaarak, tajekoztato jelleguek.
+                </p>
               </div>
             </div>
           </div>
@@ -876,7 +880,7 @@ export default function NewWashPage() {
           {/* Price Summary */}
           {totalPrice > 0 && (
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-2">
                 <div>
                   <span className="font-medium text-green-800">Osszesen:</span>
                   <span className="text-sm text-green-600 ml-2">({selectedServices.length} szolgaltatas)</span>
@@ -885,6 +889,9 @@ export default function NewWashPage() {
                   {totalPrice.toLocaleString('hu-HU')} Ft
                 </span>
               </div>
+              <p className="text-xs text-green-600 text-center">
+                * A feltuntetett arak listaarak, tajekoztato jelleguek. A szerzodeses partnerek egyedi kedvezmenyei a vegleges szamlazasban ervenyesulnek.
+              </p>
             </div>
           )}
 

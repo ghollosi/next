@@ -1,16 +1,40 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { saveSession } from '@/lib/session';
+import { saveSession, getPendingLocation, clearPendingLocation } from '@/lib/session';
 
-export default function LoginPage() {
+type LoginMethod = 'phone' | 'invite';
+
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone');
+  const [phone, setPhone] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Check for verification callback from email link
+  useEffect(() => {
+    const verified = searchParams.get('verified');
+    const errorMsg = searchParams.get('error');
+
+    if (verified === 'true') {
+      setVerificationMessage({
+        type: 'success',
+        text: 'Email cím sikeresen megerősítve! Most már bejelentkezhetsz.',
+      });
+    } else if (verified === 'false') {
+      setVerificationMessage({
+        type: 'error',
+        text: errorMsg || 'A megerősítő link érvénytelen vagy lejárt.',
+      });
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +42,13 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await api.activate(inviteCode.toUpperCase(), pin);
+      let response;
+
+      if (loginMethod === 'phone') {
+        response = await api.loginByPhone(phone, pin);
+      } else {
+        response = await api.activate(inviteCode.toUpperCase(), pin);
+      }
 
       saveSession(response.sessionId, {
         driverId: response.driverId,
@@ -29,9 +59,16 @@ export default function LoginPage() {
         partnerCompanyName: response.partnerCompanyName,
       });
 
-      router.push('/dashboard');
+      // QR kód flow: ha van pending location, oda irányítunk
+      const pendingLocation = getPendingLocation();
+      if (pendingLocation) {
+        clearPendingLocation();
+        router.push(`/wash/new?location=${pendingLocation}`);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Bejelentkezés sikertelen');
     } finally {
       setLoading(false);
     }
@@ -43,10 +80,26 @@ export default function LoginPage() {
     setPin(cleaned);
   };
 
+  const handlePhoneChange = (value: string) => {
+    // Allow digits, +, spaces, and dashes
+    const cleaned = value.replace(/[^\d\s\-+]/g, '');
+    setPhone(cleaned);
+  };
+
   const handleInviteChange = (value: string) => {
     // Only allow alphanumeric and max 6 characters
     const cleaned = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
     setInviteCode(cleaned);
+  };
+
+  const isSubmitDisabled = () => {
+    if (loading) return true;
+    if (pin.length !== 4) return true;
+    if (loginMethod === 'phone') {
+      return phone.replace(/[\s\-+]/g, '').length < 9;
+    } else {
+      return inviteCode.length !== 6;
+    }
   };
 
   return (
@@ -59,40 +112,96 @@ export default function LoginPage() {
           </svg>
         </div>
         <h1 className="text-3xl font-bold text-white mb-2">VSys Wash</h1>
-        <p className="text-primary-200">Truck Wash Management</p>
+        <p className="text-primary-200">Sofőr Bejelentkezés</p>
       </div>
 
       {/* Login Form */}
-      <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-6 safe-area-bottom">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-          Driver Login
-        </h2>
+      <div className="flex-1 bg-white rounded-t-3xl px-6 pt-6 pb-6 safe-area-bottom">
+        {/* Verification Message */}
+        {verificationMessage && (
+          <div className={`mb-6 rounded-xl px-4 py-3 ${
+            verificationMessage.type === 'success'
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            <p className="text-sm font-medium">{verificationMessage.text}</p>
+          </div>
+        )}
+
+        {/* Login Method Toggle */}
+        <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
+          <button
+            type="button"
+            onClick={() => { setLoginMethod('phone'); setError(''); }}
+            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
+              loginMethod === 'phone'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Telefonszám
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLoginMethod('invite'); setError(''); }}
+            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
+              loginMethod === 'invite'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Meghívó kód
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Invite Code Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Invite Code
-            </label>
-            <input
-              type="text"
-              value={inviteCode}
-              onChange={(e) => handleInviteChange(e.target.value)}
-              placeholder="ABC123"
-              className="w-full px-4 py-4 text-2xl text-center tracking-[0.5em] font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none uppercase"
-              maxLength={6}
-              autoComplete="off"
-              autoCapitalize="characters"
-            />
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              6-character code from your company
-            </p>
-          </div>
+          {/* Phone Input (shown when phone method selected) */}
+          {loginMethod === 'phone' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Telefonszám
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                placeholder="+36 30 123 4567"
+                className="w-full px-4 py-4 text-xl text-center tracking-wide font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                autoComplete="tel"
+              />
+              <p className="text-xs text-gray-500 mt-1 text-center">
+                A regisztrációkor megadott telefonszám
+              </p>
+            </div>
+          )}
+
+          {/* Invite Code Input (shown when invite method selected) */}
+          {loginMethod === 'invite' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Meghívó kód
+              </label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => handleInviteChange(e.target.value)}
+                placeholder="ABC123"
+                className="w-full px-4 py-4 text-2xl text-center tracking-[0.5em] font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none uppercase"
+                maxLength={6}
+                autoComplete="off"
+                autoCapitalize="characters"
+              />
+              <p className="text-xs text-gray-500 mt-1 text-center">
+                6 karakteres kód a cégedtől
+              </p>
+            </div>
+          )}
 
           {/* PIN Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              PIN
+              PIN kód
             </label>
             <input
               type="password"
@@ -105,7 +214,7 @@ export default function LoginPage() {
               autoComplete="off"
             />
             <p className="text-xs text-gray-500 mt-1 text-center">
-              4-digit PIN
+              4 számjegyű PIN
             </p>
           </div>
 
@@ -119,7 +228,7 @@ export default function LoginPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={inviteCode.length !== 6 || pin.length !== 4 || loading}
+            disabled={isSubmitDisabled()}
             className="w-full bg-primary-600 text-white py-4 px-6 rounded-xl text-lg font-semibold
                        disabled:bg-gray-300 disabled:cursor-not-allowed
                        hover:bg-primary-700 active:bg-primary-800 transition-colors
@@ -131,10 +240,10 @@ export default function LoginPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Logging in...
+                Bejelentkezés...
               </span>
             ) : (
-              'Login'
+              'Bejelentkezés'
             )}
           </button>
         </form>
@@ -142,10 +251,22 @@ export default function LoginPage() {
         {/* Help Text */}
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-500">
-            Don&apos;t have a code? Contact your dispatcher.
+            Nincs még fiókod? Kérd a diszpécsereddel!
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-primary-600 to-primary-800 flex items-center justify-center">
+        <p className="text-white">Betöltés...</p>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

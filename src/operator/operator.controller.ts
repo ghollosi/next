@@ -30,6 +30,7 @@ import { PartnerCompanyService } from '../modules/partner-company/partner-compan
 import { LocationService } from '../modules/location/location.service';
 import { ServicePackageService } from '../modules/service-package/service-package.service';
 import { DriverService } from '../modules/driver/driver.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { WashEntryMode, BillingType, BillingCycle } from '@prisma/client';
 import { CreateWashEventOperatorDto } from './dto/create-wash-event.dto';
 import { QueryWashEventsDto } from './dto/query-wash-events.dto';
@@ -57,6 +58,7 @@ export class OperatorController {
     private readonly locationService: LocationService,
     private readonly servicePackageService: ServicePackageService,
     private readonly driverService: DriverService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -143,11 +145,19 @@ export class OperatorController {
       throw new BadRequestException('X-Network-ID header is required');
     }
 
-    if (!query.locationId) {
-      throw new BadRequestException('locationId query parameter is required');
+    // Ha van locationId, csak az adott helyszín mosásai
+    if (query.locationId) {
+      return this.washEventService.findByLocation(networkId, query.locationId, {
+        status: query.status,
+        startDate: query.startDate ? new Date(query.startDate) : undefined,
+        endDate: query.endDate ? new Date(query.endDate) : undefined,
+        limit: query.limit,
+        offset: query.offset,
+      });
     }
 
-    return this.washEventService.findByLocation(networkId, query.locationId, {
+    // Ha nincs locationId, az összes mosás a networkben (admin számára)
+    return this.washEventService.findByNetwork(networkId, {
       status: query.status,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
@@ -1058,5 +1068,156 @@ export class OperatorController {
     );
 
     return this.driverService.reject(tenantId, id, reason, rejecterId);
+  }
+
+  // =========================================================================
+  // PARTNER COMPANY REGISTRATION QR CODE
+  // =========================================================================
+
+  @Get('partner-companies/:id/registration-qr-code')
+  @ApiOperation({ summary: 'Generate driver registration QR code for partner company' })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Partner Company ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'QR code image (PNG or SVG)',
+    content: {
+      'image/png': {},
+      'image/svg+xml': {},
+    },
+  })
+  async getPartnerRegistrationQRCode(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Query('format') format: 'png' | 'svg' = 'png',
+    @Query('size') size: string = '300',
+    @Query('baseUrl') baseUrl: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    // Get network to get slug
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+    });
+
+    if (!network) {
+      throw new BadRequestException('Network not found');
+    }
+
+    // Get partner company to validate it exists and get the code
+    const partnerCompany = await this.partnerCompanyService.findById(networkId, id);
+
+    // Default base URL for PWA - can be overridden via query param
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const registerUrl = `${pwaBaseUrl}/register-qr/${network.slug}/${partnerCompany.code}`;
+
+    const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
+
+    if (format === 'svg') {
+      const svg = await QRCode.toString(registerUrl, {
+        type: 'svg',
+        width: qrSize,
+        margin: 2,
+        color: {
+          dark: '#1f2937', // gray-800
+          light: '#ffffff',
+        },
+      });
+
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="registration-qr-${partnerCompany.code}.svg"`,
+      );
+      return res.send(svg);
+    }
+
+    // Default: PNG
+    const pngBuffer = await QRCode.toBuffer(registerUrl, {
+      type: 'png',
+      width: qrSize,
+      margin: 2,
+      color: {
+        dark: '#1f2937',
+        light: '#ffffff',
+      },
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="registration-qr-${partnerCompany.code}.png"`,
+    );
+    return res.send(pngBuffer);
+  }
+
+  @Get('partner-companies/:id/registration-qr-data')
+  @ApiOperation({
+    summary: 'Get registration QR code data as base64 (for embedding in HTML)',
+  })
+  @ApiHeader({
+    name: 'X-Network-ID',
+    description: 'Network (tenant) ID',
+    required: true,
+  })
+  @ApiParam({ name: 'id', description: 'Partner Company ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'QR code data with base64 image and URL',
+  })
+  async getPartnerRegistrationQRCodeData(
+    @Param('id') id: string,
+    @Headers('x-network-id') networkId: string,
+    @Query('size') size: string = '300',
+    @Query('baseUrl') baseUrl?: string,
+  ) {
+    if (!networkId) {
+      throw new BadRequestException('X-Network-ID header is required');
+    }
+
+    // Get network to get slug
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+    });
+
+    if (!network) {
+      throw new BadRequestException('Network not found');
+    }
+
+    // Get partner company to validate it exists and get the code
+    const partnerCompany = await this.partnerCompanyService.findById(networkId, id);
+
+    // Default base URL for PWA
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const registerUrl = `${pwaBaseUrl}/register-qr/${network.slug}/${partnerCompany.code}`;
+
+    const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
+
+    const dataUrl = await QRCode.toDataURL(registerUrl, {
+      width: qrSize,
+      margin: 2,
+      color: {
+        dark: '#1f2937',
+        light: '#ffffff',
+      },
+    });
+
+    return {
+      partnerCompanyId: partnerCompany.id,
+      partnerCompanyCode: partnerCompany.code,
+      partnerCompanyName: partnerCompany.name,
+      networkSlug: network.slug,
+      networkName: network.name,
+      registerUrl,
+      qrCodeDataUrl: dataUrl,
+      size: qrSize,
+    };
   }
 }

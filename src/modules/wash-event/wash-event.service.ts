@@ -127,6 +127,62 @@ export class WashEventService {
     return { data, total };
   }
 
+  async findByNetwork(
+    networkId: string,
+    options?: {
+      status?: WashEventStatus;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: WashEvent[]; total: number }> {
+    const where: any = {
+      networkId,
+    };
+
+    if (options?.status) {
+      where.status = options.status;
+    }
+
+    if (options?.startDate || options?.endDate) {
+      where.createdAt = {};
+      if (options.startDate) {
+        where.createdAt.gte = options.startDate;
+      }
+      if (options.endDate) {
+        where.createdAt.lte = options.endDate;
+      }
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.washEvent.findMany({
+        where,
+        include: {
+          location: true,
+          partnerCompany: true,
+          servicePackage: true,
+          driver: true,
+          tractorVehicle: true,
+          trailerVehicle: true,
+          services: {
+            include: {
+              servicePackage: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: options?.limit || 50,
+        skip: options?.offset || 0,
+      }),
+      this.prisma.washEvent.count({ where }),
+    ]);
+
+    return { data, total };
+  }
+
   async findByDriver(
     networkId: string,
     driverId: string,
@@ -285,7 +341,7 @@ export class WashEventService {
           id: input.tractorVehicleId,
           networkId,
           partnerCompanyId: driver.partnerCompanyId,
-          type: 'TRACTOR',
+          category: { in: ['TRACTOR', 'SOLO'] }, // Allow TRACTOR or SOLO vehicles as primary vehicle
           isActive: true,
           deletedAt: null,
         },

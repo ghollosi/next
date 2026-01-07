@@ -37,6 +37,8 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: vsys-api
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://vsys:vsys_staging_password@postgres:5432/vsys_next?schema=public
       NODE_ENV: production
@@ -64,6 +66,8 @@ services:
       dockerfile: Dockerfile
       args:
         - API_URL=http://api:3000
+        # Client-side API calls go to the API container directly via public IP
+        - NEXT_PUBLIC_API_URL=http://46.224.157.177:3000
     container_name: vsys-pwa
     environment:
       NODE_ENV: production

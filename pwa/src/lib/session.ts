@@ -2,6 +2,7 @@
 
 const SESSION_KEY = 'vsys_session';
 const DRIVER_KEY = 'vsys_driver';
+const PENDING_LOCATION_KEY = 'vsys_pending_location';
 
 export interface DriverInfo {
   driverId: string;
@@ -45,4 +46,24 @@ export function clearSession(): void {
 
 export function isLoggedIn(): boolean {
   return getSession() !== null;
+}
+
+// Pending location for QR code flow
+export function savePendingLocation(locationCode: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(PENDING_LOCATION_KEY, locationCode);
+  }
+}
+
+export function getPendingLocation(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(PENDING_LOCATION_KEY);
+  }
+  return null;
+}
+
+export function clearPendingLocation(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(PENDING_LOCATION_KEY);
+  }
 }

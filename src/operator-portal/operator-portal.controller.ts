@@ -19,6 +19,7 @@ import { LocationService } from '../modules/location/location.service';
 import { BillingService } from '../billing/billing.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 
 // Simple in-memory session store for operator sessions
 const operatorSessions = new Map<string, {
@@ -27,6 +28,8 @@ const operatorSessions = new Map<string, {
   locationName: string;
   locationCode: string;
   washMode: string;
+  operatorId: string | null;
+  operatorName: string;
   createdAt: Date;
 }>();
 
@@ -68,6 +71,12 @@ export class OperatorPortalController {
       },
       include: {
         network: true,
+        operators: {
+          where: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
       },
     });
 
@@ -75,13 +84,28 @@ export class OperatorPortalController {
       throw new UnauthorizedException('Invalid location code');
     }
 
-    // For demo: PIN is last 4 chars of location code + "00"
-    // In production, this should be a proper authentication system
-    const expectedPin = (location.code.slice(-4) + '00').slice(-4).padStart(4, '0');
-    const simplePin = '1234'; // Demo PIN for all locations
+    // Try to authenticate with location operators first
+    let authenticatedOperator: { id: string; name: string } | null = null;
 
-    if (body.pin !== expectedPin && body.pin !== simplePin) {
-      throw new UnauthorizedException('Invalid PIN');
+    for (const operator of location.operators) {
+      const isValidPin = await bcrypt.compare(body.pin, operator.pinHash);
+      if (isValidPin) {
+        authenticatedOperator = { id: operator.id, name: operator.name };
+        break;
+      }
+    }
+
+    // If no operator found, try legacy authentication (demo mode)
+    if (!authenticatedOperator) {
+      const expectedPin = (location.code.slice(-4) + '00').slice(-4).padStart(4, '0');
+      const simplePin = '1234'; // Demo PIN for all locations
+
+      if (body.pin !== expectedPin && body.pin !== simplePin) {
+        throw new UnauthorizedException('Invalid PIN');
+      }
+
+      // Legacy/demo login - no specific operator
+      authenticatedOperator = { id: '', name: 'Operátor' };
     }
 
     // Create session
@@ -92,6 +116,8 @@ export class OperatorPortalController {
       locationName: location.name,
       locationCode: location.code,
       washMode: location.washMode,
+      operatorId: authenticatedOperator.id || null,
+      operatorName: authenticatedOperator.name,
       createdAt: new Date(),
     });
 
@@ -102,6 +128,7 @@ export class OperatorPortalController {
       locationCode: location.code,
       washMode: location.washMode,
       networkName: location.network.name,
+      operatorName: authenticatedOperator.name,
     };
   }
 
@@ -124,6 +151,8 @@ export class OperatorPortalController {
       locationCode: location?.code || session.locationCode,
       washMode: location?.washMode || session.washMode,
       networkName: location?.network.name,
+      operatorId: session.operatorId,
+      operatorName: session.operatorName,
     };
   }
 
@@ -969,6 +998,113 @@ export class OperatorPortalController {
         totalWashes: recentWashes.length,
       },
     };
+  }
+
+  // ==================== Mosás törlési kérelem ====================
+
+  @Post('wash-events/:id/request-delete')
+  @HttpCode(HttpStatus.OK)
+  async requestDeleteWashEvent(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = this.getSession(sessionId);
+
+    if (!reason || reason.trim().length < 5) {
+      throw new BadRequestException('A törlés indoklása kötelező (min. 5 karakter)');
+    }
+
+    // Verify event belongs to this location
+    const event = await this.prisma.washEvent.findFirst({
+      where: {
+        id,
+        networkId: session.networkId,
+        locationId: session.locationId,
+      },
+    });
+
+    if (!event) {
+      throw new BadRequestException('Mosás nem található');
+    }
+
+    // Check if there's already a pending delete request
+    const existingRequest = await this.prisma.washDeleteRequest.findFirst({
+      where: {
+        washEventId: id,
+        status: 'PENDING',
+      },
+    });
+
+    if (existingRequest) {
+      throw new BadRequestException('Már van függőben lévő törlési kérelem ehhez a mosáshoz');
+    }
+
+    // Create delete request
+    const operatorIdentifier = session.operatorId
+      ? `operator:${session.locationCode}:${session.operatorName}`
+      : `operator:${session.locationCode}`;
+
+    const deleteRequest = await this.prisma.washDeleteRequest.create({
+      data: {
+        networkId: session.networkId,
+        washEventId: id,
+        requestedBy: operatorIdentifier,
+        reason: reason.trim(),
+        status: 'PENDING',
+      },
+    });
+
+    // Audit log
+    await this.prisma.auditLog.create({
+      data: {
+        networkId: session.networkId,
+        washEventId: id,
+        action: 'UPDATE',
+        actorType: 'USER',
+        actorId: operatorIdentifier,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        userAgent: req.get('user-agent'),
+        newData: {
+          deleteRequest: {
+            id: deleteRequest.id,
+            reason: reason.trim(),
+            status: 'PENDING',
+          },
+        },
+      },
+    });
+
+    // TODO: Send notification to Network Admin (email/push)
+
+    return {
+      success: true,
+      message: 'Törlési kérelem elküldve. A hálózat adminisztrátora értesítést kapott.',
+      deleteRequest: {
+        id: deleteRequest.id,
+        status: deleteRequest.status,
+        createdAt: deleteRequest.createdAt,
+      },
+    };
+  }
+
+  @Get('wash-events/:id/delete-requests')
+  async getDeleteRequests(
+    @Param('id') id: string,
+    @Headers('x-operator-session') sessionId: string,
+  ) {
+    const session = this.getSession(sessionId);
+
+    const requests = await this.prisma.washDeleteRequest.findMany({
+      where: {
+        washEventId: id,
+        networkId: session.networkId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { data: requests };
   }
 
   @Post('logout')

@@ -3,7 +3,14 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
-import { api, Location, WashService, Vehicle } from '@/lib/api';
+import { api, Location, WashService, Vehicle, VehicleCategory } from '@/lib/api';
+
+interface SelectedService {
+  service: WashService;
+  vehicleCategory?: VehicleCategory;
+  plateNumber?: string;
+  quantity: number;
+}
 
 function NewWashContent() {
   const router = useRouter();
@@ -12,24 +19,32 @@ function NewWashContent() {
 
   const [driver, setDriver] = useState<DriverInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [step, setStep] = useState<'location' | 'service' | 'vehicle'>('location');
+  const [step, setStep] = useState<'location' | 'services' | 'vehicles'>('location');
 
   // Form state
   const [locations, setLocations] = useState<Location[]>([]);
   const [services, setServices] = useState<WashService[]>([]);
+  const [solos, setSolos] = useState<Vehicle[]>([]);
   const [tractors, setTractors] = useState<Vehicle[]>([]);
   const [trailers, setTrailers] = useState<Vehicle[]>([]);
 
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const [selectedService, setSelectedService] = useState<WashService | null>(null);
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+
+  // Vehicle selection state
+  const [selectedSolo, setSelectedSolo] = useState<Vehicle | null>(null);
   const [selectedTractor, setSelectedTractor] = useState<Vehicle | null>(null);
   const [selectedTrailer, setSelectedTrailer] = useState<Vehicle | null>(null);
+  const [manualSoloPlate, setManualSoloPlate] = useState('');
   const [manualTractorPlate, setManualTractorPlate] = useState('');
   const [manualTrailerPlate, setManualTrailerPlate] = useState('');
+  const [vehicleMode, setVehicleMode] = useState<'solo' | 'combo'>('combo');
   const [useManualPlates, setUseManualPlates] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const hasVehicles = solos.length > 0 || tractors.length > 0 || trailers.length > 0;
 
   useEffect(() => {
     const session = getSession();
@@ -52,11 +67,15 @@ function NewWashContent() {
         api.getVehicles(session),
       ]);
       setLocations(locs);
+      setSolos(vehicleData.solos || []);
       setTractors(vehicleData.tractors || []);
       setTrailers(vehicleData.trailers || []);
 
       // If no saved vehicles, default to manual input
-      if (!vehicleData.tractors || vehicleData.tractors.length === 0) {
+      const hasAnyVehicles = (vehicleData.solos?.length || 0) +
+                            (vehicleData.tractors?.length || 0) +
+                            (vehicleData.trailers?.length || 0) > 0;
+      if (!hasAnyVehicles) {
         setUseManualPlates(true);
       }
 
@@ -68,7 +87,7 @@ function NewWashContent() {
         }
       }
     } catch (err) {
-      setError('Nem sikerült betölteni az adatokat');
+      setError('Nem sikerult betolteni az adatokat');
     }
   };
 
@@ -81,64 +100,102 @@ function NewWashContent() {
     try {
       const svcs = await api.getServices(sid, location.code);
       setServices(svcs);
-      setStep('service');
+      setStep('services');
     } catch (err) {
-      setError('Nem sikerült betölteni a szolgáltatásokat');
+      setError('Nem sikerult betolteni a szolgaltatasokat');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSelectService = (service: WashService) => {
-    setSelectedService(service);
-    setStep('vehicle');
-    // Pre-select first tractor if available
-    if (tractors.length > 0) {
-      setSelectedTractor(tractors[0]);
+  const toggleService = (service: WashService) => {
+    setSelectedServices(prev => {
+      const existing = prev.find(s => s.service.id === service.id);
+      if (existing) {
+        // Remove if already selected
+        return prev.filter(s => s.service.id !== service.id);
+      } else {
+        // Add new service
+        return [...prev, { service, quantity: 1 }];
+      }
+    });
+  };
+
+  const isServiceSelected = (serviceId: string) => {
+    return selectedServices.some(s => s.service.id === serviceId);
+  };
+
+  const handleContinueToVehicles = () => {
+    if (selectedServices.length === 0) {
+      setError('Valassz legalabb egy szolgaltatast!');
+      return;
     }
+    setStep('vehicles');
+    setError('');
   };
 
   const handleSubmit = async () => {
-    if (!sessionId || !driver || !selectedLocation || !selectedService) {
+    if (!sessionId || !driver || !selectedLocation || selectedServices.length === 0) {
       return;
     }
 
-    // Need either selected vehicle or manual plate
-    const tractorPlate = useManualPlates ? manualTractorPlate : selectedTractor?.plateNumber;
-    const trailerPlate = useManualPlates ? manualTrailerPlate : selectedTrailer?.plateNumber;
+    // Validate vehicle selection
+    let tractorPlate: string | undefined;
+    let trailerPlate: string | undefined;
+    let soloPlate: string | undefined;
 
-    if (!tractorPlate?.trim()) {
-      setError('Válassz vontatót vagy add meg a rendszámot!');
-      return;
+    if (vehicleMode === 'solo') {
+      soloPlate = useManualPlates ? manualSoloPlate : selectedSolo?.plateNumber;
+      if (!soloPlate?.trim()) {
+        setError('Add meg a szolo jarmu rendszamat!');
+        return;
+      }
+    } else {
+      tractorPlate = useManualPlates ? manualTractorPlate : selectedTractor?.plateNumber;
+      trailerPlate = useManualPlates ? manualTrailerPlate : selectedTrailer?.plateNumber;
+      if (!tractorPlate?.trim()) {
+        setError('Add meg a vontato rendszamat!');
+        return;
+      }
     }
 
     setIsLoading(true);
     setError('');
 
     try {
+      // Build services array for API
+      const servicesData = selectedServices.map(s => ({
+        servicePackageId: s.service.id,
+        quantity: s.quantity,
+      }));
+
       const washEvent = await api.createWashEvent(sessionId, {
         locationId: selectedLocation.id,
-        servicePackageId: selectedService.id,
-        tractorVehicleId: useManualPlates ? undefined : selectedTractor?.id,
-        tractorPlateManual: useManualPlates ? tractorPlate.toUpperCase().trim() : undefined,
-        trailerVehicleId: useManualPlates ? undefined : selectedTrailer?.id,
-        trailerPlateManual: useManualPlates && trailerPlate ? trailerPlate.toUpperCase().trim() : undefined,
+        services: servicesData,
+        // Backwards compatibility - send first service as main
+        servicePackageId: selectedServices[0].service.id,
+        // Vehicle data
+        tractorVehicleId: vehicleMode === 'combo' && !useManualPlates ? selectedTractor?.id : undefined,
+        tractorPlateManual: vehicleMode === 'combo' && useManualPlates ? tractorPlate?.toUpperCase().trim() :
+                          vehicleMode === 'solo' ? soloPlate?.toUpperCase().trim() : undefined,
+        trailerVehicleId: vehicleMode === 'combo' && !useManualPlates ? selectedTrailer?.id : undefined,
+        trailerPlateManual: vehicleMode === 'combo' && useManualPlates && trailerPlate ? trailerPlate.toUpperCase().trim() : undefined,
       });
 
       router.push(`/wash/${washEvent.id}`);
     } catch (err: any) {
-      setError(err.message || 'Nem sikerült létrehozni a mosást');
+      setError(err.message || 'Nem sikerult letrehozni a mosast');
       setIsLoading(false);
     }
   };
 
   const handleBack = () => {
-    if (step === 'service') {
+    if (step === 'services') {
       setStep('location');
       setSelectedLocation(null);
-    } else if (step === 'vehicle') {
-      setStep('service');
-      setSelectedService(null);
+      setSelectedServices([]);
+    } else if (step === 'vehicles') {
+      setStep('services');
     } else {
       router.back();
     }
@@ -147,7 +204,7 @@ function NewWashContent() {
   if (!driver) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Betöltés...</div>
+        <div className="text-gray-500">Betoltes...</div>
       </div>
     );
   }
@@ -166,11 +223,11 @@ function NewWashContent() {
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-semibold">Új mosás</h1>
+            <h1 className="text-lg font-semibold">Uj mosas</h1>
             <p className="text-primary-200 text-sm">
-              {step === 'location' && 'Válassz helyszínt'}
-              {step === 'service' && 'Válassz szolgáltatást'}
-              {step === 'vehicle' && 'Válassz járművet'}
+              {step === 'location' && 'Valassz helyszint'}
+              {step === 'services' && 'Valassz szolgaltatasokat'}
+              {step === 'vehicles' && 'Valassz jarmut'}
             </p>
           </div>
         </div>
@@ -181,14 +238,14 @@ function NewWashContent() {
         <div className="flex items-center justify-center gap-2">
           <div className={`w-3 h-3 rounded-full ${step === 'location' ? 'bg-primary-600' : 'bg-primary-200'}`} />
           <div className={`w-8 h-0.5 ${step !== 'location' ? 'bg-primary-600' : 'bg-gray-300'}`} />
-          <div className={`w-3 h-3 rounded-full ${step === 'service' ? 'bg-primary-600' : step === 'vehicle' ? 'bg-primary-200' : 'bg-gray-300'}`} />
-          <div className={`w-8 h-0.5 ${step === 'vehicle' ? 'bg-primary-600' : 'bg-gray-300'}`} />
-          <div className={`w-3 h-3 rounded-full ${step === 'vehicle' ? 'bg-primary-600' : 'bg-gray-300'}`} />
+          <div className={`w-3 h-3 rounded-full ${step === 'services' ? 'bg-primary-600' : step === 'vehicles' ? 'bg-primary-200' : 'bg-gray-300'}`} />
+          <div className={`w-8 h-0.5 ${step === 'vehicles' ? 'bg-primary-600' : 'bg-gray-300'}`} />
+          <div className={`w-3 h-3 rounded-full ${step === 'vehicles' ? 'bg-primary-600' : 'bg-gray-300'}`} />
         </div>
         <div className="flex justify-between mt-2 text-xs text-gray-500">
-          <span>Helyszín</span>
-          <span>Szolgáltatás</span>
-          <span>Jármű</span>
+          <span>Helyszin</span>
+          <span>Szolgaltatasok</span>
+          <span>Jarmu</span>
         </div>
       </div>
 
@@ -204,10 +261,10 @@ function NewWashContent() {
         {/* Step 1: Location Selection */}
         {step === 'location' && (
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Válassz mosó helyszínt</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Valassz moso helyszint</h2>
             {locations.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                {isLoading ? 'Helyszínek betöltése...' : 'Nincs elérhető helyszín'}
+                {isLoading ? 'Helyszinek betoltese...' : 'Nincs elerheto helyszin'}
               </div>
             ) : (
               locations.map((location) => (
@@ -243,66 +300,140 @@ function NewWashContent() {
           </div>
         )}
 
-        {/* Step 2: Service Selection */}
-        {step === 'service' && (
+        {/* Step 2: Services Selection (Multi-select) */}
+        {step === 'services' && (
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Válassz szolgáltatást</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Valassz szolgaltatasokat</h2>
+            <p className="text-sm text-gray-500 mb-4">Tobbet is valaszthatsz</p>
+
             <div className="bg-primary-50 rounded-xl p-3 mb-4">
               <p className="text-sm text-primary-700">
-                <span className="font-medium">Helyszín:</span> {selectedLocation?.name}
+                <span className="font-medium">Helyszin:</span> {selectedLocation?.name}
               </p>
             </div>
+
             {services.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                Nincs elérhető szolgáltatás ezen a helyszínen
+                Nincs elerheto szolgaltatas ezen a helyszinen
               </div>
             ) : (
-              services.map((service) => (
-                <button
-                  key={service.id}
-                  onClick={() => handleSelectService(service)}
-                  className="w-full bg-white rounded-xl shadow-sm p-4 text-left
-                             hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-800">{service.name}</h3>
-                      <p className="text-sm text-gray-500">{service.code}</p>
-                      {service.description && (
-                        <p className="text-xs text-gray-400 mt-1">{service.description}</p>
-                      )}
-                    </div>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-              ))
+              <>
+                <div className="space-y-2">
+                  {services.map((service) => {
+                    const isSelected = isServiceSelected(service.id);
+                    return (
+                      <button
+                        key={service.id}
+                        onClick={() => toggleService(service)}
+                        className={`w-full rounded-xl shadow-sm p-4 text-left transition-all border-2 ${
+                          isSelected
+                            ? 'bg-primary-50 border-primary-500'
+                            : 'bg-white border-transparent hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                            isSelected ? 'bg-primary-500' : 'bg-blue-100'
+                          }`}>
+                            {isSelected ? (
+                              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className={`font-semibold ${isSelected ? 'text-primary-700' : 'text-gray-800'}`}>
+                              {service.name}
+                            </h3>
+                            <p className="text-sm text-gray-500">{service.code}</p>
+                            {service.description && (
+                              <p className="text-xs text-gray-400 mt-1">{service.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected Count & Continue Button */}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600 mb-3 text-center">
+                    {selectedServices.length === 0
+                      ? 'Valassz legalabb egy szolgaltatast'
+                      : `${selectedServices.length} szolgaltatas kivalasztva`
+                    }
+                  </p>
+                  <button
+                    onClick={handleContinueToVehicles}
+                    disabled={selectedServices.length === 0}
+                    className="w-full py-4 bg-primary-600 text-white font-semibold rounded-xl
+                             disabled:bg-gray-300 disabled:cursor-not-allowed
+                             hover:bg-primary-700 active:bg-primary-800 transition-colors"
+                  >
+                    Tovabb a jarmuhoz
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* Step 3: Vehicle Selection */}
-        {step === 'vehicle' && (
+        {step === 'vehicles' && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Válassz járművet</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Valassz jarmut</h2>
 
             <div className="bg-primary-50 rounded-xl p-3 space-y-1">
               <p className="text-sm text-primary-700">
-                <span className="font-medium">Helyszín:</span> {selectedLocation?.name}
+                <span className="font-medium">Helyszin:</span> {selectedLocation?.name}
               </p>
               <p className="text-sm text-primary-700">
-                <span className="font-medium">Szolgáltatás:</span> {selectedService?.name}
+                <span className="font-medium">Szolgaltatasok:</span> {selectedServices.map(s => s.service.name).join(', ')}
               </p>
             </div>
 
+            {/* Vehicle Mode Toggle: Solo vs Combo */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Jarmu tipusa
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setVehicleMode('solo')}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${
+                    vehicleMode === 'solo'
+                      ? 'border-primary-500 bg-primary-50'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <span className="text-2xl">🚗</span>
+                  <span className={`text-sm font-medium ${vehicleMode === 'solo' ? 'text-primary-700' : 'text-gray-600'}`}>
+                    Szolo
+                  </span>
+                </button>
+                <button
+                  onClick={() => setVehicleMode('combo')}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${
+                    vehicleMode === 'combo'
+                      ? 'border-primary-500 bg-primary-50'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <span className="text-2xl">🚛🚚</span>
+                  <span className={`text-sm font-medium ${vehicleMode === 'combo' ? 'text-primary-700' : 'text-gray-600'}`}>
+                    Szerelveny
+                  </span>
+                </button>
+              </div>
+            </div>
+
             {/* Toggle between saved vehicles and manual input */}
-            {tractors.length > 0 && (
+            {hasVehicles && (
               <div className="flex gap-2">
                 <button
                   onClick={() => setUseManualPlates(false)}
@@ -312,7 +443,7 @@ function NewWashContent() {
                       : 'bg-gray-100 text-gray-600'
                   }`}
                 >
-                  Saját járművek
+                  Mentett jarmuvek
                 </button>
                 <button
                   onClick={() => setUseManualPlates(true)}
@@ -322,160 +453,166 @@ function NewWashContent() {
                       : 'bg-gray-100 text-gray-600'
                   }`}
                 >
-                  Kézi megadás
+                  Kezi megadas
                 </button>
               </div>
             )}
 
-            {!useManualPlates && tractors.length > 0 ? (
+            {!useManualPlates && hasVehicles ? (
               /* Saved Vehicles Selection */
               <div className="space-y-4">
-                {/* Tractor Selection */}
-                <div className="bg-white rounded-xl shadow-sm p-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Vontató *
-                  </label>
-                  <div className="space-y-2">
-                    {tractors.map((tractor) => (
-                      <button
-                        key={tractor.id}
-                        onClick={() => setSelectedTractor(tractor)}
-                        className={`w-full p-3 rounded-xl border-2 text-left transition-colors ${
-                          selectedTractor?.id === tractor.id
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            selectedTractor?.id === tractor.id
-                              ? 'bg-primary-500 text-white'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                            </svg>
-                          </div>
-                          <div>
-                            <p className="font-mono font-semibold text-gray-800">
-                              {tractor.plateNumber}
-                            </p>
-                            {tractor.plateState && (
-                              <p className="text-xs text-gray-500">{tractor.plateState}</p>
-                            )}
-                          </div>
-                          {selectedTractor?.id === tractor.id && (
-                            <svg className="w-5 h-5 text-primary-500 ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Trailer Selection */}
-                {trailers.length > 0 && (
+                {vehicleMode === 'solo' ? (
+                  /* Solo Vehicle Selection */
                   <div className="bg-white rounded-xl shadow-sm p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Pótkocsi (opcionális)
+                      Szolo jarmu *
                     </label>
                     <div className="space-y-2">
-                      <button
-                        onClick={() => setSelectedTrailer(null)}
-                        className={`w-full p-3 rounded-xl border-2 text-left transition-colors ${
-                          selectedTrailer === null
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <p className="text-gray-500">Nincs pótkocsi</p>
-                      </button>
-                      {trailers.map((trailer) => (
+                      {solos.length === 0 ? (
+                        <p className="text-gray-500 text-sm py-4 text-center">
+                          Nincs mentett szolo jarmu. Haszналj kezi megadast!
+                        </p>
+                      ) : (
+                        solos.map((vehicle) => (
+                          <VehicleButton
+                            key={vehicle.id}
+                            vehicle={vehicle}
+                            isSelected={selectedSolo?.id === vehicle.id}
+                            onClick={() => setSelectedSolo(vehicle)}
+                            icon="🚗"
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Combo: Tractor + Trailer Selection */
+                  <>
+                    {/* Tractor Selection */}
+                    <div className="bg-white rounded-xl shadow-sm p-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Vontato *
+                      </label>
+                      <div className="space-y-2">
+                        {tractors.length === 0 ? (
+                          <p className="text-gray-500 text-sm py-4 text-center">
+                            Nincs mentett vontato. Haszналj kezi megadast!
+                          </p>
+                        ) : (
+                          tractors.map((vehicle) => (
+                            <VehicleButton
+                              key={vehicle.id}
+                              vehicle={vehicle}
+                              isSelected={selectedTractor?.id === vehicle.id}
+                              onClick={() => setSelectedTractor(vehicle)}
+                              icon="🚛"
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Trailer Selection */}
+                    <div className="bg-white rounded-xl shadow-sm p-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Vontatmany (opcionalis)
+                      </label>
+                      <div className="space-y-2">
                         <button
-                          key={trailer.id}
-                          onClick={() => setSelectedTrailer(trailer)}
+                          onClick={() => setSelectedTrailer(null)}
                           className={`w-full p-3 rounded-xl border-2 text-left transition-colors ${
-                            selectedTrailer?.id === trailer.id
+                            selectedTrailer === null
                               ? 'border-primary-500 bg-primary-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              selectedTrailer?.id === trailer.id
-                                ? 'bg-primary-500 text-white'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}>
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                              </svg>
-                            </div>
-                            <div>
-                              <p className="font-mono font-semibold text-gray-800">
-                                {trailer.plateNumber}
-                              </p>
-                              {trailer.plateState && (
-                                <p className="text-xs text-gray-500">{trailer.plateState}</p>
-                              )}
-                            </div>
-                            {selectedTrailer?.id === trailer.id && (
-                              <svg className="w-5 h-5 text-primary-500 ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </div>
+                          <p className="text-gray-500">Nincs vontatmany</p>
                         </button>
-                      ))}
+                        {trailers.map((vehicle) => (
+                          <VehicleButton
+                            key={vehicle.id}
+                            vehicle={vehicle}
+                            isSelected={selectedTrailer?.id === vehicle.id}
+                            onClick={() => setSelectedTrailer(vehicle)}
+                            icon="🚚"
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             ) : (
               /* Manual Plate Input */
               <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Vontató rendszáma *
-                  </label>
-                  <input
-                    type="text"
-                    value={manualTractorPlate}
-                    onChange={(e) => setManualTractorPlate(e.target.value.toUpperCase())}
-                    placeholder="ABC-123"
-                    className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
-                               border-2 border-gray-200 rounded-xl
-                               focus:border-primary-500 focus:ring-4 focus:ring-primary-100
-                               transition-all uppercase"
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                  />
-                </div>
+                {vehicleMode === 'solo' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Szolo jarmu rendszama *
+                    </label>
+                    <input
+                      type="text"
+                      value={manualSoloPlate}
+                      onChange={(e) => setManualSoloPlate(e.target.value.toUpperCase())}
+                      placeholder="ABC-123"
+                      className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
+                                 border-2 border-gray-200 rounded-xl
+                                 focus:border-primary-500 focus:ring-4 focus:ring-primary-100
+                                 transition-all uppercase"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Vontato rendszama *
+                      </label>
+                      <input
+                        type="text"
+                        value={manualTractorPlate}
+                        onChange={(e) => setManualTractorPlate(e.target.value.toUpperCase())}
+                        placeholder="ABC-123"
+                        className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
+                                   border-2 border-gray-200 rounded-xl
+                                   focus:border-primary-500 focus:ring-4 focus:ring-primary-100
+                                   transition-all uppercase"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pótkocsi rendszáma (opcionális)
-                  </label>
-                  <input
-                    type="text"
-                    value={manualTrailerPlate}
-                    onChange={(e) => setManualTrailerPlate(e.target.value.toUpperCase())}
-                    placeholder="XYZ-789"
-                    className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
-                               border-2 border-gray-200 rounded-xl
-                               focus:border-primary-500 focus:ring-4 focus:ring-primary-100
-                               transition-all uppercase"
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Vontatmany rendszama (opcionalis)
+                      </label>
+                      <input
+                        type="text"
+                        value={manualTrailerPlate}
+                        onChange={(e) => setManualTrailerPlate(e.target.value.toUpperCase())}
+                        placeholder="XYZ-789"
+                        className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
+                                   border-2 border-gray-200 rounded-xl
+                                   focus:border-primary-500 focus:ring-4 focus:ring-primary-100
+                                   transition-all uppercase"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
             <button
               onClick={handleSubmit}
-              disabled={isLoading || (!useManualPlates && !selectedTractor) || (useManualPlates && !manualTractorPlate.trim())}
+              disabled={isLoading ||
+                (vehicleMode === 'solo' && !useManualPlates && !selectedSolo && solos.length > 0) ||
+                (vehicleMode === 'solo' && useManualPlates && !manualSoloPlate.trim()) ||
+                (vehicleMode === 'combo' && !useManualPlates && !selectedTractor && tractors.length > 0) ||
+                (vehicleMode === 'combo' && useManualPlates && !manualTractorPlate.trim())
+              }
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700
                          text-white font-semibold rounded-xl shadow-lg
                          hover:from-primary-600 hover:to-primary-800
@@ -488,10 +625,10 @@ function NewWashContent() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  Létrehozás...
+                  Letrehozas...
                 </span>
               ) : (
-                'Mosás indítása'
+                'Mosas inditasa'
               )}
             </button>
           </div>
@@ -504,11 +641,58 @@ function NewWashContent() {
   );
 }
 
+// Vehicle Button Component
+function VehicleButton({
+  vehicle,
+  isSelected,
+  onClick,
+  icon,
+}: {
+  vehicle: Vehicle;
+  isSelected: boolean;
+  onClick: () => void;
+  icon: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full p-3 rounded-xl border-2 text-left transition-colors ${
+        isSelected
+          ? 'border-primary-500 bg-primary-50'
+          : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+          isSelected
+            ? 'bg-primary-500'
+            : 'bg-gray-100'
+        }`}>
+          <span className="text-xl">{icon}</span>
+        </div>
+        <div className="flex-1">
+          <p className="font-mono font-semibold text-gray-800">
+            {vehicle.plateNumber}
+          </p>
+          {vehicle.nickname && (
+            <p className="text-xs text-gray-500">{vehicle.nickname}</p>
+          )}
+        </div>
+        {isSelected && (
+          <svg className="w-5 h-5 text-primary-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+        )}
+      </div>
+    </button>
+  );
+}
+
 export default function NewWashPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Betöltés...</div>
+        <div className="text-gray-500">Betoltes...</div>
       </div>
     }>
       <NewWashContent />

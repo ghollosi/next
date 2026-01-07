@@ -11,12 +11,12 @@ import {
   IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { VehicleType } from '@prisma/client';
+import { VehicleCategory } from '@prisma/client';
 
 export class VehicleRegistrationDto {
-  @ApiProperty({ description: 'Vehicle type', enum: VehicleType })
-  @IsEnum(VehicleType)
-  type: VehicleType;
+  @ApiProperty({ description: 'Vehicle category', enum: ['SOLO', 'TRACTOR', 'TRAILER'] })
+  @IsEnum(VehicleCategory)
+  category: VehicleCategory;
 
   @ApiProperty({ description: 'Plate number' })
   @IsString()
@@ -28,6 +28,12 @@ export class VehicleRegistrationDto {
   @IsOptional()
   @IsString()
   plateState?: string;
+
+  @ApiPropertyOptional({ description: 'Nickname for the vehicle' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  nickname?: string;
 }
 
 export class SelfRegisterDto {
@@ -85,6 +91,12 @@ export class SelfRegisterResponseDto {
 
   @ApiProperty({ description: 'Approval status' })
   approvalStatus: string;
+
+  @ApiPropertyOptional({
+    description: 'What verification is required',
+    enum: ['EMAIL', 'PHONE', 'BOTH'],
+  })
+  verificationRequired?: 'EMAIL' | 'PHONE' | 'BOTH';
 
   @ApiProperty({ description: 'Message for the user' })
   message: string;

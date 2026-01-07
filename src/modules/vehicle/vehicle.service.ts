@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Vehicle, VehicleType } from '@prisma/client';
+import { Vehicle, VehicleCategory } from '@prisma/client';
 
 @Injectable()
 export class VehicleService {
@@ -56,16 +56,16 @@ export class VehicleService {
     });
   }
 
-  async findByPartnerCompanyAndType(
+  async findByPartnerCompanyAndCategory(
     networkId: string,
     partnerCompanyId: string,
-    type: VehicleType,
+    category: VehicleCategory,
   ): Promise<Vehicle[]> {
     return this.prisma.vehicle.findMany({
       where: {
         networkId,
         partnerCompanyId,
-        type,
+        category,
         isActive: true,
         deletedAt: null,
       },
@@ -102,7 +102,26 @@ export class VehicleService {
         deletedAt: null,
       },
       orderBy: {
-        type: 'asc', // TRACTOR first, then TRAILER
+        category: 'asc', // SOLO first, then TRACTOR, then TRAILER
+      },
+    });
+  }
+
+  async findByDriverAndCategory(
+    networkId: string,
+    driverId: string,
+    category: VehicleCategory,
+  ): Promise<Vehicle[]> {
+    return this.prisma.vehicle.findMany({
+      where: {
+        networkId,
+        driverId,
+        category,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: {
+        plateNumber: 'asc',
       },
     });
   }
@@ -111,26 +130,91 @@ export class VehicleService {
     networkId: string,
     data: {
       partnerCompanyId: string;
-      type: VehicleType;
+      category: VehicleCategory | string;
       plateNumber: string;
       plateState?: string;
+      nickname?: string;
       make?: string;
-      model?: string;
+      modelName?: string;
       year?: number;
       driverId?: string;
     },
   ): Promise<Vehicle> {
+    // Check if plate already exists in this network
+    const existing = await this.prisma.vehicle.findFirst({
+      where: {
+        networkId,
+        plateNumber: data.plateNumber.toUpperCase(),
+        deletedAt: null,
+      },
+    });
+
+    if (existing) {
+      throw new ConflictException(`Rendszám már létezik: ${data.plateNumber}`);
+    }
+
     return this.prisma.vehicle.create({
       data: {
         networkId,
         partnerCompanyId: data.partnerCompanyId,
         driverId: data.driverId,
-        type: data.type,
-        plateNumber: data.plateNumber.toUpperCase(),
+        category: data.category as VehicleCategory,
+        plateNumber: data.plateNumber.toUpperCase().replace(/[^A-Z0-9]/g, ''),
         plateState: data.plateState?.toUpperCase(),
+        nickname: data.nickname,
         make: data.make,
-        model: data.model,
+        modelName: data.modelName,
         year: data.year,
+      },
+    });
+  }
+
+  // Sofőr által hozzáadott jármű mentése vagy frissítése
+  async createOrUpdateByDriver(
+    networkId: string,
+    driverId: string,
+    partnerCompanyId: string,
+    data: {
+      category: VehicleCategory | string;
+      plateNumber: string;
+      nickname?: string;
+    },
+  ): Promise<Vehicle> {
+    const normalizedPlate = data.plateNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    // Létezik-e már ez a rendszám?
+    const existing = await this.prisma.vehicle.findFirst({
+      where: {
+        networkId,
+        plateNumber: normalizedPlate,
+        deletedAt: null,
+      },
+    });
+
+    if (existing) {
+      // Ha létezik és a sofőré, frissítsük
+      if (existing.driverId === driverId) {
+        return this.prisma.vehicle.update({
+          where: { id: existing.id },
+          data: {
+            category: data.category as VehicleCategory,
+            nickname: data.nickname,
+          },
+        });
+      }
+      // Ha másé, dobjunk hibát
+      throw new ConflictException(`Ez a rendszám már máshoz tartozik: ${data.plateNumber}`);
+    }
+
+    // Új jármű létrehozása
+    return this.prisma.vehicle.create({
+      data: {
+        networkId,
+        partnerCompanyId,
+        driverId,
+        category: data.category as VehicleCategory,
+        plateNumber: normalizedPlate,
+        nickname: data.nickname,
       },
     });
   }
@@ -141,8 +225,10 @@ export class VehicleService {
     data: {
       plateNumber?: string;
       plateState?: string;
+      category?: VehicleCategory;
+      nickname?: string;
       make?: string;
-      model?: string;
+      modelName?: string;
       year?: number;
       isActive?: boolean;
     },
@@ -153,7 +239,7 @@ export class VehicleService {
       where: { id },
       data: {
         ...data,
-        plateNumber: data.plateNumber?.toUpperCase(),
+        plateNumber: data.plateNumber?.toUpperCase().replace(/[^A-Z0-9]/g, ''),
         plateState: data.plateState?.toUpperCase(),
       },
     });

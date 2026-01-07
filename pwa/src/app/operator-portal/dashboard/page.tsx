@@ -60,10 +60,10 @@ export default function OperatorDashboardPage() {
 
     try {
       const [queueRes, statsRes] = await Promise.all([
-        fetch(`${API_URL}/api/operator-portal/queue`, {
+        fetch(`${API_URL}/operator-portal/queue`, {
           headers: { 'x-operator-session': sessionId },
         }),
-        fetch(`${API_URL}/api/operator-portal/statistics`, {
+        fetch(`${API_URL}/operator-portal/statistics`, {
           headers: { 'x-operator-session': sessionId },
         }),
       ]);
@@ -127,7 +127,7 @@ export default function OperatorDashboardPage() {
         options.body = JSON.stringify({ reason });
       }
 
-      const response = await fetch(`${API_URL}/api/operator-portal/wash-events/${eventId}/${action}`, options);
+      const response = await fetch(`${API_URL}/operator-portal/wash-events/${eventId}/${action}`, options);
 
       if (!response.ok) {
         const data = await response.json();

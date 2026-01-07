@@ -10,11 +10,17 @@ import { VehicleModule } from './modules/vehicle/vehicle.module';
 import { ServicePackageModule } from './modules/service-package/service-package.module';
 import { WashEventModule } from './modules/wash-event/wash-event.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { EmailModule } from './modules/email/email.module';
+import { SmsModule } from './modules/sms/sms.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { PwaModule } from './pwa/pwa.module';
 import { OperatorModule } from './operator/operator.module';
 import { BillingModule } from './billing/billing.module';
 import { PartnerPortalModule } from './partner-portal/partner-portal.module';
 import { OperatorPortalModule } from './operator-portal/operator-portal.module';
+import { PlatformAdminModule } from './platform-admin/platform-admin.module';
+import { NetworkAdminModule } from './network-admin/network-admin.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
   imports: [
@@ -32,11 +38,17 @@ import { OperatorPortalModule } from './operator-portal/operator-portal.module';
     ServicePackageModule,
     WashEventModule,
     AuditLogModule,
+    EmailModule,
+    SmsModule,
+    NotificationModule,
     PwaModule,
     OperatorModule,
     BillingModule,
     PartnerPortalModule,
     OperatorPortalModule,
+    PlatformAdminModule,
+    NetworkAdminModule,
+    StripeModule,
   ],
 })
 export class AppModule {}
