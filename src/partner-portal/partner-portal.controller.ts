@@ -21,22 +21,12 @@ import { Request } from 'express';
 import { PartnerCompanyService } from '../modules/partner-company/partner-company.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { createHash } from 'crypto';
-
-// Simple in-memory session store for partner portals
-const partnerSessions = new Map<
-  string,
-  { partnerId: string; networkId: string; partnerName: string }
->();
+import { SessionService, PartnerSessionData } from '../common/session/session.service';
+import { SessionType } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 // Default network ID
 const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
-
-// Simple PIN storage for partners (in production, this would be in DB)
-// For now, partners use their tax number last 4 digits as PIN
-function hashPin(pin: string): string {
-  return createHash('sha256').update(pin).digest('hex');
-}
 
 @ApiTags('partner-portal')
 @Controller('partner-portal')
@@ -45,15 +35,19 @@ export class PartnerPortalController {
     private readonly partnerCompanyService: PartnerCompanyService,
     private readonly washEventService: WashEventService,
     private readonly prisma: PrismaService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  private getPartnerSession(req: Request) {
+  private async getPartnerSession(req: Request): Promise<PartnerSessionData> {
     const sessionId = req.get('x-partner-session');
     if (!sessionId) {
       throw new BadRequestException('Partner session required');
     }
 
-    const session = partnerSessions.get(sessionId);
+    const session = await this.sessionService.getSession<PartnerSessionData>(
+      sessionId,
+      SessionType.PARTNER,
+    );
     if (!session) {
       throw new UnauthorizedException('Invalid or expired session');
     }
@@ -85,22 +79,31 @@ export class PartnerPortalController {
         body.code.toUpperCase(),
       );
 
-      // For demo purposes, PIN is last 4 chars of tax number or "1234" if no tax number
-      const expectedPin = partner.taxNumber
-        ? partner.taxNumber.replace(/\D/g, '').slice(-4)
-        : '1234';
+      // Verify PIN using bcrypt hash stored in database
+      if (!partner.pinHash) {
+        throw new UnauthorizedException('Nincs beállítva PIN kód. Kérd a Network Admin-t a PIN beállításához.');
+      }
 
-      if (body.pin !== expectedPin) {
+      const isValidPin = await bcrypt.compare(body.pin, partner.pinHash);
+      if (!isValidPin) {
         throw new UnauthorizedException('Hibás PIN kód');
       }
 
-      // Generate session
-      const sessionId = `partner_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      partnerSessions.set(sessionId, {
+      // Generate session and store in database
+      const sessionData: PartnerSessionData = {
         partnerId: partner.id,
         networkId: partner.networkId,
         partnerName: partner.name,
-      });
+      };
+
+      const sessionId = await this.sessionService.createSession(
+        SessionType.PARTNER,
+        sessionData,
+        {
+          networkId: partner.networkId,
+          userId: partner.id,
+        },
+      );
 
       return {
         sessionId,
@@ -120,7 +123,7 @@ export class PartnerPortalController {
   @ApiOperation({ summary: 'Get partner profile' })
   @ApiResponse({ status: 200, description: 'Partner profile' })
   async getProfile(@Req() req: Request) {
-    const session = this.getPartnerSession(req);
+    const session = await this.getPartnerSession(req);
     const partner = await this.partnerCompanyService.findById(
       session.networkId,
       session.partnerId,
@@ -149,7 +152,7 @@ export class PartnerPortalController {
     @Query('endDate') endDate?: string,
     @Query('status') status?: string,
   ) {
-    const session = this.getPartnerSession(req);
+    const session = await this.getPartnerSession(req);
 
     const result = await this.washEventService.findByPartnerCompany(
       session.networkId,
@@ -175,7 +178,7 @@ export class PartnerPortalController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const session = this.getPartnerSession(req);
+    const session = await this.getPartnerSession(req);
 
     const result = await this.washEventService.findByPartnerCompany(
       session.networkId,
@@ -232,7 +235,7 @@ export class PartnerPortalController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const session = this.getPartnerSession(req);
+    const session = await this.getPartnerSession(req);
 
     const result = await this.washEventService.findByPartnerCompany(
       session.networkId,
@@ -282,7 +285,7 @@ export class PartnerPortalController {
     @Query('endDate') endDate?: string,
     @Query('status') status?: string,
   ) {
-    const session = this.getPartnerSession(req);
+    const session = await this.getPartnerSession(req);
 
     const where: any = {
       partnerCompanyId: session.partnerId,
@@ -328,8 +331,8 @@ export class PartnerPortalController {
         total: Number(inv.total),
         currency: inv.currency,
         paymentMethod: inv.paymentMethod,
-        externalInvoiceId: inv.externalInvoiceId,
-        externalInvoiceUrl: inv.externalInvoiceUrl,
+        externalInvoiceId: inv.externalId,
+        pdfUrl: inv.szamlazzPdfUrl,
         items: inv.items.map((item) => ({
           id: item.id,
           description: item.description,
@@ -353,7 +356,7 @@ export class PartnerPortalController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const session = this.getPartnerSession(req);
+    const session = await this.getPartnerSession(req);
 
     const where: any = {
       partnerCompanyId: session.partnerId,
@@ -414,7 +417,7 @@ export class PartnerPortalController {
   async logout(@Req() req: Request) {
     const sessionId = req.get('x-partner-session');
     if (sessionId) {
-      partnerSessions.delete(sessionId);
+      await this.sessionService.deleteSession(sessionId);
     }
     return { message: 'Kijelentkezve' };
   }

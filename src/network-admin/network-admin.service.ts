@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { SubscriptionStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -36,6 +37,7 @@ export class NetworkAdminService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // =========================================================================
@@ -548,8 +550,8 @@ export class NetworkAdminService {
   }
 
   async createLocation(networkId: string, dto: CreateLocationDto): Promise<LocationListItemDto> {
-    // Generate a code from the name
-    const code = dto.name.substring(0, 8).toUpperCase().replace(/\s+/g, '');
+    // Generate a code from the name or use provided code
+    const code = dto.code || dto.name.substring(0, 8).toUpperCase().replace(/\s+/g, '');
 
     const location = await this.prisma.location.create({
       data: {
@@ -559,8 +561,13 @@ export class NetworkAdminService {
         address: dto.address,
         city: dto.city,
         zipCode: dto.postalCode,
+        country: dto.country || 'HU',
+        timezone: dto.timezone || 'Europe/Budapest',
         latitude: dto.latitude,
         longitude: dto.longitude,
+        openingHours: dto.openingHours,
+        phone: dto.phone,
+        email: dto.email,
       },
       include: {
         _count: {
@@ -569,6 +576,15 @@ export class NetworkAdminService {
           },
         },
       },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: { type: 'LOCATION', id: location.id, name: location.name, code },
+      metadata: { entityType: 'location' },
     });
 
     return {
@@ -595,14 +611,24 @@ export class NetworkAdminService {
       throw new NotFoundException('Helyszín nem található');
     }
 
+    const updateData: any = {};
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.code !== undefined) updateData.code = dto.code;
+    if (dto.address !== undefined) updateData.address = dto.address;
+    if (dto.city !== undefined) updateData.city = dto.city;
+    if (dto.postalCode !== undefined) updateData.zipCode = dto.postalCode;
+    if (dto.country !== undefined) updateData.country = dto.country;
+    if (dto.timezone !== undefined) updateData.timezone = dto.timezone;
+    if (dto.latitude !== undefined) updateData.latitude = dto.latitude;
+    if (dto.longitude !== undefined) updateData.longitude = dto.longitude;
+    if (dto.openingHours !== undefined) updateData.openingHours = dto.openingHours;
+    if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+    if (dto.phone !== undefined) updateData.phone = dto.phone;
+    if (dto.email !== undefined) updateData.email = dto.email;
+
     const updated = await this.prisma.location.update({
       where: { id: locationId },
-      data: {
-        name: dto.name,
-        address: dto.address,
-        city: dto.city,
-        isActive: dto.isActive,
-      },
+      data: updateData,
       include: {
         _count: {
           select: {
@@ -610,6 +636,16 @@ export class NetworkAdminService {
           },
         },
       },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'LOCATION', id: location.id, name: location.name },
+      newData: { type: 'LOCATION', id: updated.id, name: updated.name, ...updateData },
+      metadata: { entityType: 'location' },
     });
 
     return {
@@ -635,6 +671,16 @@ export class NetworkAdminService {
     await this.prisma.location.update({
       where: { id: locationId },
       data: { deletedAt: new Date(), isActive: false },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'LOCATION', id: location.id, name: location.name, isActive: true },
+      newData: { type: 'LOCATION', id: location.id, name: location.name, deleted: true },
+      metadata: { entityType: 'location', operation: 'delete' },
     });
   }
 
@@ -670,11 +716,12 @@ export class NetworkAdminService {
     networkId: string,
     dto: CreatePartnerCompanyDto,
   ): Promise<PartnerCompanyListItemDto> {
+    const code = dto.name.substring(0, 10).toUpperCase().replace(/\s+/g, '');
     const company = await this.prisma.partnerCompany.create({
       data: {
         networkId,
         name: dto.name,
-        code: dto.name.substring(0, 10).toUpperCase().replace(/\s+/g, ''),
+        code,
         taxNumber: dto.taxNumber,
         billingAddress: dto.billingAddress,
         email: dto.contactEmail,
@@ -688,6 +735,15 @@ export class NetworkAdminService {
           },
         },
       },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: { type: 'PARTNER_COMPANY', id: company.id, name: company.name, code },
+      metadata: { entityType: 'partner_company' },
     });
 
     return {
@@ -810,6 +866,15 @@ export class NetworkAdminService {
       },
     });
 
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: { type: 'SERVICE_PACKAGE', id: pkg.id, name: pkg.name, code: pkg.code },
+      metadata: { entityType: 'service_package' },
+    });
+
     return {
       id: pkg.id,
       name: pkg.name,
@@ -852,6 +917,16 @@ export class NetworkAdminService {
       },
     });
 
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'SERVICE_PACKAGE', id: pkg.id, name: pkg.name, code: pkg.code },
+      newData: { type: 'SERVICE_PACKAGE', id: updated.id, name: updated.name, code: updated.code },
+      metadata: { entityType: 'service_package' },
+    });
+
     return {
       id: updated.id,
       name: updated.name,
@@ -873,6 +948,16 @@ export class NetworkAdminService {
     await this.prisma.servicePackage.update({
       where: { id: packageId },
       data: { deletedAt: new Date(), isActive: false },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'SERVICE_PACKAGE', id: pkg.id, name: pkg.name, isActive: true },
+      newData: { type: 'SERVICE_PACKAGE', id: pkg.id, name: pkg.name, deleted: true },
+      metadata: { entityType: 'service_package', operation: 'delete' },
     });
   }
 
@@ -945,6 +1030,15 @@ export class NetworkAdminService {
       },
     });
 
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: { type: 'PRICE', id: price.id, servicePackage: pkg.name, vehicleType: dto.vehicleType, price: dto.price },
+      metadata: { entityType: 'price' },
+    });
+
     return {
       id: price.id,
       servicePackageId: price.servicePackageId,
@@ -990,6 +1084,16 @@ export class NetworkAdminService {
       },
     });
 
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'PRICE', id: priceRecord.id, vehicleType: priceRecord.vehicleType, price: Number(priceRecord.price) },
+      newData: { type: 'PRICE', id: updated.id, vehicleType: updated.vehicleType, price: Number(updated.price) },
+      metadata: { entityType: 'price' },
+    });
+
     return {
       id: updated.id,
       servicePackageId: updated.servicePackageId,
@@ -1012,6 +1116,16 @@ export class NetworkAdminService {
     await this.prisma.servicePrice.update({
       where: { id: priceId },
       data: { isActive: false },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'PRICE', id: priceRecord.id, vehicleType: priceRecord.vehicleType, price: Number(priceRecord.price), isActive: true },
+      newData: { type: 'PRICE', id: priceRecord.id, vehicleType: priceRecord.vehicleType, deleted: true },
+      metadata: { entityType: 'price', operation: 'delete' },
     });
   }
 
@@ -1540,6 +1654,15 @@ export class NetworkAdminService {
       },
     });
 
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: { type: 'OPERATOR', id: operator.id, name: operator.name, locationId, locationName: location.name },
+      metadata: { entityType: 'operator' },
+    });
+
     return {
       id: operator.id,
       locationId: operator.locationId,
@@ -1585,6 +1708,16 @@ export class NetworkAdminService {
       data: updateData,
     });
 
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'OPERATOR', id: operator.id, name: operator.name },
+      newData: { type: 'OPERATOR', id: updated.id, name: updated.name, ...updateData },
+      metadata: { entityType: 'operator' },
+    });
+
     return {
       id: updated.id,
       locationId: updated.locationId,
@@ -1606,6 +1739,16 @@ export class NetworkAdminService {
     await this.prisma.locationOperator.update({
       where: { id: operatorId },
       data: { deletedAt: new Date(), isActive: false },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'OPERATOR', id: operator.id, name: operator.name, isActive: true },
+      newData: { type: 'OPERATOR', id: operator.id, name: operator.name, deleted: true },
+      metadata: { entityType: 'operator', operation: 'delete' },
     });
   }
 
@@ -1873,5 +2016,167 @@ export class NetworkAdminService {
       newData: log.newData,
       metadata: log.metadata,
     }));
+  }
+
+  // =========================================================================
+  // LOCATION SERVICES (Service Availability)
+  // =========================================================================
+
+  async listLocationServices(networkId: string, locationId: string): Promise<any[]> {
+    // Verify location belongs to this network
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, networkId, deletedAt: null },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Helyszín nem található');
+    }
+
+    const services = await this.prisma.locationServiceAvailability.findMany({
+      where: { locationId, networkId, isActive: true },
+      include: {
+        servicePackage: true,
+      },
+      orderBy: { servicePackage: { name: 'asc' } },
+    });
+
+    return services.map((s) => ({
+      id: s.id,
+      servicePackageId: s.servicePackageId,
+      servicePackageName: s.servicePackage.name,
+      servicePackageCode: s.servicePackage.code,
+      isActive: s.isActive,
+    }));
+  }
+
+  async addLocationService(
+    networkId: string,
+    locationId: string,
+    servicePackageId: string,
+  ): Promise<any> {
+    // Verify location belongs to this network
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, networkId, deletedAt: null },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Helyszín nem található');
+    }
+
+    // Verify service package belongs to this network
+    const servicePackage = await this.prisma.servicePackage.findFirst({
+      where: { id: servicePackageId, networkId, deletedAt: null },
+    });
+
+    if (!servicePackage) {
+      throw new NotFoundException('Szolgáltatás csomag nem található');
+    }
+
+    // Check if already exists
+    const existing = await this.prisma.locationServiceAvailability.findFirst({
+      where: { locationId, servicePackageId },
+    });
+
+    if (existing) {
+      // Reactivate if inactive
+      if (!existing.isActive) {
+        const updated = await this.prisma.locationServiceAvailability.update({
+          where: { id: existing.id },
+          data: { isActive: true },
+          include: { servicePackage: true },
+        });
+        return {
+          id: updated.id,
+          servicePackageId: updated.servicePackageId,
+          servicePackageName: updated.servicePackage.name,
+          servicePackageCode: updated.servicePackage.code,
+          isActive: updated.isActive,
+        };
+      }
+      throw new ConflictException('Ez a szolgáltatás már hozzá van adva ehhez a helyszínhez');
+    }
+
+    const service = await this.prisma.locationServiceAvailability.create({
+      data: {
+        networkId,
+        locationId,
+        servicePackageId,
+      },
+      include: { servicePackage: true },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: {
+        type: 'LOCATION_SERVICE',
+        locationId,
+        locationName: location.name,
+        servicePackageId,
+        servicePackageName: servicePackage.name,
+      },
+      metadata: { entityType: 'location_service' },
+    });
+
+    return {
+      id: service.id,
+      servicePackageId: service.servicePackageId,
+      servicePackageName: service.servicePackage.name,
+      servicePackageCode: service.servicePackage.code,
+      isActive: service.isActive,
+    };
+  }
+
+  async removeLocationService(
+    networkId: string,
+    locationId: string,
+    servicePackageId: string,
+  ): Promise<void> {
+    // Verify location belongs to this network
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, networkId, deletedAt: null },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Helyszín nem található');
+    }
+
+    const service = await this.prisma.locationServiceAvailability.findFirst({
+      where: { locationId, servicePackageId, networkId },
+      include: { servicePackage: true },
+    });
+
+    if (!service) {
+      throw new NotFoundException('Szolgáltatás nem található ezen a helyszínen');
+    }
+
+    await this.prisma.locationServiceAvailability.update({
+      where: { id: service.id },
+      data: { isActive: false },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: {
+        type: 'LOCATION_SERVICE',
+        locationId,
+        locationName: location.name,
+        servicePackageId,
+        servicePackageName: service.servicePackage.name,
+        isActive: true,
+      },
+      newData: {
+        type: 'LOCATION_SERVICE',
+        locationId,
+        servicePackageId,
+        deleted: true,
+      },
+      metadata: { entityType: 'location_service', operation: 'delete' },
+    });
   }
 }

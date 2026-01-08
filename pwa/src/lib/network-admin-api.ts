@@ -314,16 +314,38 @@ export const networkAdminApi = {
     postalCode?: string;
     phone?: string;
     email?: string;
+    openingHours?: any;
+    latitude?: number;
+    longitude?: number;
   }): Promise<Location> {
+    // Convert openingHours object to JSON string if provided
+    const requestData = { ...data };
+    if (data.openingHours && typeof data.openingHours === 'object') {
+      requestData.openingHours = JSON.stringify(data.openingHours);
+    }
     return fetchWithAuth('/network-admin/locations', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestData),
     });
   },
 
   async updateLocation(
     id: string,
-    data: { name?: string; address?: string; city?: string; isActive?: boolean },
+    data: {
+      name?: string;
+      address?: string;
+      city?: string;
+      postalCode?: string;
+      openingHours?: string;
+      phone?: string;
+      email?: string;
+      code?: string;
+      country?: string;
+      timezone?: string;
+      latitude?: number;
+      longitude?: number;
+      isActive?: boolean;
+    },
   ): Promise<Location> {
     return fetchWithAuth(`/network-admin/locations/${id}`, {
       method: 'PUT',
@@ -701,5 +723,38 @@ export const networkAdminApi = {
     metadata?: any;
   }[]> {
     return fetchWithAuth(`/network-admin/audit-logs/wash-event/${washEventId}`);
+  },
+
+  // =========================================================================
+  // LOCATION SERVICES
+  // =========================================================================
+
+  async listLocationServices(locationId: string): Promise<{
+    id: string;
+    servicePackageId: string;
+    servicePackageName: string;
+    servicePackageCode: string;
+    isActive: boolean;
+  }[]> {
+    return fetchWithAuth(`/network-admin/locations/${locationId}/services`);
+  },
+
+  async addLocationService(locationId: string, servicePackageId: string): Promise<{
+    id: string;
+    servicePackageId: string;
+    servicePackageName: string;
+    servicePackageCode: string;
+    isActive: boolean;
+  }> {
+    return fetchWithAuth(`/network-admin/locations/${locationId}/services`, {
+      method: 'POST',
+      body: JSON.stringify({ servicePackageId }),
+    });
+  },
+
+  async removeLocationService(locationId: string, servicePackageId: string): Promise<void> {
+    return fetchWithAuth(`/network-admin/locations/${locationId}/services/${servicePackageId}`, {
+      method: 'DELETE',
+    });
   },
 };

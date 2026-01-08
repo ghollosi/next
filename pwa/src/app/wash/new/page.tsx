@@ -19,7 +19,9 @@ function NewWashContent() {
 
   const [driver, setDriver] = useState<DriverInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [step, setStep] = useState<'location' | 'services' | 'vehicles'>('location');
+  // Ha QR kódból jövünk, egyből a szolgáltatás választásra ugrunk (amint betöltött a location)
+  const [step, setStep] = useState<'location' | 'services' | 'vehicles'>(locationCodeFromQR ? 'services' : 'location');
+  const [qrLocationLoading, setQrLocationLoading] = useState(!!locationCodeFromQR);
 
   // Form state
   const [locations, setLocations] = useState<Location[]>([]);
@@ -79,15 +81,30 @@ function NewWashContent() {
         setUseManualPlates(true);
       }
 
-      // If there's a location code from QR, auto-select it
+      // If there's a location code from QR, auto-select it and load services directly
       if (locationCodeFromQR) {
         const location = locs.find(l => l.code === locationCodeFromQR);
         if (location) {
-          handleSelectLocation(location, session);
+          setSelectedLocation(location);
+          // Load services for QR location
+          try {
+            const svcs = await api.getServices(session, location.code);
+            setServices(svcs);
+            setStep('services');
+          } catch (err) {
+            setError('Nem sikerult betolteni a szolgaltatasokat');
+            setStep('location');
+          }
+        } else {
+          // Location code not found, show location selection
+          setError(`Ismeretlen helyszin kod: ${locationCodeFromQR}`);
+          setStep('location');
         }
+        setQrLocationLoading(false);
       }
     } catch (err) {
       setError('Nem sikerult betolteni az adatokat');
+      setQrLocationLoading(false);
     }
   };
 
@@ -191,9 +208,14 @@ function NewWashContent() {
 
   const handleBack = () => {
     if (step === 'services') {
-      setStep('location');
-      setSelectedLocation(null);
-      setSelectedServices([]);
+      // Ha QR kódból jöttünk, visszamegyünk a dashboardra (nem a helyszínválasztásra)
+      if (locationCodeFromQR) {
+        router.push('/dashboard');
+      } else {
+        setStep('location');
+        setSelectedLocation(null);
+        setSelectedServices([]);
+      }
     } else if (step === 'vehicles') {
       setStep('services');
     } else {
@@ -201,10 +223,13 @@ function NewWashContent() {
     }
   };
 
-  if (!driver) {
+  if (!driver || qrLocationLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Betoltes...</div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mb-4"></div>
+        <div className="text-gray-500">
+          {qrLocationLoading ? 'Helyszin betoltese...' : 'Betoltes...'}
+        </div>
       </div>
     );
   }

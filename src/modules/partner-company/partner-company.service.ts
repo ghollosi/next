@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PartnerCompany, BillingType, BillingCycle } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class PartnerCompanyService {
@@ -157,6 +158,7 @@ export class PartnerCompanyService {
       contactName?: string;
       email?: string;
       phone?: string;
+      pin?: string; // Plain text PIN - will be hashed
       isActive?: boolean;
       billingType?: BillingType;
       billingCycle?: BillingCycle | null;
@@ -194,9 +196,17 @@ export class PartnerCompanyService {
   ): Promise<PartnerCompany> {
     await this.findById(networkId, id); // Ensure exists and belongs to network
 
+    // Prepare update data, hashing PIN if provided
+    const { pin, ...restData } = data;
+    const updateData: any = { ...restData };
+
+    if (pin) {
+      updateData.pinHash = await bcrypt.hash(pin, 10);
+    }
+
     return this.prisma.partnerCompany.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
 

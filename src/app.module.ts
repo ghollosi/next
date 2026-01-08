@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { SessionModule } from './common/session/session.module';
 import { HealthModule } from './common/health/health.module';
 import { NetworkModule } from './modules/network/network.module';
 import { LocationModule } from './modules/location/location.module';
@@ -32,6 +33,7 @@ import { StripeModule } from './stripe/stripe.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    SessionModule,
     HealthModule,
     NetworkModule,
     LocationModule,

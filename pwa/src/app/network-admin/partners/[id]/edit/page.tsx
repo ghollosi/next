@@ -30,6 +30,8 @@ export default function NetworkAdminEditPartnerPage() {
   const [taxNumber, setTaxNumber] = useState('');
   const [euVatNumber, setEuVatNumber] = useState('');
   const [paymentDueDays, setPaymentDueDays] = useState<number>(8);
+  const [pin, setPin] = useState('');
+  const [hasPin, setHasPin] = useState(false);
 
   useEffect(() => {
     loadPartner();
@@ -52,6 +54,7 @@ export default function NetworkAdminEditPartnerPage() {
       setTaxNumber(data.taxNumber || '');
       setEuVatNumber(data.euVatNumber || '');
       setPaymentDueDays(data.paymentDueDays ?? 8);
+      setHasPin(!!data.pinHash);
     } catch (err: any) {
       setError(err.message || 'Hiba történt');
     } finally {
@@ -79,6 +82,11 @@ export default function NetworkAdminEditPartnerPage() {
         euVatNumber: euVatNumber || undefined,
         paymentDueDays,
       };
+
+      // Add PIN if provided
+      if (pin && pin.length >= 4) {
+        body.pin = pin;
+      }
 
       // Billing cycle only for CONTRACT
       if (billingType === 'CONTRACT') {
@@ -192,6 +200,30 @@ export default function NetworkAdminEditPartnerPage() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Partner Portal PIN */}
+        <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
+            Partner Portal hozzáférés
+          </h2>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              PIN kód {hasPin ? '(már van beállítva)' : '(nincs beállítva)'}
+            </label>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder={hasPin ? 'Új PIN beállítása (üresen hagyva marad a régi)' : 'Adj meg egy 4+ karakteres PIN-t'}
+              minLength={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              A partner ezzel a PIN kóddal és a partner kóddal ({code}) tud bejelentkezni a Partner Portalba.
+            </p>
           </div>
         </div>
 

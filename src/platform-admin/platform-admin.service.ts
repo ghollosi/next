@@ -942,6 +942,84 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
   }
 
   // =========================================================================
+  // NETWORK AUDIT LOGS
+  // =========================================================================
+
+  async getNetworkAuditLogs(
+    networkId: string,
+    options: {
+      action?: string;
+      actorType?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: any[]; total: number }> {
+    const where: any = {
+      networkId,
+    };
+
+    if (options?.action) {
+      where.action = options.action;
+    }
+
+    if (options?.actorType) {
+      where.actorType = options.actorType;
+    }
+
+    if (options?.startDate || options?.endDate) {
+      where.createdAt = {};
+      if (options.startDate) {
+        where.createdAt.gte = options.startDate;
+      }
+      if (options.endDate) {
+        where.createdAt.lte = options.endDate;
+      }
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        include: {
+          washEvent: {
+            select: {
+              id: true,
+              status: true,
+              entryMode: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: options?.limit || 100,
+        skip: options?.offset || 0,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return {
+      data: data.map((log) => ({
+        id: log.id,
+        networkId: log.networkId,
+        washEventId: log.washEventId,
+        action: log.action,
+        actorType: log.actorType,
+        actorId: log.actorId,
+        previousData: log.previousData,
+        newData: log.newData,
+        metadata: log.metadata,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        createdAt: log.createdAt,
+        washEvent: log.washEvent,
+      })),
+      total,
+    };
+  }
+
+  // =========================================================================
   // TEST EMAIL
   // =========================================================================
 

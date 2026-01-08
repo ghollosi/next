@@ -327,6 +327,10 @@ model Location {
   // Nyitvatartás
   openingHours  String?       @map("opening_hours") // JSON vagy szöveges formátum
 
+  // Kapcsolat
+  phone         String?
+  email         String?
+
   // Relations
   network                     Network                       @relation(fields: [networkId], references: [id])
   serviceAvailability         LocationServiceAvailability[]
@@ -351,6 +355,7 @@ model PartnerCompany {
   contactName String?  @map("contact_name")
   email       String?
   phone       String?
+  pinHash     String?  @map("pin_hash") // Hashelt PIN a partner portal autentikációhoz
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1286,6 +1291,40 @@ model WashDeleteRequest {
   @@index([washEventId])
   @@index([status])
   @@map("wash_delete_requests")
+}
+
+// =============================================================================
+// SESSION (Adatbázis alapú session tárolás)
+// =============================================================================
+
+enum SessionType {
+  DRIVER        // Sofőr PWA session
+  OPERATOR      // Operátor portál session
+  PARTNER       // Partner portál session
+}
+
+model Session {
+  id          String      @id @default(uuid())
+  sessionId   String      @unique @map("session_id")  // A token amit a kliens kap
+  type        SessionType
+
+  // Session adatok (JSON)
+  data        Json
+
+  // Session élettartam
+  createdAt   DateTime    @default(now()) @map("created_at")
+  expiresAt   DateTime    @map("expires_at")
+  lastUsedAt  DateTime    @default(now()) @map("last_used_at")
+
+  // Opcionális referenciák könnyebb lekérdezéshez
+  networkId   String?     @map("network_id")
+  userId      String?     @map("user_id")  // driverId, operatorId, partnerId
+
+  @@index([sessionId])
+  @@index([type])
+  @@index([expiresAt])
+  @@index([networkId])
+  @@map("sessions")
 }
 
 // =============================================================================

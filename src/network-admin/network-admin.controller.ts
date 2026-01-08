@@ -843,4 +843,54 @@ export class NetworkAdminController {
     const { networkId } = await this.validateAuth(auth);
     return this.networkAdminService.getWashEventAuditLogs(networkId, washEventId);
   }
+
+  // =========================================================================
+  // LOCATION SERVICES
+  // =========================================================================
+
+  @Get('locations/:locationId/services')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List services available at a location' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of services for location',
+  })
+  async listLocationServices(
+    @Param('locationId') locationId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any[]> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.listLocationServices(networkId, locationId);
+  }
+
+  @Post('locations/:locationId/services')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add service to location' })
+  @ApiResponse({
+    status: 201,
+    description: 'Service added to location',
+  })
+  async addLocationService(
+    @Param('locationId') locationId: string,
+    @Body() dto: { servicePackageId: string },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.addLocationService(networkId, locationId, dto.servicePackageId);
+  }
+
+  @Delete('locations/:locationId/services/:servicePackageId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove service from location' })
+  @ApiResponse({ status: 204, description: 'Service removed from location' })
+  async removeLocationService(
+    @Param('locationId') locationId: string,
+    @Param('servicePackageId') servicePackageId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<void> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.removeLocationService(networkId, locationId, servicePackageId);
+  }
 }

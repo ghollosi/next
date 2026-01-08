@@ -300,6 +300,26 @@ export class CreateLocationDto {
   @IsOptional()
   @IsString()
   email?: string;
+
+  @ApiPropertyOptional({ description: 'Opening hours JSON string with days of week' })
+  @IsOptional()
+  @IsString()
+  openingHours?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }
 
 export class UpdateLocationDto {
@@ -324,6 +344,51 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Opening hours JSON string with days of week' })
+  @IsOptional()
+  @IsString()
+  openingHours?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }
 
 // ============================================================================

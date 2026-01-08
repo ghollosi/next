@@ -61,6 +61,7 @@ export default function NetworkAdminLayout({
     { href: '/network-admin/partners', label: 'Partner cégek', icon: '🏢' },
     { href: '/network-admin/delete-requests', label: 'Törlési kérelmek', icon: '🗑️' },
     { href: '/network-admin/prices', label: 'Árlista', icon: '💰' },
+    { href: '/network-admin/audit-logs', label: 'Audit napló', icon: '📋' },
     { href: '/network-admin/subscription', label: 'Előfizetés', icon: '💳' },
     { href: '/network-admin/settings', label: 'Beállítások', icon: '⚙️' },
   ];

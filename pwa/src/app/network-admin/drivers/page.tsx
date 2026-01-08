@@ -20,11 +20,29 @@ interface Driver {
   createdAt: string;
 }
 
+interface InviteData {
+  inviteCode: string;
+  inviteUrl?: string;
+}
+
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [inviteModal, setInviteModal] = useState<{
+    open: boolean;
+    driver: Driver | null;
+    loading: boolean;
+    data: InviteData | null;
+    error: string;
+  }>({
+    open: false,
+    driver: null,
+    loading: false,
+    data: null,
+    error: '',
+  });
 
   useEffect(() => {
     loadDrivers();
@@ -47,6 +65,69 @@ export default function DriversPage() {
     const search = searchTerm.toLowerCase();
     return fullName.includes(search) || companyName.includes(search);
   });
+
+  const openInviteModal = async (driver: Driver) => {
+    setInviteModal({
+      open: true,
+      driver,
+      loading: true,
+      data: null,
+      error: '',
+    });
+
+    try {
+      const data = await fetchOperatorApi<InviteData>(`/operator/drivers/${driver.id}/invite`);
+      setInviteModal((prev) => ({
+        ...prev,
+        loading: false,
+        data,
+      }));
+    } catch (err: any) {
+      setInviteModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Hiba a meghívó betöltésekor',
+      }));
+    }
+  };
+
+  const closeInviteModal = () => {
+    setInviteModal({
+      open: false,
+      driver: null,
+      loading: false,
+      data: null,
+      error: '',
+    });
+  };
+
+  const regenerateInvite = async () => {
+    if (!inviteModal.driver) return;
+
+    setInviteModal((prev) => ({ ...prev, loading: true, error: '' }));
+
+    try {
+      const data = await fetchOperatorApi<InviteData>(
+        `/operator/drivers/${inviteModal.driver.id}/regenerate-invite`,
+        { method: 'POST' }
+      );
+      setInviteModal((prev) => ({
+        ...prev,
+        loading: false,
+        data,
+      }));
+    } catch (err: any) {
+      setInviteModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Hiba az újrageneráláskor',
+      }));
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
 
   return (
     <div className="space-y-6">
@@ -168,7 +249,7 @@ export default function DriversPage() {
                           Részletek
                         </Link>
                         <button
-                          onClick={() => alert('Meghívó generálás - hamarosan')}
+                          onClick={() => openInviteModal(driver)}
                           className="text-gray-600 hover:text-gray-700 text-sm font-medium"
                         >
                           Meghívó
@@ -195,6 +276,126 @@ export default function DriversPage() {
                 Találatok: <strong>{filteredDrivers.length}</strong>
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Invite Modal */}
+      {inviteModal.open && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Sofőr meghívó
+              </h2>
+              <button
+                onClick={closeInviteModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {inviteModal.driver && (
+              <p className="text-gray-600">
+                Meghívó: <strong>{inviteModal.driver.lastName} {inviteModal.driver.firstName}</strong>
+              </p>
+            )}
+
+            {inviteModal.loading && (
+              <div className="py-8 text-center text-gray-500">
+                Betöltés...
+              </div>
+            )}
+
+            {inviteModal.error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
+                {inviteModal.error}
+              </div>
+            )}
+
+            {inviteModal.data && (
+              <div className="space-y-4">
+                {/* Invite Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Meghívó kód
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 px-4 py-3 bg-gray-100 rounded-lg font-mono text-lg text-center font-bold tracking-wider">
+                      {inviteModal.data.inviteCode}
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(inviteModal.data!.inviteCode)}
+                      className="px-4 py-3 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                      title="Másolás"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* QR Code placeholder */}
+                <div className="bg-gray-50 rounded-xl p-6 flex flex-col items-center">
+                  <div className="w-48 h-48 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(inviteModal.data.inviteUrl || inviteModal.data.inviteCode)}`}
+                      alt="QR Code"
+                      className="w-44 h-44"
+                    />
+                  </div>
+                  <p className="mt-3 text-sm text-gray-500 text-center">
+                    Szkenneld be a QR kódot a sofőr alkalmazással
+                  </p>
+                </div>
+
+                {/* URL if available */}
+                {inviteModal.data.inviteUrl && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Meghívó link
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={inviteModal.data.inviteUrl}
+                        className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600"
+                      />
+                      <button
+                        onClick={() => copyToClipboard(inviteModal.data!.inviteUrl!)}
+                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                        title="Másolás"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regenerate button */}
+                <button
+                  onClick={regenerateInvite}
+                  disabled={inviteModal.loading}
+                  className="w-full py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  Új meghívó kód generálása
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={closeInviteModal}
+              className="w-full py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Bezárás
+            </button>
           </div>
         </div>
       )}

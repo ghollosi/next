@@ -275,6 +275,12 @@ export class UpdatePartnerCompanyDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({ description: 'Partner portal PIN kód (min. 4 karakter)' })
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  pin?: string;
+
   @ApiPropertyOptional({ description: 'Aktív-e' })
   @IsOptional()
   @IsBoolean()

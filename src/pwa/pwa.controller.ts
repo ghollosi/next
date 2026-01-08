@@ -35,7 +35,8 @@ import { PartnerCompanyService } from '../modules/partner-company/partner-compan
 import { NotificationService } from '../modules/notification/notification.service';
 import { NetworkService } from '../modules/network/network.service';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { WashEntryMode, DriverApprovalStatus, VerificationType } from '@prisma/client';
+import { SessionService, DriverSessionData } from '../common/session/session.service';
+import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType } from '@prisma/client';
 import { ActivateDto, ActivateByPhoneDto, ActivateResponseDto } from './dto/activate.dto';
 import { CreateWashEventPwaDto } from './dto/create-wash-event.dto';
 import {
@@ -53,13 +54,6 @@ import {
   VerificationTypeDto,
 } from './dto/verification.dto';
 import { ConfigService } from '@nestjs/config';
-
-// Simple in-memory session store for activated drivers
-// In production, this would be JWT tokens or Redis sessions
-const driverSessions = new Map<
-  string,
-  { driverId: string; networkId: string; partnerCompanyId: string }
->();
 
 // Default network ID for self-registration
 // In production, this would come from QR code or subdomain
@@ -79,6 +73,7 @@ export class PwaController {
     private readonly networkService: NetworkService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly sessionService: SessionService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -88,15 +83,16 @@ export class PwaController {
     };
   }
 
-  private getDriverSession(req: Request) {
-    // In real implementation, this would validate JWT token
-    // For now, we use a simple header-based session
+  private async getDriverSession(req: Request): Promise<DriverSessionData> {
     const sessionId = req.get('x-driver-session');
     if (!sessionId) {
       throw new BadRequestException('Driver session required');
     }
 
-    const session = driverSessions.get(sessionId);
+    const session = await this.sessionService.getSession<DriverSessionData>(
+      sessionId,
+      SessionType.DRIVER,
+    );
     if (!session) {
       throw new BadRequestException('Invalid or expired session');
     }
@@ -329,13 +325,21 @@ export class PwaController {
       dto.pin,
     );
 
-    // Generate session ID (in production, use JWT)
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    driverSessions.set(sessionId, {
+    // Create session and store in database
+    const sessionData: DriverSessionData = {
       driverId: driver.id,
       networkId: driver.partnerCompany.networkId,
       partnerCompanyId: driver.partnerCompany.id,
-    });
+    };
+
+    const sessionId = await this.sessionService.createSession(
+      SessionType.DRIVER,
+      sessionData,
+      {
+        networkId: driver.partnerCompany.networkId,
+        userId: driver.id,
+      },
+    );
 
     return {
       sessionId,
@@ -368,13 +372,21 @@ export class PwaController {
       dto.pin,
     );
 
-    // Generate session ID (in production, use JWT)
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    driverSessions.set(sessionId, {
+    // Create session and store in database
+    const sessionData: DriverSessionData = {
       driverId: driver.id,
       networkId: driver.partnerCompany.networkId,
       partnerCompanyId: driver.partnerCompany.id,
-    });
+    };
+
+    const sessionId = await this.sessionService.createSession(
+      SessionType.DRIVER,
+      sessionData,
+      {
+        networkId: driver.partnerCompany.networkId,
+        userId: driver.id,
+      },
+    );
 
     return {
       sessionId,
@@ -392,7 +404,7 @@ export class PwaController {
   @ApiResponse({ status: 200, description: 'Driver profile' })
   @ApiResponse({ status: 400, description: 'Session required' })
   async getMe(@Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
     const driver = await this.driverService.findById(
       session.networkId,
       session.driverId,
@@ -410,7 +422,7 @@ export class PwaController {
   @ApiOperation({ summary: 'Get driver vehicles grouped by category' })
   @ApiResponse({ status: 200, description: 'List of vehicles split by category (solo, tractors, trailers)' })
   async getVehicles(@Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     // Get vehicles created by this driver
     const vehicles = await this.vehicleService.findByDriver(
@@ -458,7 +470,7 @@ export class PwaController {
     @Body() dto: CreateVehicleDto,
     @Req() req: Request,
   ) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     try {
       const vehicle = await this.vehicleService.createOrUpdateByDriver(
@@ -495,7 +507,7 @@ export class PwaController {
     @Param('id') id: string,
     @Req() req: Request,
   ) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     // Verify the vehicle belongs to this driver
     const vehicle = await this.vehicleService.findById(session.networkId, id);
@@ -513,7 +525,7 @@ export class PwaController {
   @ApiOperation({ summary: 'Get all available locations for the driver network' })
   @ApiResponse({ status: 200, description: 'List of locations' })
   async getLocations(@Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     const locations = await this.locationService.findAll(session.networkId);
 
@@ -535,7 +547,7 @@ export class PwaController {
     @Param('code') code: string,
     @Req() req: Request,
   ) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     const location = await this.locationService.findByCode(session.networkId, code);
 
@@ -557,7 +569,7 @@ export class PwaController {
     @Param('code') code: string,
     @Req() req: Request,
   ) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     const location = await this.locationService.findByCode(
       session.networkId,
@@ -588,7 +600,7 @@ export class PwaController {
     @Body() dto: CreateWashEventPwaDto,
     @Req() req: Request,
   ) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
     const metadata = this.getRequestMetadata(req);
 
     // Validate that either vehicle ID or manual plate is provided for tractor
@@ -635,7 +647,7 @@ export class PwaController {
   @ApiParam({ name: 'id', description: 'Wash event ID' })
   @ApiResponse({ status: 200, description: 'Wash event details' })
   async getWashEvent(@Param('id') id: string, @Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
     return this.washEventService.findById(session.networkId, id);
   }
 
@@ -645,7 +657,7 @@ export class PwaController {
   @ApiParam({ name: 'id', description: 'Wash event ID' })
   @ApiResponse({ status: 200, description: 'Wash event started' })
   async startWashEvent(@Param('id') id: string, @Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
     const metadata = this.getRequestMetadata(req);
 
     // First authorize (auto-authorize for driver-created events)
@@ -676,7 +688,7 @@ export class PwaController {
   @ApiParam({ name: 'id', description: 'Wash event ID' })
   @ApiResponse({ status: 200, description: 'Wash event completed' })
   async completeWashEvent(@Param('id') id: string, @Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.complete(session.networkId, id, {
@@ -690,7 +702,7 @@ export class PwaController {
   @ApiOperation({ summary: 'Get driver wash history' })
   @ApiResponse({ status: 200, description: 'List of wash events' })
   async getWashEvents(@Req() req: Request) {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     return this.washEventService.findByDriver(
       session.networkId,
@@ -838,7 +850,7 @@ export class PwaController {
     @Body() dto: ChangePartnerDto,
     @Req() req: Request,
   ): Promise<VerificationResponseDto> {
-    const session = this.getDriverSession(req);
+    const session = await this.getDriverSession(req);
 
     // Verify new partner company exists
     const newPartnerCompany = await this.partnerCompanyService.findById(
@@ -875,9 +887,9 @@ export class PwaController {
       data: { partnerCompanyId: newPartnerCompany.id },
     });
 
-    // Update session
-    driverSessions.set(req.get('x-driver-session')!, {
-      ...session,
+    // Update session in database
+    const sessionId = req.get('x-driver-session')!;
+    await this.sessionService.updateSession<DriverSessionData>(sessionId, {
       partnerCompanyId: newPartnerCompany.id,
     });
 

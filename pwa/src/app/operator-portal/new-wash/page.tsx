@@ -44,6 +44,11 @@ interface PlateSuggestion {
   totalWashes: number;
 }
 
+interface ExchangeRateData {
+  currency: string;
+  rate: number;
+}
+
 // Vehicle types with Hungarian labels
 const VEHICLE_TYPES = [
   { value: 'SEMI_TRUCK', label: 'Nyerges szerelveny', hasTrailer: true },
@@ -98,6 +103,7 @@ export default function NewWashPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRateData[]>([]);
 
   // Plate lookup
   const [suggestion, setSuggestion] = useState<PlateSuggestion | null>(null);
@@ -337,6 +343,17 @@ export default function NewWashPage() {
         setPartners(partnersData.data || []);
         setServices(servicesData.data || []);
         setPrices(pricesData.data || []);
+
+        // Load exchange rates
+        try {
+          const ratesRes = await fetch(`${API_URL}/exchange-rates`);
+          if (ratesRes.ok) {
+            const ratesData = await ratesRes.json();
+            setExchangeRates(ratesData.ecb || []);
+          }
+        } catch (ratesErr) {
+          console.error('Exchange rates load error:', ratesErr);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Hiba tortent');
       } finally {
@@ -889,7 +906,45 @@ export default function NewWashPage() {
                   {totalPrice.toLocaleString('hu-HU')} Ft
                 </span>
               </div>
-              <p className="text-xs text-green-600 text-center">
+
+              {/* Exchange rate info for cash/card payments */}
+              {customerType === 'AD_HOC' && (paymentMethod === 'CASH' || paymentMethod === 'CARD') && exchangeRates.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-green-200">
+                  <div className="text-xs text-green-700 font-medium mb-2">Arfolyamok (ECB) - keszpenz/kartyas fizeteshez:</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {exchangeRates
+                      .filter(rate => ['USD', 'GBP', 'CHF'].includes(rate.currency))
+                      .map(rate => {
+                        const convertedPrice = totalPrice / rate.rate;
+                        return (
+                          <div key={rate.currency} className="bg-white/50 rounded-lg p-2 text-center">
+                            <div className="text-sm font-bold text-green-800">
+                              {convertedPrice.toFixed(2)} {rate.currency}
+                            </div>
+                            <div className="text-xs text-green-600">
+                              1 EUR = {rate.rate.toFixed(4)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                  {(() => {
+                    const hufRate = exchangeRates.find(r => r.currency === 'HUF');
+                    if (hufRate) {
+                      const eurPrice = totalPrice / hufRate.rate;
+                      return (
+                        <div className="mt-2 text-center bg-white/50 rounded-lg p-2">
+                          <span className="text-lg font-bold text-green-800">{eurPrice.toFixed(2)} EUR</span>
+                          <span className="text-xs text-green-600 ml-2">(1 EUR = {hufRate.rate.toFixed(2)} HUF)</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
+
+              <p className="text-xs text-green-600 text-center mt-2">
                 * A feltuntetett arak listaarak, tajekoztato jelleguek. A szerzodeses partnerek egyedi kedvezmenyei a vegleges szamlazasban ervenyesulnek.
               </p>
             </div>

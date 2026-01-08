@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   Headers,
   HttpCode,
   HttpStatus,
@@ -302,6 +303,34 @@ export class PlatformAdminController {
   ): Promise<NetworkListItemDto[]> {
     await this.validateAuth(auth);
     return this.platformAdminService.listNetworks();
+  }
+
+  @Get('networks/:networkId/audit-logs')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get audit logs for a network' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of audit logs',
+  })
+  async getNetworkAuditLogs(
+    @Param('networkId') networkId: string,
+    @Query('action') action?: string,
+    @Query('actorType') actorType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<{ data: any[]; total: number }> {
+    await this.validateAuth(auth);
+    return this.platformAdminService.getNetworkAuditLogs(networkId, {
+      action: action as any,
+      actorType: actorType as any,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      limit: limit ? parseInt(limit, 10) : 100,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
   }
 
   @Get('networks/:id')

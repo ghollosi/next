@@ -4,6 +4,15 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi, getNetworkId } from '@/lib/network-admin-api';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+interface ExchangeRateData {
+  currency: string;
+  rate: number;
+  date: string;
+  source: 'MNB' | 'ECB';
+}
+
 interface ServicePackage {
   id: string;
   code: string;
@@ -99,10 +108,28 @@ export default function PricesPage() {
   const [saving, setSaving] = useState(false);
   const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState<{ ecb: ExchangeRateData[] }>({ ecb: [] });
+  const [ratesLoading, setRatesLoading] = useState(true);
 
   useEffect(() => {
     loadData();
+    loadExchangeRates();
   }, []);
+
+  async function loadExchangeRates() {
+    try {
+      setRatesLoading(true);
+      const response = await fetch(`${API_URL}/exchange-rates`);
+      if (response.ok) {
+        const data = await response.json();
+        setExchangeRates(data);
+      }
+    } catch (err) {
+      console.error('Exchange rates load error:', err);
+    } finally {
+      setRatesLoading(false);
+    }
+  }
 
   async function loadData() {
     try {
@@ -278,6 +305,44 @@ export default function PricesPage() {
           </div>
           <div className="text-sm text-gray-500">Módosítva</div>
         </div>
+      </div>
+
+      {/* Exchange Rates */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Aktuális árfolyamok (ECB)
+          </h3>
+          <button
+            onClick={loadExchangeRates}
+            disabled={ratesLoading}
+            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50"
+          >
+            {ratesLoading ? 'Frissítés...' : 'Frissítés'}
+          </button>
+        </div>
+        {ratesLoading ? (
+          <div className="text-sm text-gray-500">Árfolyamok betöltése...</div>
+        ) : exchangeRates.ecb.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+            {exchangeRates.ecb
+              .filter(rate => ['USD', 'GBP', 'CHF', 'PLN', 'CZK', 'RON', 'HUF'].includes(rate.currency))
+              .map(rate => (
+                <div key={rate.currency} className="bg-white rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-gray-900">{rate.rate.toFixed(4)}</div>
+                  <div className="text-xs text-gray-500">1 EUR = {rate.currency}</div>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">Nem sikerült betölteni az árfolyamokat</div>
+        )}
+        <p className="text-xs text-gray-400 mt-2 text-center">
+          Forrás: Európai Központi Bank (ECB) - naponta frissül
+        </p>
       </div>
 
       {/* Price table */}

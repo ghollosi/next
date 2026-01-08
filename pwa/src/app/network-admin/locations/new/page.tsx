@@ -5,6 +5,22 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
 
+interface DayHours {
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+}
+
+interface OpeningHours {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+}
+
 interface LocationFormData {
   name: string;
   address: string;
@@ -14,7 +30,34 @@ interface LocationFormData {
   longitude: string;
   phone: string;
   email: string;
+  openingHours: OpeningHours;
 }
+
+const DAYS = [
+  { key: 'monday', label: 'Hetfo' },
+  { key: 'tuesday', label: 'Kedd' },
+  { key: 'wednesday', label: 'Szerda' },
+  { key: 'thursday', label: 'Csutortok' },
+  { key: 'friday', label: 'Pentek' },
+  { key: 'saturday', label: 'Szombat' },
+  { key: 'sunday', label: 'Vasarnap' },
+] as const;
+
+const defaultDayHours: DayHours = {
+  isOpen: true,
+  openTime: '06:00',
+  closeTime: '22:00',
+};
+
+const defaultOpeningHours: OpeningHours = {
+  monday: { ...defaultDayHours },
+  tuesday: { ...defaultDayHours },
+  wednesday: { ...defaultDayHours },
+  thursday: { ...defaultDayHours },
+  friday: { ...defaultDayHours },
+  saturday: { isOpen: true, openTime: '07:00', closeTime: '18:00' },
+  sunday: { isOpen: false, openTime: '08:00', closeTime: '14:00' },
+};
 
 export default function NewLocationPage() {
   const router = useRouter();
@@ -29,11 +72,69 @@ export default function NewLocationPage() {
     longitude: '',
     phone: '',
     email: '',
+    openingHours: defaultOpeningHours,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleDayToggle = (day: keyof OpeningHours) => {
+    setFormData((prev) => ({
+      ...prev,
+      openingHours: {
+        ...prev.openingHours,
+        [day]: {
+          ...prev.openingHours[day],
+          isOpen: !prev.openingHours[day].isOpen,
+        },
+      },
+    }));
+  };
+
+  const handleTimeChange = (day: keyof OpeningHours, field: 'openTime' | 'closeTime', value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      openingHours: {
+        ...prev.openingHours,
+        [day]: {
+          ...prev.openingHours[day],
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const copyToAllDays = (sourceDay: keyof OpeningHours) => {
+    const sourceHours = formData.openingHours[sourceDay];
+    setFormData((prev) => ({
+      ...prev,
+      openingHours: {
+        monday: { ...sourceHours },
+        tuesday: { ...sourceHours },
+        wednesday: { ...sourceHours },
+        thursday: { ...sourceHours },
+        friday: { ...sourceHours },
+        saturday: { ...sourceHours },
+        sunday: { ...sourceHours },
+      },
+    }));
+  };
+
+  const copyToWeekdays = (sourceDay: keyof OpeningHours) => {
+    const sourceHours = formData.openingHours[sourceDay];
+    setFormData((prev) => ({
+      ...prev,
+      openingHours: {
+        ...prev.openingHours,
+        monday: { ...sourceHours },
+        tuesday: { ...sourceHours },
+        wednesday: { ...sourceHours },
+        thursday: { ...sourceHours },
+        friday: { ...sourceHours },
+      },
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,6 +147,7 @@ export default function NewLocationPage() {
         name: formData.name,
         address: formData.address,
         city: formData.city,
+        openingHours: formData.openingHours,
       };
 
       if (formData.postalCode) {
@@ -162,6 +264,69 @@ export default function NewLocationPage() {
                 className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Opening Hours */}
+        <div className="space-y-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Nyitvatartas</h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => copyToWeekdays('monday')}
+                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+              >
+                Hetfo masolasa hetkoznapokra
+              </button>
+              <button
+                type="button"
+                onClick={() => copyToAllDays('monday')}
+                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+              >
+                Hetfo masolasa mindenhova
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {DAYS.map(({ key, label }) => (
+              <div key={key} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                <div className="w-24">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.openingHours[key].isOpen}
+                      onChange={() => handleDayToggle(key)}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className={`text-sm font-medium ${formData.openingHours[key].isOpen ? 'text-gray-900' : 'text-gray-400'}`}>
+                      {label}
+                    </span>
+                  </label>
+                </div>
+
+                {formData.openingHours[key].isOpen ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="time"
+                      value={formData.openingHours[key].openTime}
+                      onChange={(e) => handleTimeChange(key, 'openTime', e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary-500 focus:ring-0 focus:outline-none"
+                    />
+                    <span className="text-gray-400">-</span>
+                    <input
+                      type="time"
+                      value={formData.openingHours[key].closeTime}
+                      onChange={(e) => handleTimeChange(key, 'closeTime', e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary-500 focus:ring-0 focus:outline-none"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-400 italic">Zarva</span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

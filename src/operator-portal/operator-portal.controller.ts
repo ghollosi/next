@@ -17,21 +17,11 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { LocationService } from '../modules/location/location.service';
 import { BillingService } from '../billing/billing.service';
+import { SessionService, OperatorSessionData } from '../common/session/session.service';
+import { SessionType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
-
-// Simple in-memory session store for operator sessions
-const operatorSessions = new Map<string, {
-  networkId: string;
-  locationId: string;
-  locationName: string;
-  locationCode: string;
-  washMode: string;
-  operatorId: string | null;
-  operatorName: string;
-  createdAt: Date;
-}>();
 
 @Controller('operator-portal')
 export class OperatorPortalController {
@@ -40,13 +30,17 @@ export class OperatorPortalController {
     private readonly washEventService: WashEventService,
     private readonly locationService: LocationService,
     private readonly billingService: BillingService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  private getSession(sessionId: string | undefined) {
+  private async getSession(sessionId: string | undefined): Promise<OperatorSessionData> {
     if (!sessionId) {
       throw new UnauthorizedException('Session ID required');
     }
-    const session = operatorSessions.get(sessionId);
+    const session = await this.sessionService.getSession<OperatorSessionData>(
+      sessionId,
+      SessionType.OPERATOR,
+    );
     if (!session) {
       throw new UnauthorizedException('Invalid or expired session');
     }
@@ -95,22 +89,13 @@ export class OperatorPortalController {
       }
     }
 
-    // If no operator found, try legacy authentication (demo mode)
+    // If no operator found with valid PIN, reject authentication
     if (!authenticatedOperator) {
-      const expectedPin = (location.code.slice(-4) + '00').slice(-4).padStart(4, '0');
-      const simplePin = '1234'; // Demo PIN for all locations
-
-      if (body.pin !== expectedPin && body.pin !== simplePin) {
-        throw new UnauthorizedException('Invalid PIN');
-      }
-
-      // Legacy/demo login - no specific operator
-      authenticatedOperator = { id: '', name: 'Operátor' };
+      throw new UnauthorizedException('Hibás PIN kód. Kérd a Network Admin-t, hogy hozzon létre operátort ehhez a helyszínhez.');
     }
 
-    // Create session
-    const sessionId = crypto.randomBytes(32).toString('hex');
-    operatorSessions.set(sessionId, {
+    // Create session and store in database
+    const sessionData: OperatorSessionData = {
       networkId: location.networkId,
       locationId: location.id,
       locationName: location.name,
@@ -118,8 +103,16 @@ export class OperatorPortalController {
       washMode: location.washMode,
       operatorId: authenticatedOperator.id || null,
       operatorName: authenticatedOperator.name,
-      createdAt: new Date(),
-    });
+    };
+
+    const sessionId = await this.sessionService.createSession(
+      SessionType.OPERATOR,
+      sessionData,
+      {
+        networkId: location.networkId,
+        userId: authenticatedOperator.id,
+      },
+    );
 
     return {
       sessionId,
@@ -136,7 +129,7 @@ export class OperatorPortalController {
   async getProfile(
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const location = await this.prisma.location.findUnique({
       where: { id: session.locationId },
@@ -160,7 +153,7 @@ export class OperatorPortalController {
   async getWashQueue(
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     // Get wash events that are in queue (CREATED, AUTHORIZED, IN_PROGRESS)
     const events = await this.prisma.washEvent.findMany({
@@ -211,7 +204,7 @@ export class OperatorPortalController {
     @Query('endDate') endDate?: string,
     @Query('limit') limit?: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const where: any = {
       networkId: session.networkId,
@@ -260,7 +253,7 @@ export class OperatorPortalController {
     @Param('id') id: string,
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const event = await this.prisma.washEvent.findFirst({
       where: {
@@ -300,7 +293,7 @@ export class OperatorPortalController {
     @Headers('x-operator-session') sessionId: string,
     @Req() req: Request,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     // Verify event belongs to this location
     const event = await this.prisma.washEvent.findFirst({
@@ -330,7 +323,7 @@ export class OperatorPortalController {
     @Headers('x-operator-session') sessionId: string,
     @Req() req: Request,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     // Verify event belongs to this location
     const event = await this.prisma.washEvent.findFirst({
@@ -360,7 +353,7 @@ export class OperatorPortalController {
     @Headers('x-operator-session') sessionId: string,
     @Req() req: Request,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     // Verify event belongs to this location
     const event = await this.prisma.washEvent.findFirst({
@@ -391,7 +384,7 @@ export class OperatorPortalController {
     @Headers('x-operator-session') sessionId: string,
     @Req() req: Request,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     if (!reason) {
       throw new BadRequestException('Rejection reason is required');
@@ -424,7 +417,7 @@ export class OperatorPortalController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const where: any = {
       networkId: session.networkId,
@@ -489,7 +482,7 @@ export class OperatorPortalController {
   async getPartners(
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const partners = await this.prisma.partnerCompany.findMany({
       where: {
@@ -520,7 +513,7 @@ export class OperatorPortalController {
   async getServices(
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const services = await this.prisma.servicePackage.findMany({
       where: {
@@ -546,7 +539,7 @@ export class OperatorPortalController {
     @Query('serviceId') serviceId?: string,
     @Query('vehicleType') vehicleType?: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const where: any = {
       networkId: session.networkId,
@@ -616,7 +609,7 @@ export class OperatorPortalController {
     },
     @Req() req: Request,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     // Validáció - kell legalább egy szolgáltatás (új vagy régi módon)
     const hasServices = body.services && body.services.length > 0;
@@ -881,7 +874,7 @@ export class OperatorPortalController {
     @Param('plate') plate: string,
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     if (!plate || plate.length < 3) {
       return { found: false };
@@ -1010,7 +1003,7 @@ export class OperatorPortalController {
     @Headers('x-operator-session') sessionId: string,
     @Req() req: Request,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     if (!reason || reason.trim().length < 5) {
       throw new BadRequestException('A törlés indoklása kötelező (min. 5 karakter)');
@@ -1094,7 +1087,7 @@ export class OperatorPortalController {
     @Param('id') id: string,
     @Headers('x-operator-session') sessionId: string,
   ) {
-    const session = this.getSession(sessionId);
+    const session = await this.getSession(sessionId);
 
     const requests = await this.prisma.washDeleteRequest.findMany({
       where: {
@@ -1113,7 +1106,7 @@ export class OperatorPortalController {
     @Headers('x-operator-session') sessionId: string,
   ) {
     if (sessionId) {
-      operatorSessions.delete(sessionId);
+      await this.sessionService.deleteSession(sessionId);
     }
     return { success: true };
   }
