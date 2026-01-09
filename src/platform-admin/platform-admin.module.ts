@@ -11,10 +11,16 @@ import { PrismaModule } from '../common/prisma/prisma.module';
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET') || 'vsys-platform-secret',
-        signOptions: { expiresIn: '24h' },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get('JWT_SECRET');
+        if (!secret && process.env.NODE_ENV === 'production') {
+          throw new Error('JWT_SECRET environment variable is required in production');
+        }
+        return {
+          secret: secret || 'dev-only-secret-do-not-use-in-production',
+          signOptions: { expiresIn: '24h' },
+        };
+      },
       inject: [ConfigService],
     }),
   ],

@@ -92,6 +92,9 @@ export class SelfRegisterResponseDto {
   @ApiProperty({ description: 'Approval status' })
   approvalStatus: string;
 
+  @ApiPropertyOptional({ description: 'Invite code (if auto-approved)' })
+  inviteCode?: string;
+
   @ApiPropertyOptional({
     description: 'What verification is required',
     enum: ['EMAIL', 'PHONE', 'BOTH'],

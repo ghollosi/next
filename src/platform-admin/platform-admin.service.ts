@@ -45,6 +45,15 @@ export class PlatformAdminService {
     private readonly configService: ConfigService,
   ) {}
 
+  // SECURITY: Get JWT secret with production check
+  private getJwtSecret(): string {
+    const secret = this.configService.get('JWT_SECRET');
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    return secret || 'dev-only-secret-do-not-use-in-production';
+  }
+
   // =========================================================================
   // AUTH
   // =========================================================================
@@ -77,7 +86,7 @@ export class PlatformAdminService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_SECRET') || 'vsys-platform-secret',
+      secret: this.getJwtSecret(),
       expiresIn: '24h',
     });
 
@@ -406,7 +415,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_SECRET') || 'vsys-platform-secret',
+      secret: this.getJwtSecret(),
       expiresIn: '4h', // Rövidebb érvényesség emergency esetén
     });
 
@@ -422,7 +431,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
   async validateToken(token: string): Promise<{ adminId: string; role: PlatformRole } | null> {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: this.configService.get('JWT_SECRET') || 'vsys-platform-secret',
+        secret: this.getJwtSecret(),
       });
 
       if (payload.type !== 'platform') {

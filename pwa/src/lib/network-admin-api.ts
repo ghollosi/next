@@ -757,4 +757,406 @@ export const networkAdminApi = {
       method: 'DELETE',
     });
   },
+
+  // =========================================================================
+  // INVOICES
+  // =========================================================================
+
+  async listInvoices(options?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    partnerCompanyId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    data: {
+      id: string;
+      invoiceNumber?: string;
+      status: string;
+      issueDate: string;
+      dueDate: string;
+      paidDate?: string;
+      subtotal: number;
+      vatAmount: number;
+      total: number;
+      currency: string;
+      paymentMethod?: string;
+      partnerCompany: { id: string; name: string; code: string };
+      itemCount: number;
+      externalId?: string;
+      pdfUrl?: string;
+    }[];
+    total: number;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    if (options?.status) params.set('status', options.status);
+    if (options?.partnerCompanyId) params.set('partnerCompanyId', options.partnerCompanyId);
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.offset) params.set('offset', String(options.offset));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return fetchWithAuth(`/network-admin/invoices${query}`);
+  },
+
+  async getInvoiceSummary(options?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    totalCount: number;
+    totalAmount: number;
+    paidAmount: number;
+    unpaidAmount: number;
+    overdueAmount: number;
+    draftAmount: number;
+    byStatus: Record<string, { count: number; amount: number }>;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return fetchWithAuth(`/network-admin/invoices/summary${query}`);
+  },
+
+  async getInvoice(id: string): Promise<{
+    id: string;
+    invoiceNumber?: string;
+    status: string;
+    issueDate: string;
+    dueDate: string;
+    paidDate?: string;
+    subtotal: number;
+    vatAmount: number;
+    total: number;
+    currency: string;
+    paymentMethod?: string;
+    externalId?: string;
+    pdfUrl?: string;
+    partnerCompany: {
+      id: string;
+      name: string;
+      code: string;
+      taxNumber?: string;
+      billingAddress?: string;
+      email?: string;
+    };
+    items: {
+      id: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+      vatRate: number;
+    }[];
+    washEvents: {
+      id: string;
+      status: string;
+      tractorPlate?: string;
+      locationName?: string;
+      createdAt: string;
+      totalPrice: number;
+    }[];
+  }> {
+    return fetchWithAuth(`/network-admin/invoices/${id}`);
+  },
+
+  async prepareInvoice(data: {
+    partnerCompanyId: string;
+    startDate: string;
+    endDate: string;
+    paymentMethod?: string;
+    dueDays?: number;
+  }): Promise<{
+    id: string;
+    status: string;
+    issueDate: string;
+    dueDate: string;
+    subtotal: number;
+    vatAmount: number;
+    total: number;
+    currency: string;
+    partnerCompany: { id: string; name: string };
+    items: {
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+      vatRate: number;
+    }[];
+    washEventCount: number;
+  }> {
+    return fetchWithAuth('/network-admin/invoices/prepare', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async issueInvoice(id: string): Promise<{
+    id: string;
+    invoiceNumber: string;
+    status: string;
+    issueDate: string;
+    issuedAt: string;
+  }> {
+    return fetchWithAuth(`/network-admin/invoices/${id}/issue`, {
+      method: 'POST',
+    });
+  },
+
+  async markInvoicePaid(id: string, data?: {
+    paidDate?: string;
+    paymentMethod?: string;
+  }): Promise<{
+    id: string;
+    status: string;
+    paidDate: string;
+  }> {
+    return fetchWithAuth(`/network-admin/invoices/${id}/mark-paid`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  },
+
+  async cancelInvoice(id: string, reason?: string): Promise<{
+    id: string;
+    status: string;
+    cancelledAt: string;
+  }> {
+    return fetchWithAuth(`/network-admin/invoices/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  async deleteInvoice(id: string): Promise<void> {
+    return fetchWithAuth(`/network-admin/invoices/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async getUnbilledEvents(partnerCompanyId: string, options?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    events: {
+      id: string;
+      createdAt: string;
+      tractorPlate?: string;
+      locationName?: string;
+      driverName?: string;
+      services: string[];
+      totalPrice: number;
+    }[];
+    summary: {
+      eventCount: number;
+      totalAmount: number;
+    };
+  }> {
+    const params = new URLSearchParams();
+    params.set('partnerCompanyId', partnerCompanyId);
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    return fetchWithAuth(`/network-admin/invoices/unbilled-events?${params.toString()}`);
+  },
+
+  // =========================================================================
+  // EMAIL TEST
+  // =========================================================================
+
+  async testEmailConfig(testEmail: string): Promise<{ success: boolean; message: string; provider?: string }> {
+    return fetchWithAuth('/network-admin/test-email', {
+      method: 'POST',
+      body: JSON.stringify({ testEmail }),
+    });
+  },
+};
+
+// =========================================================================
+// REPORTS API
+// =========================================================================
+
+export const reportsApi = {
+  async getWashStatistics(options?: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: string;
+    partnerCompanyId?: string;
+    groupBy?: 'day' | 'week' | 'month' | 'location' | 'partner';
+  }): Promise<{
+    summary: {
+      totalWashes: number;
+      totalRevenue: number;
+      averagePrice: number;
+      period: { startDate?: string; endDate?: string };
+    };
+    groupedData: {
+      id?: string;
+      label: string;
+      count: number;
+      revenue: number;
+    }[];
+    statusBreakdown: {
+      status: string;
+      count: number;
+    }[];
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    if (options?.locationId) params.set('locationId', options.locationId);
+    if (options?.partnerCompanyId) params.set('partnerCompanyId', options.partnerCompanyId);
+    if (options?.groupBy) params.set('groupBy', options.groupBy);
+    return fetchWithAuth(`/network-admin/reports/wash-statistics?${params.toString()}`);
+  },
+
+  async getRevenueReport(options?: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: string;
+    partnerCompanyId?: string;
+    groupBy?: 'day' | 'week' | 'month' | 'location' | 'partner' | 'service';
+  }): Promise<{
+    summary: {
+      grossRevenue: number;
+      netRevenue: number;
+      vatAmount: number;
+      washCount: number;
+      period: { startDate?: string; endDate?: string };
+    };
+    breakdown: {
+      cash: { count: number; revenue: number };
+      contract: { count: number; revenue: number };
+    };
+    serviceBreakdown: {
+      id: string;
+      name: string;
+      count: number;
+      revenue: number;
+    }[];
+    dailyTrend: {
+      date: string;
+      revenue: number;
+    }[];
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    if (options?.locationId) params.set('locationId', options.locationId);
+    if (options?.partnerCompanyId) params.set('partnerCompanyId', options.partnerCompanyId);
+    if (options?.groupBy) params.set('groupBy', options.groupBy);
+    return fetchWithAuth(`/network-admin/reports/revenue?${params.toString()}`);
+  },
+
+  async getLocationPerformance(options?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    summary: {
+      totalLocations: number;
+      totalWashes: number;
+      totalRevenue: number;
+      period: { startDate?: string; endDate?: string };
+    };
+    locations: {
+      id: string;
+      name: string;
+      code: string;
+      washCount: number;
+      revenue: number;
+      averagePrice: number;
+      averageDurationMinutes: number;
+    }[];
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    return fetchWithAuth(`/network-admin/reports/location-performance?${params.toString()}`);
+  },
+
+  async getPartnerSummary(options?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    summary: {
+      totalPartners: number;
+      totalContractRevenue: number;
+      totalCashRevenue: number;
+      totalUnbilledAmount: number;
+      period: { startDate?: string; endDate?: string };
+    };
+    cash: {
+      washCount: number;
+      revenue: number;
+    };
+    partners: {
+      id: string;
+      name: string;
+      taxNumber?: string;
+      billingType: string;
+      washCount: number;
+      revenue: number;
+      billedCount: number;
+      billedAmount: number;
+      unbilledCount: number;
+      unbilledAmount: number;
+    }[];
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    return fetchWithAuth(`/network-admin/reports/partner-summary?${params.toString()}`);
+  },
+
+  async getServiceBreakdown(options?: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: string;
+  }): Promise<{
+    summary: {
+      totalServices: number;
+      totalCount: number;
+      totalRevenue: number;
+      period: { startDate?: string; endDate?: string };
+    };
+    services: {
+      id: string;
+      name: string;
+      code: string;
+      count: number;
+      revenue: number;
+      averagePrice: number;
+      vehicleTypeBreakdown: {
+        vehicleType: string;
+        count: number;
+      }[];
+    }[];
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    if (options?.locationId) params.set('locationId', options.locationId);
+    return fetchWithAuth(`/network-admin/reports/service-breakdown?${params.toString()}`);
+  },
+
+  async exportCsv(options?: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: string;
+    partnerCompanyId?: string;
+    status?: string;
+  }): Promise<{
+    filename: string;
+    content: string;
+    mimeType: string;
+    rowCount: number;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    if (options?.locationId) params.set('locationId', options.locationId);
+    if (options?.partnerCompanyId) params.set('partnerCompanyId', options.partnerCompanyId);
+    if (options?.status) params.set('status', options.status);
+    return fetchWithAuth(`/network-admin/reports/export/csv?${params.toString()}`);
+  },
 };

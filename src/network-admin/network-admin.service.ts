@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { EmailService } from '../modules/email/email.service';
 import { SubscriptionStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -38,7 +39,17 @@ export class NetworkAdminService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditLogService: AuditLogService,
+    private readonly emailService: EmailService,
   ) {}
+
+  // SECURITY: Get JWT secret with production check
+  private getJwtSecret(): string {
+    const secret = this.configService.get('JWT_SECRET');
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    return secret || 'dev-only-secret-do-not-use-in-production';
+  }
 
   // =========================================================================
   // AUTH
@@ -87,7 +98,7 @@ export class NetworkAdminService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_SECRET') || 'vsys-network-secret',
+      secret: this.getJwtSecret(),
       expiresIn: '24h',
     });
 
@@ -110,7 +121,7 @@ export class NetworkAdminService {
   } | null> {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: this.configService.get('JWT_SECRET') || 'vsys-network-secret',
+        secret: this.getJwtSecret(),
       });
 
       if (payload.type !== 'network') {
@@ -1361,6 +1372,10 @@ export class NetworkAdminService {
     return this.getSettings(networkId);
   }
 
+  async testEmailConfig(networkId: string, testEmail: string): Promise<{ success: boolean; message: string; provider?: string }> {
+    return this.emailService.testNetworkEmailConfig(networkId, testEmail);
+  }
+
   // =========================================================================
   // VAT RATES
   // =========================================================================
@@ -2178,5 +2193,1245 @@ export class NetworkAdminService {
       },
       metadata: { entityType: 'location_service', operation: 'delete' },
     });
+  }
+
+  // =========================================================================
+  // INVOICES
+  // =========================================================================
+
+  async listInvoices(
+    networkId: string,
+    options: {
+      startDate?: Date;
+      endDate?: Date;
+      status?: string;
+      partnerCompanyId?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: any[]; total: number }> {
+    const where: any = { networkId };
+
+    if (options.startDate || options.endDate) {
+      where.issueDate = {};
+      if (options.startDate) where.issueDate.gte = options.startDate;
+      if (options.endDate) where.issueDate.lte = options.endDate;
+    }
+
+    if (options.status) {
+      where.status = options.status;
+    }
+
+    if (options.partnerCompanyId) {
+      where.partnerCompanyId = options.partnerCompanyId;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        include: {
+          partnerCompany: {
+            select: { id: true, name: true, code: true },
+          },
+          items: true,
+        },
+        orderBy: { issueDate: 'desc' },
+        take: options.limit || 50,
+        skip: options.offset || 0,
+      }),
+      this.prisma.invoice.count({ where }),
+    ]);
+
+    return {
+      data: data.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        status: inv.status,
+        issueDate: inv.issueDate,
+        dueDate: inv.dueDate,
+        paidDate: inv.paidDate,
+        subtotal: Number(inv.subtotal),
+        vatAmount: Number(inv.vatAmount),
+        total: Number(inv.total),
+        currency: inv.currency,
+        paymentMethod: inv.paymentMethod,
+        partnerCompany: inv.partnerCompany,
+        itemCount: inv.items.length,
+        externalId: inv.externalId,
+        pdfUrl: inv.szamlazzPdfUrl,
+      })),
+      total,
+    };
+  }
+
+  async getInvoiceSummary(
+    networkId: string,
+    options: { startDate?: Date; endDate?: Date },
+  ): Promise<any> {
+    const where: any = { networkId };
+
+    if (options.startDate || options.endDate) {
+      where.issueDate = {};
+      if (options.startDate) where.issueDate.gte = options.startDate;
+      if (options.endDate) where.issueDate.lte = options.endDate;
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where,
+      select: { status: true, total: true },
+    });
+
+    const summary = {
+      totalCount: invoices.length,
+      totalAmount: 0,
+      paidAmount: 0,
+      unpaidAmount: 0,
+      overdueAmount: 0,
+      draftAmount: 0,
+      byStatus: {} as Record<string, { count: number; amount: number }>,
+    };
+
+    invoices.forEach((inv) => {
+      const amount = Number(inv.total);
+      summary.totalAmount += amount;
+
+      if (!summary.byStatus[inv.status]) {
+        summary.byStatus[inv.status] = { count: 0, amount: 0 };
+      }
+      summary.byStatus[inv.status].count += 1;
+      summary.byStatus[inv.status].amount += amount;
+
+      switch (inv.status) {
+        case 'PAID':
+          summary.paidAmount += amount;
+          break;
+        case 'OVERDUE':
+          summary.overdueAmount += amount;
+          summary.unpaidAmount += amount;
+          break;
+        case 'ISSUED':
+        case 'SENT':
+          summary.unpaidAmount += amount;
+          break;
+        case 'DRAFT':
+          summary.draftAmount += amount;
+          break;
+      }
+    });
+
+    return summary;
+  }
+
+  async getInvoice(networkId: string, invoiceId: string): Promise<any> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, networkId },
+      include: {
+        partnerCompany: true,
+        items: true,
+        washEvents: {
+          select: {
+            id: true,
+            status: true,
+            tractorPlateManual: true,
+            createdAt: true,
+            totalPrice: true,
+            location: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Számla nem található');
+    }
+
+    return {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      status: invoice.status,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      paidDate: invoice.paidDate,
+      subtotal: Number(invoice.subtotal),
+      vatAmount: Number(invoice.vatAmount),
+      total: Number(invoice.total),
+      currency: invoice.currency,
+      paymentMethod: invoice.paymentMethod,
+      externalId: invoice.externalId,
+      pdfUrl: invoice.szamlazzPdfUrl,
+      partnerCompany: {
+        id: invoice.partnerCompany.id,
+        name: invoice.partnerCompany.name,
+        code: invoice.partnerCompany.code,
+        taxNumber: invoice.partnerCompany.taxNumber,
+        billingAddress: invoice.partnerCompany.billingAddress,
+        email: invoice.partnerCompany.email,
+      },
+      items: invoice.items.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.totalPrice),
+        vatRate: item.vatRate,
+      })),
+      washEvents: invoice.washEvents.map((e) => ({
+        id: e.id,
+        status: e.status,
+        tractorPlate: e.tractorPlateManual,
+        locationName: e.location?.name,
+        createdAt: e.createdAt,
+        totalPrice: Number(e.totalPrice),
+      })),
+    };
+  }
+
+  async prepareInvoice(
+    networkId: string,
+    dto: {
+      partnerCompanyId: string;
+      startDate: Date;
+      endDate: Date;
+      paymentMethod?: string;
+      dueDays?: number;
+    },
+  ): Promise<any> {
+    // Verify partner company exists
+    const partner = await this.prisma.partnerCompany.findFirst({
+      where: { id: dto.partnerCompanyId, networkId, deletedAt: null },
+    });
+
+    if (!partner) {
+      throw new NotFoundException('Partner cég nem található');
+    }
+
+    // Get unbilled wash events for this period
+    const washEvents = await this.prisma.washEvent.findMany({
+      where: {
+        networkId,
+        partnerCompanyId: dto.partnerCompanyId,
+        status: 'COMPLETED',
+        invoiceId: null,
+        createdAt: {
+          gte: dto.startDate,
+          lte: dto.endDate,
+        },
+      },
+      include: {
+        services: { include: { servicePackage: true } },
+        location: true,
+      },
+    });
+
+    if (washEvents.length === 0) {
+      throw new BadRequestException('Nincs számlázatlan mosás ebben az időszakban');
+    }
+
+    // Get default VAT rate
+    const vatRate = await this.prisma.networkVatRate.findFirst({
+      where: { networkId, isDefault: true, isActive: true },
+    });
+    const vatPercent = vatRate?.rate || 27;
+
+    // Calculate totals and create items
+    let subtotal = 0;
+    const itemsData: any[] = [];
+
+    // Group by service for cleaner invoice
+    const serviceGroups: Record<string, { name: string; quantity: number; unitPrice: number; total: number }> = {};
+
+    for (const event of washEvents) {
+      for (const service of event.services) {
+        const serviceName = service.servicePackage?.name || 'Szolgáltatás';
+        const price = Number(service.totalPrice || 0);
+
+        if (!serviceGroups[serviceName]) {
+          serviceGroups[serviceName] = { name: serviceName, quantity: 0, unitPrice: price, total: 0 };
+        }
+        serviceGroups[serviceName].quantity += 1;
+        serviceGroups[serviceName].total += price;
+      }
+
+      // If no services but has total price
+      if (event.services.length === 0 && event.totalPrice) {
+        const price = Number(event.totalPrice);
+        if (!serviceGroups['Mosás']) {
+          serviceGroups['Mosás'] = { name: 'Mosás', quantity: 0, unitPrice: price, total: 0 };
+        }
+        serviceGroups['Mosás'].quantity += 1;
+        serviceGroups['Mosás'].total += price;
+      }
+    }
+
+    for (const [name, group] of Object.entries(serviceGroups)) {
+      subtotal += group.total;
+      itemsData.push({
+        description: name,
+        quantity: group.quantity,
+        unitPrice: group.quantity > 0 ? group.total / group.quantity : 0,
+        totalPrice: group.total,
+        vatRate: vatPercent,
+      });
+    }
+
+    const vatAmount = Math.round(subtotal * (vatPercent / 100));
+    const total = subtotal + vatAmount;
+    const dueDays = dto.dueDays || 15;
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + dueDays);
+
+    // Get billing info from partner
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        networkId,
+        partnerCompanyId: dto.partnerCompanyId,
+        status: 'DRAFT',
+        issueDate: new Date(),
+        dueDate,
+        subtotal,
+        vatAmount,
+        total,
+        currency: 'HUF',
+        paymentMethod: (dto.paymentMethod as any) || 'TRANSFER',
+        periodStart: dto.startDate,
+        periodEnd: dto.endDate,
+        billingName: partner.name,
+        billingAddress: partner.billingAddress || '',
+        billingCity: partner.billingCity || '',
+        billingZipCode: partner.billingZipCode || '',
+        taxNumber: partner.taxNumber,
+        items: {
+          create: itemsData,
+        },
+      },
+      include: {
+        partnerCompany: true,
+        items: true,
+      },
+    });
+
+    // Link wash events to this invoice
+    await this.prisma.washEvent.updateMany({
+      where: { id: { in: washEvents.map((e) => e.id) } },
+      data: { invoiceId: invoice.id },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'CREATE',
+      actorType: 'USER',
+      newData: {
+        type: 'INVOICE',
+        id: invoice.id,
+        status: 'DRAFT',
+        partnerName: partner.name,
+        total,
+        washEventCount: washEvents.length,
+      },
+      metadata: { entityType: 'invoice' },
+    });
+
+    return {
+      id: invoice.id,
+      status: invoice.status,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      subtotal: Number(invoice.subtotal),
+      vatAmount: Number(invoice.vatAmount),
+      total: Number(invoice.total),
+      currency: invoice.currency,
+      partnerCompany: {
+        id: invoice.partnerCompany.id,
+        name: invoice.partnerCompany.name,
+      },
+      items: invoice.items.map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.totalPrice),
+        vatRate: item.vatRate,
+      })),
+      washEventCount: washEvents.length,
+    };
+  }
+
+  async issueInvoice(
+    networkId: string,
+    invoiceId: string,
+    adminId: string,
+  ): Promise<any> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, networkId, status: 'DRAFT' },
+      include: { partnerCompany: true, items: true },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Számla nem található vagy már ki lett állítva');
+    }
+
+    // Generate invoice number
+    const year = new Date().getFullYear();
+    const lastInvoice = await this.prisma.invoice.findFirst({
+      where: {
+        networkId,
+        invoiceNumber: { startsWith: `${year}-` },
+      },
+      orderBy: { invoiceNumber: 'desc' },
+    });
+
+    let nextNumber = 1;
+    if (lastInvoice?.invoiceNumber) {
+      const lastNum = parseInt(lastInvoice.invoiceNumber.split('-')[1], 10);
+      if (!isNaN(lastNum)) {
+        nextNumber = lastNum + 1;
+      }
+    }
+
+    const invoiceNumber = `${year}-${nextNumber.toString().padStart(5, '0')}`;
+
+    // Update invoice status
+    const updated = await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: 'ISSUED',
+        invoiceNumber,
+        issueDate: new Date(),
+      },
+    });
+
+    // TODO: If szamlazz.hu is configured, send to external provider
+    // const settings = await this.prisma.networkSettings.findUnique({ where: { networkId } });
+    // if (settings?.szamlazzAgentKey) {
+    //   await this.sendToSzamlazz(invoice, settings.szamlazzAgentKey);
+    // }
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      actorId: adminId,
+      previousData: { type: 'INVOICE', id: invoice.id, status: 'DRAFT' },
+      newData: { type: 'INVOICE', id: updated.id, status: 'ISSUED', invoiceNumber },
+      metadata: { entityType: 'invoice', operation: 'issue' },
+    });
+
+    return {
+      id: updated.id,
+      invoiceNumber: updated.invoiceNumber,
+      status: updated.status,
+      issueDate: updated.issueDate,
+    };
+  }
+
+  async markInvoicePaid(
+    networkId: string,
+    invoiceId: string,
+    adminId: string,
+    options: { paidDate: Date; paymentMethod?: string },
+  ): Promise<any> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, networkId, status: { in: ['ISSUED', 'SENT', 'OVERDUE'] } },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Számla nem található vagy nem fizethető');
+    }
+
+    const updateData: any = {
+      status: 'PAID',
+      paidDate: options.paidDate,
+    };
+    if (options.paymentMethod) {
+      updateData.paymentMethod = options.paymentMethod as any;
+    }
+
+    const updated = await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: updateData,
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      actorId: adminId,
+      previousData: { type: 'INVOICE', id: invoice.id, status: invoice.status },
+      newData: { type: 'INVOICE', id: updated.id, status: 'PAID', paidDate: options.paidDate },
+      metadata: { entityType: 'invoice', operation: 'mark_paid' },
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      paidDate: updated.paidDate,
+    };
+  }
+
+  async cancelInvoice(
+    networkId: string,
+    invoiceId: string,
+    adminId: string,
+    reason?: string,
+  ): Promise<any> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, networkId, status: { not: 'CANCELLED' } },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Számla nem található vagy már sztornózva van');
+    }
+
+    // Unlink wash events
+    await this.prisma.washEvent.updateMany({
+      where: { invoiceId },
+      data: { invoiceId: null },
+    });
+
+    const updated = await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+      },
+    });
+
+    // TODO: If external invoice was issued, create storno invoice
+    // if (invoice.externalId) {
+    //   await this.createStornoInvoice(invoice);
+    // }
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      actorId: adminId,
+      previousData: { type: 'INVOICE', id: invoice.id, status: invoice.status },
+      newData: { type: 'INVOICE', id: updated.id, status: 'CANCELLED', reason },
+      metadata: { entityType: 'invoice', operation: 'cancel' },
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      cancelledAt: updated.cancelledAt,
+    };
+  }
+
+  async deleteInvoice(networkId: string, invoiceId: string): Promise<void> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, networkId, status: 'DRAFT' },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Számla nem található vagy már ki lett állítva (csak piszkozat törölhető)');
+    }
+
+    // Unlink wash events
+    await this.prisma.washEvent.updateMany({
+      where: { invoiceId },
+      data: { invoiceId: null },
+    });
+
+    // Delete items first
+    await this.prisma.invoiceItem.deleteMany({
+      where: { invoiceId },
+    });
+
+    // Delete invoice
+    await this.prisma.invoice.delete({
+      where: { id: invoiceId },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'USER',
+      previousData: { type: 'INVOICE', id: invoice.id, status: 'DRAFT' },
+      newData: { type: 'INVOICE', id: invoice.id, deleted: true },
+      metadata: { entityType: 'invoice', operation: 'delete' },
+    });
+  }
+
+  async getUnbilledEvents(
+    networkId: string,
+    partnerCompanyId: string,
+    options: { startDate?: Date; endDate?: Date },
+  ): Promise<any> {
+    const where: any = {
+      networkId,
+      partnerCompanyId,
+      status: 'COMPLETED',
+      invoiceId: null,
+    };
+
+    if (options.startDate || options.endDate) {
+      where.createdAt = {};
+      if (options.startDate) where.createdAt.gte = options.startDate;
+      if (options.endDate) where.createdAt.lte = options.endDate;
+    }
+
+    const events = await this.prisma.washEvent.findMany({
+      where,
+      include: {
+        location: { select: { name: true } },
+        services: { include: { servicePackage: true } },
+        driver: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalAmount = events.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+
+    return {
+      events: events.map((e) => ({
+        id: e.id,
+        createdAt: e.createdAt,
+        tractorPlate: e.tractorPlateManual,
+        locationName: e.location?.name,
+        driverName: e.driver ? `${e.driver.lastName} ${e.driver.firstName}` : e.driverNameManual,
+        services: e.services.map((s) => s.servicePackage?.name).filter(Boolean),
+        totalPrice: Number(e.totalPrice || 0),
+      })),
+      summary: {
+        eventCount: events.length,
+        totalAmount,
+      },
+    };
+  }
+
+  // =========================================================================
+  // REPORTS
+  // =========================================================================
+
+  async getWashStatistics(
+    networkId: string,
+    options: {
+      startDate?: Date;
+      endDate?: Date;
+      locationId?: string;
+      partnerCompanyId?: string;
+      groupBy?: 'day' | 'week' | 'month' | 'location' | 'partner';
+    },
+  ): Promise<any> {
+    const where: any = {
+      networkId,
+      status: { in: ['COMPLETED', 'LOCKED'] },
+    };
+
+    if (options.startDate || options.endDate) {
+      where.completedAt = {};
+      if (options.startDate) where.completedAt.gte = options.startDate;
+      if (options.endDate) where.completedAt.lte = options.endDate;
+    }
+
+    if (options.locationId) {
+      where.locationId = options.locationId;
+    }
+
+    if (options.partnerCompanyId) {
+      where.partnerCompanyId = options.partnerCompanyId;
+    }
+
+    const washEvents = await this.prisma.washEvent.findMany({
+      where,
+      include: {
+        location: { select: { id: true, name: true, code: true } },
+        partnerCompany: { select: { id: true, name: true } },
+      },
+      orderBy: { completedAt: 'asc' },
+    });
+
+    // Summary stats
+    const totalWashes = washEvents.length;
+    const totalRevenue = washEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+    const averagePrice = totalWashes > 0 ? totalRevenue / totalWashes : 0;
+
+    // Group data based on groupBy parameter
+    let groupedData: any[] = [];
+
+    if (options.groupBy === 'day') {
+      const byDay = new Map<string, { count: number; revenue: number }>();
+      washEvents.forEach((e) => {
+        const date = e.completedAt ? e.completedAt.toISOString().split('T')[0] : 'Unknown';
+        const current = byDay.get(date) || { count: 0, revenue: 0 };
+        byDay.set(date, {
+          count: current.count + 1,
+          revenue: current.revenue + Number(e.totalPrice || 0),
+        });
+      });
+      groupedData = Array.from(byDay.entries()).map(([date, data]) => ({
+        label: date,
+        count: data.count,
+        revenue: data.revenue,
+      }));
+    } else if (options.groupBy === 'week') {
+      const byWeek = new Map<string, { count: number; revenue: number }>();
+      washEvents.forEach((e) => {
+        if (!e.completedAt) return;
+        const date = new Date(e.completedAt);
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay() + 1);
+        const weekKey = weekStart.toISOString().split('T')[0];
+        const current = byWeek.get(weekKey) || { count: 0, revenue: 0 };
+        byWeek.set(weekKey, {
+          count: current.count + 1,
+          revenue: current.revenue + Number(e.totalPrice || 0),
+        });
+      });
+      groupedData = Array.from(byWeek.entries()).map(([week, data]) => ({
+        label: `Hét: ${week}`,
+        count: data.count,
+        revenue: data.revenue,
+      }));
+    } else if (options.groupBy === 'month') {
+      const byMonth = new Map<string, { count: number; revenue: number }>();
+      washEvents.forEach((e) => {
+        if (!e.completedAt) return;
+        const month = e.completedAt.toISOString().substring(0, 7);
+        const current = byMonth.get(month) || { count: 0, revenue: 0 };
+        byMonth.set(month, {
+          count: current.count + 1,
+          revenue: current.revenue + Number(e.totalPrice || 0),
+        });
+      });
+      groupedData = Array.from(byMonth.entries()).map(([month, data]) => ({
+        label: month,
+        count: data.count,
+        revenue: data.revenue,
+      }));
+    } else if (options.groupBy === 'location') {
+      const byLocation = new Map<string, { name: string; count: number; revenue: number }>();
+      washEvents.forEach((e) => {
+        const locId = e.locationId || 'unknown';
+        const locName = e.location?.name || 'Ismeretlen';
+        const current = byLocation.get(locId) || { name: locName, count: 0, revenue: 0 };
+        byLocation.set(locId, {
+          name: locName,
+          count: current.count + 1,
+          revenue: current.revenue + Number(e.totalPrice || 0),
+        });
+      });
+      groupedData = Array.from(byLocation.entries()).map(([id, data]) => ({
+        id,
+        label: data.name,
+        count: data.count,
+        revenue: data.revenue,
+      }));
+    } else if (options.groupBy === 'partner') {
+      const byPartner = new Map<string, { name: string; count: number; revenue: number }>();
+      washEvents.forEach((e) => {
+        const partnerId = e.partnerCompanyId || 'cash';
+        const partnerName = e.partnerCompany?.name || 'Készpénzes';
+        const current = byPartner.get(partnerId) || { name: partnerName, count: 0, revenue: 0 };
+        byPartner.set(partnerId, {
+          name: partnerName,
+          count: current.count + 1,
+          revenue: current.revenue + Number(e.totalPrice || 0),
+        });
+      });
+      groupedData = Array.from(byPartner.entries()).map(([id, data]) => ({
+        id,
+        label: data.name,
+        count: data.count,
+        revenue: data.revenue,
+      }));
+    }
+
+    // Status breakdown
+    const statusCounts = await this.prisma.washEvent.groupBy({
+      by: ['status'],
+      where: { networkId, ...where },
+      _count: true,
+    });
+
+    return {
+      summary: {
+        totalWashes,
+        totalRevenue,
+        averagePrice: Math.round(averagePrice),
+        period: {
+          startDate: options.startDate,
+          endDate: options.endDate,
+        },
+      },
+      groupedData,
+      statusBreakdown: statusCounts.map((s) => ({
+        status: s.status,
+        count: s._count,
+      })),
+    };
+  }
+
+  async getRevenueReport(
+    networkId: string,
+    options: {
+      startDate?: Date;
+      endDate?: Date;
+      locationId?: string;
+      partnerCompanyId?: string;
+      groupBy?: 'day' | 'week' | 'month' | 'location' | 'partner' | 'service';
+    },
+  ): Promise<any> {
+    const where: any = {
+      networkId,
+      status: { in: ['COMPLETED', 'LOCKED'] },
+    };
+
+    if (options.startDate || options.endDate) {
+      where.completedAt = {};
+      if (options.startDate) where.completedAt.gte = options.startDate;
+      if (options.endDate) where.completedAt.lte = options.endDate;
+    }
+
+    if (options.locationId) {
+      where.locationId = options.locationId;
+    }
+
+    if (options.partnerCompanyId) {
+      where.partnerCompanyId = options.partnerCompanyId;
+    }
+
+    const washEvents = await this.prisma.washEvent.findMany({
+      where,
+      include: {
+        location: { select: { id: true, name: true } },
+        partnerCompany: { select: { id: true, name: true } },
+        services: {
+          include: {
+            servicePackage: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { completedAt: 'asc' },
+    });
+
+    // Calculate totals
+    const grossRevenue = washEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+
+    // Estimate VAT (assuming 27% as default for HU)
+    const vatRate = 0.27;
+    const netRevenue = grossRevenue / (1 + vatRate);
+    const vatAmount = grossRevenue - netRevenue;
+
+    // Cash vs Contract breakdown
+    const cashEvents = washEvents.filter((e) => !e.partnerCompanyId);
+    const contractEvents = washEvents.filter((e) => e.partnerCompanyId);
+
+    const cashRevenue = cashEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+    const contractRevenue = contractEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+
+    // Group by service if requested
+    let serviceBreakdown: any[] = [];
+    if (options.groupBy === 'service') {
+      const byService = new Map<string, { name: string; count: number; revenue: number }>();
+      washEvents.forEach((e) => {
+        e.services.forEach((s) => {
+          const serviceId = s.servicePackageId || 'unknown';
+          const serviceName = s.servicePackage?.name || 'Ismeretlen';
+          const current = byService.get(serviceId) || { name: serviceName, count: 0, revenue: 0 };
+          byService.set(serviceId, {
+            name: serviceName,
+            count: current.count + 1,
+            revenue: current.revenue + Number(s.totalPrice || 0),
+          });
+        });
+      });
+      serviceBreakdown = Array.from(byService.entries()).map(([id, data]) => ({
+        id,
+        name: data.name,
+        count: data.count,
+        revenue: data.revenue,
+      }));
+    }
+
+    // Daily trend for charts
+    const dailyTrend: any[] = [];
+    const byDay = new Map<string, number>();
+    washEvents.forEach((e) => {
+      if (!e.completedAt) return;
+      const date = e.completedAt.toISOString().split('T')[0];
+      byDay.set(date, (byDay.get(date) || 0) + Number(e.totalPrice || 0));
+    });
+    byDay.forEach((revenue, date) => {
+      dailyTrend.push({ date, revenue });
+    });
+    dailyTrend.sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      summary: {
+        grossRevenue: Math.round(grossRevenue),
+        netRevenue: Math.round(netRevenue),
+        vatAmount: Math.round(vatAmount),
+        washCount: washEvents.length,
+        period: {
+          startDate: options.startDate,
+          endDate: options.endDate,
+        },
+      },
+      breakdown: {
+        cash: {
+          count: cashEvents.length,
+          revenue: Math.round(cashRevenue),
+        },
+        contract: {
+          count: contractEvents.length,
+          revenue: Math.round(contractRevenue),
+        },
+      },
+      serviceBreakdown,
+      dailyTrend,
+    };
+  }
+
+  async getLocationPerformance(
+    networkId: string,
+    options: { startDate?: Date; endDate?: Date },
+  ): Promise<any> {
+    const locations = await this.prisma.location.findMany({
+      where: { networkId, deletedAt: null },
+      select: { id: true, name: true, code: true },
+    });
+
+    const where: any = {
+      networkId,
+      status: { in: ['COMPLETED', 'LOCKED'] },
+    };
+
+    if (options.startDate || options.endDate) {
+      where.completedAt = {};
+      if (options.startDate) where.completedAt.gte = options.startDate;
+      if (options.endDate) where.completedAt.lte = options.endDate;
+    }
+
+    const washEvents = await this.prisma.washEvent.findMany({
+      where,
+      select: {
+        locationId: true,
+        totalPrice: true,
+        completedAt: true,
+        startedAt: true,
+      },
+    });
+
+    const locationStats = locations.map((loc) => {
+      const locEvents = washEvents.filter((e) => e.locationId === loc.id);
+      const revenue = locEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+
+      // Calculate average wash duration
+      const durations = locEvents
+        .filter((e) => e.startedAt && e.completedAt)
+        .map((e) => (e.completedAt!.getTime() - e.startedAt!.getTime()) / 60000);
+      const avgDuration = durations.length > 0
+        ? durations.reduce((a, b) => a + b, 0) / durations.length
+        : 0;
+
+      return {
+        id: loc.id,
+        name: loc.name,
+        code: loc.code,
+        washCount: locEvents.length,
+        revenue: Math.round(revenue),
+        averagePrice: locEvents.length > 0 ? Math.round(revenue / locEvents.length) : 0,
+        averageDurationMinutes: Math.round(avgDuration),
+      };
+    });
+
+    // Sort by revenue descending
+    locationStats.sort((a, b) => b.revenue - a.revenue);
+
+    const totalRevenue = locationStats.reduce((sum, l) => sum + l.revenue, 0);
+    const totalWashes = locationStats.reduce((sum, l) => sum + l.washCount, 0);
+
+    return {
+      summary: {
+        totalLocations: locations.length,
+        totalWashes,
+        totalRevenue,
+        period: {
+          startDate: options.startDate,
+          endDate: options.endDate,
+        },
+      },
+      locations: locationStats,
+    };
+  }
+
+  async getPartnerSummary(
+    networkId: string,
+    options: { startDate?: Date; endDate?: Date },
+  ): Promise<any> {
+    const partners = await this.prisma.partnerCompany.findMany({
+      where: { networkId, deletedAt: null },
+      select: { id: true, name: true, taxNumber: true, billingType: true },
+    });
+
+    const where: any = {
+      networkId,
+      status: { in: ['COMPLETED', 'LOCKED'] },
+    };
+
+    if (options.startDate || options.endDate) {
+      where.completedAt = {};
+      if (options.startDate) where.completedAt.gte = options.startDate;
+      if (options.endDate) where.completedAt.lte = options.endDate;
+    }
+
+    const washEvents = await this.prisma.washEvent.findMany({
+      where,
+      select: {
+        partnerCompanyId: true,
+        totalPrice: true,
+        invoiceId: true,
+      },
+    });
+
+    const partnerStats = partners.map((partner) => {
+      const partnerEvents = washEvents.filter((e) => e.partnerCompanyId === partner.id);
+      const revenue = partnerEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+      const billedEvents = partnerEvents.filter((e) => e.invoiceId);
+      const unbilledEvents = partnerEvents.filter((e) => !e.invoiceId);
+
+      return {
+        id: partner.id,
+        name: partner.name,
+        taxNumber: partner.taxNumber,
+        billingType: partner.billingType,
+        washCount: partnerEvents.length,
+        revenue: Math.round(revenue),
+        billedCount: billedEvents.length,
+        billedAmount: Math.round(billedEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0)),
+        unbilledCount: unbilledEvents.length,
+        unbilledAmount: Math.round(unbilledEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0)),
+      };
+    });
+
+    // Add cash customers (no partner)
+    const cashEvents = washEvents.filter((e) => !e.partnerCompanyId);
+    const cashRevenue = cashEvents.reduce((sum, e) => sum + Number(e.totalPrice || 0), 0);
+
+    // Sort by revenue descending
+    partnerStats.sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      summary: {
+        totalPartners: partners.length,
+        totalContractRevenue: partnerStats.reduce((sum, p) => sum + p.revenue, 0),
+        totalCashRevenue: Math.round(cashRevenue),
+        totalUnbilledAmount: partnerStats.reduce((sum, p) => sum + p.unbilledAmount, 0),
+        period: {
+          startDate: options.startDate,
+          endDate: options.endDate,
+        },
+      },
+      cash: {
+        washCount: cashEvents.length,
+        revenue: Math.round(cashRevenue),
+      },
+      partners: partnerStats,
+    };
+  }
+
+  async getServiceBreakdown(
+    networkId: string,
+    options: { startDate?: Date; endDate?: Date; locationId?: string },
+  ): Promise<any> {
+    const where: any = {
+      washEvent: {
+        networkId,
+        status: { in: ['COMPLETED', 'LOCKED'] },
+      },
+    };
+
+    if (options.startDate || options.endDate) {
+      where.washEvent.completedAt = {};
+      if (options.startDate) where.washEvent.completedAt.gte = options.startDate;
+      if (options.endDate) where.washEvent.completedAt.lte = options.endDate;
+    }
+
+    if (options.locationId) {
+      where.washEvent.locationId = options.locationId;
+    }
+
+    const services = await this.prisma.washEventService.findMany({
+      where,
+      include: {
+        servicePackage: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    // Group by service package
+    const byService = new Map<string, {
+      name: string;
+      code: string;
+      count: number;
+      revenue: number;
+      vehicleTypes: Map<string, number>;
+    }>();
+
+    services.forEach((s) => {
+      const serviceId = s.servicePackageId || 'unknown';
+      const serviceName = s.servicePackage?.name || 'Ismeretlen';
+      const serviceCode = s.servicePackage?.code || '';
+      const vehicleType = s.vehicleType || 'UNKNOWN';
+
+      const current = byService.get(serviceId) || {
+        name: serviceName,
+        code: serviceCode,
+        count: 0,
+        revenue: 0,
+        vehicleTypes: new Map(),
+      };
+
+      current.count += 1;
+      current.revenue += Number(s.totalPrice || 0);
+      current.vehicleTypes.set(vehicleType, (current.vehicleTypes.get(vehicleType) || 0) + 1);
+
+      byService.set(serviceId, current);
+    });
+
+    const serviceStats = Array.from(byService.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      code: data.code,
+      count: data.count,
+      revenue: Math.round(data.revenue),
+      averagePrice: data.count > 0 ? Math.round(data.revenue / data.count) : 0,
+      vehicleTypeBreakdown: Array.from(data.vehicleTypes.entries()).map(([type, count]) => ({
+        vehicleType: type,
+        count,
+      })),
+    }));
+
+    // Sort by revenue descending
+    serviceStats.sort((a, b) => b.revenue - a.revenue);
+
+    const totalRevenue = serviceStats.reduce((sum, s) => sum + s.revenue, 0);
+    const totalCount = serviceStats.reduce((sum, s) => sum + s.count, 0);
+
+    return {
+      summary: {
+        totalServices: serviceStats.length,
+        totalCount,
+        totalRevenue,
+        period: {
+          startDate: options.startDate,
+          endDate: options.endDate,
+        },
+      },
+      services: serviceStats,
+    };
+  }
+
+  async exportWashEventsCsv(
+    networkId: string,
+    options: {
+      startDate?: Date;
+      endDate?: Date;
+      locationId?: string;
+      partnerCompanyId?: string;
+      status?: string;
+    },
+  ): Promise<any> {
+    const where: any = {
+      networkId,
+    };
+
+    if (options.startDate || options.endDate) {
+      where.createdAt = {};
+      if (options.startDate) where.createdAt.gte = options.startDate;
+      if (options.endDate) where.createdAt.lte = options.endDate;
+    }
+
+    if (options.locationId) {
+      where.locationId = options.locationId;
+    }
+
+    if (options.partnerCompanyId) {
+      where.partnerCompanyId = options.partnerCompanyId;
+    }
+
+    if (options.status) {
+      where.status = options.status;
+    }
+
+    const washEvents = await this.prisma.washEvent.findMany({
+      where,
+      include: {
+        location: { select: { name: true, code: true } },
+        partnerCompany: { select: { name: true } },
+        driver: { select: { firstName: true, lastName: true } },
+        services: {
+          include: {
+            servicePackage: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5000, // Limit for performance
+    });
+
+    // Generate CSV header
+    const headers = [
+      'ID',
+      'Dátum',
+      'Helyszín',
+      'Helyszín kód',
+      'Státusz',
+      'Típus',
+      'Vontató rendszám',
+      'Pótkocsi rendszám',
+      'Jármű típus',
+      'Sofőr',
+      'Partner cég',
+      'Szolgáltatások',
+      'Ár (Ft)',
+      'Kezdés',
+      'Befejezés',
+    ];
+
+    // Generate CSV rows
+    const rows = washEvents.map((e) => [
+      e.id,
+      e.createdAt.toISOString().split('T')[0],
+      e.location?.name || '',
+      e.location?.code || '',
+      e.status,
+      e.entryMode === 'QR_DRIVER' ? 'Sofőr' : 'Manuális',
+      e.tractorPlateManual || '',
+      e.trailerPlateManual || '',
+      e.services[0]?.vehicleType || '',
+      e.driver ? `${e.driver.lastName} ${e.driver.firstName}` : (e.driverNameManual || ''),
+      e.partnerCompany?.name || 'Készpénzes',
+      e.services.map((s) => s.servicePackage?.name).filter(Boolean).join('; '),
+      Number(e.totalPrice || 0),
+      e.startedAt ? e.startedAt.toISOString() : '',
+      e.completedAt ? e.completedAt.toISOString() : '',
+    ]);
+
+    // Create CSV content
+    const escapeCsvField = (field: any): string => {
+      const str = String(field ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map(escapeCsvField).join(',')),
+    ].join('\n');
+
+    return {
+      filename: `mosasok_${new Date().toISOString().split('T')[0]}.csv`,
+      content: csvContent,
+      mimeType: 'text/csv',
+      rowCount: rows.length,
+    };
   }
 }

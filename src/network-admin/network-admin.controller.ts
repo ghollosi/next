@@ -469,6 +469,21 @@ export class NetworkAdminController {
     return this.networkAdminService.updateSettings(networkId, dto);
   }
 
+  @Post('test-email')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Test email configuration' })
+  @ApiResponse({
+    status: 200,
+    description: 'Email test result',
+  })
+  async testEmail(
+    @Body() dto: { testEmail: string },
+    @Headers('authorization') auth?: string,
+  ): Promise<{ success: boolean; message: string; provider?: string }> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.testEmailConfig(networkId, dto.testEmail);
+  }
+
   // =========================================================================
   // VAT RATES
   // =========================================================================
@@ -892,5 +907,316 @@ export class NetworkAdminController {
   ): Promise<void> {
     const { networkId } = await this.validateAuth(auth);
     return this.networkAdminService.removeLocationService(networkId, locationId, servicePackageId);
+  }
+
+  // =========================================================================
+  // INVOICES
+  // =========================================================================
+
+  @Get('invoices')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List invoices with optional filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of invoices',
+  })
+  async listInvoices(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('status') status?: string,
+    @Query('partnerCompanyId') partnerCompanyId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.listInvoices(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      status: status as any,
+      partnerCompanyId,
+      limit: limit ? parseInt(limit, 10) : 50,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
+  }
+
+  @Get('invoices/summary')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get invoice summary statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invoice summary',
+  })
+  async getInvoiceSummary(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getInvoiceSummary(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+    });
+  }
+
+  @Get('invoices/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get invoice details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invoice details',
+  })
+  async getInvoice(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getInvoice(networkId, id);
+  }
+
+  @Post('invoices/prepare')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Prepare invoice for a partner company' })
+  @ApiResponse({
+    status: 201,
+    description: 'Invoice prepared (DRAFT status)',
+  })
+  async prepareInvoice(
+    @Body() dto: {
+      partnerCompanyId: string;
+      startDate: string;
+      endDate: string;
+      paymentMethod?: string;
+      dueDays?: number;
+    },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.prepareInvoice(networkId, {
+      ...dto,
+      startDate: new Date(dto.startDate),
+      endDate: new Date(dto.endDate + 'T23:59:59'),
+    });
+  }
+
+  @Post('invoices/:id/issue')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Issue prepared invoice (send to invoicing provider)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invoice issued',
+  })
+  async issueInvoice(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.networkAdminService.issueInvoice(networkId, id, adminId);
+  }
+
+  @Post('invoices/:id/mark-paid')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark invoice as paid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invoice marked as paid',
+  })
+  async markInvoicePaid(
+    @Param('id') id: string,
+    @Body() dto: { paidDate?: string; paymentMethod?: string },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.networkAdminService.markInvoicePaid(networkId, id, adminId, {
+      paidDate: dto.paidDate ? new Date(dto.paidDate) : new Date(),
+      paymentMethod: dto.paymentMethod,
+    });
+  }
+
+  @Post('invoices/:id/cancel')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel/storno invoice' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invoice cancelled',
+  })
+  async cancelInvoice(
+    @Param('id') id: string,
+    @Body() dto: { reason?: string },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.networkAdminService.cancelInvoice(networkId, id, adminId, dto.reason);
+  }
+
+  @Delete('invoices/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete draft invoice' })
+  @ApiResponse({ status: 204, description: 'Invoice deleted' })
+  async deleteInvoice(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<void> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.deleteInvoice(networkId, id);
+  }
+
+  @Get('invoices/unbilled-events')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get unbilled wash events for a partner' })
+  @ApiResponse({
+    status: 200,
+    description: 'Unbilled wash events',
+  })
+  async getUnbilledEvents(
+    @Query('partnerCompanyId') partnerCompanyId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getUnbilledEvents(networkId, partnerCompanyId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+    });
+  }
+
+  // =========================================================================
+  // REPORTS
+  // =========================================================================
+
+  @Get('reports/wash-statistics')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get wash statistics report' })
+  @ApiResponse({
+    status: 200,
+    description: 'Wash statistics',
+  })
+  async getWashStatistics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('locationId') locationId?: string,
+    @Query('partnerCompanyId') partnerCompanyId?: string,
+    @Query('groupBy') groupBy?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getWashStatistics(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      locationId,
+      partnerCompanyId,
+      groupBy: groupBy as 'day' | 'week' | 'month' | 'location' | 'partner',
+    });
+  }
+
+  @Get('reports/revenue')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get revenue report' })
+  @ApiResponse({
+    status: 200,
+    description: 'Revenue report',
+  })
+  async getRevenueReport(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('locationId') locationId?: string,
+    @Query('partnerCompanyId') partnerCompanyId?: string,
+    @Query('groupBy') groupBy?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getRevenueReport(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      locationId,
+      partnerCompanyId,
+      groupBy: groupBy as 'day' | 'week' | 'month' | 'location' | 'partner' | 'service',
+    });
+  }
+
+  @Get('reports/location-performance')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get location performance report' })
+  @ApiResponse({
+    status: 200,
+    description: 'Location performance',
+  })
+  async getLocationPerformance(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getLocationPerformance(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+    });
+  }
+
+  @Get('reports/partner-summary')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get partner company summary report' })
+  @ApiResponse({
+    status: 200,
+    description: 'Partner company summary',
+  })
+  async getPartnerSummary(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getPartnerSummary(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+    });
+  }
+
+  @Get('reports/service-breakdown')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get service package breakdown report' })
+  @ApiResponse({
+    status: 200,
+    description: 'Service breakdown',
+  })
+  async getServiceBreakdown(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('locationId') locationId?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getServiceBreakdown(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      locationId,
+    });
+  }
+
+  @Get('reports/export/csv')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export wash events to CSV' })
+  @ApiResponse({
+    status: 200,
+    description: 'CSV data',
+  })
+  async exportWashEventsCsv(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('locationId') locationId?: string,
+    @Query('partnerCompanyId') partnerCompanyId?: string,
+    @Query('status') status?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.exportWashEventsCsv(networkId, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate + 'T23:59:59') : undefined,
+      locationId,
+      partnerCompanyId,
+      status,
+    });
   }
 }

@@ -225,13 +225,15 @@ export class PwaController {
     const verificationMessage = verificationMessages.length > 0
       ? verificationMessages.join(' ') + ' '
       : '';
-    const approvalMessage = 'A fiókod jóváhagyásra vár. Értesítést kapsz, ha aktiválásra került.';
+    // Driver is auto-approved, show the invite code
+    const approvalMessage = 'A fiókod aktiválva lett. Használd a meghívó kódodat a bejelentkezéshez, vagy jelentkezz be telefonszámmal és PIN kóddal.';
 
     return {
       driverId: driver.id,
       firstName: driver.firstName,
       lastName: driver.lastName,
       approvalStatus: driver.approvalStatus,
+      inviteCode: driver.invite?.inviteCode,
       verificationRequired,
       message: baseMessage + verificationMessage + approvalMessage,
     };
@@ -755,12 +757,17 @@ export class PwaController {
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
 
-    const result = await this.notificationService.verifyToken(token, VerificationType.EMAIL);
+    try {
+      const result = await this.notificationService.verifyToken(token, VerificationType.EMAIL);
 
-    if (result.valid) {
-      return res.redirect(`${frontendUrl}/login?verified=true`);
-    } else {
-      return res.redirect(`${frontendUrl}/login?verified=false&error=${encodeURIComponent(result.message || 'Érvénytelen link')}`);
+      if (result.valid) {
+        return res.redirect(`${frontendUrl}/login?verified=true`);
+      } else {
+        return res.redirect(`${frontendUrl}/login?verified=false&error=${encodeURIComponent(result.message || 'Érvénytelen link')}`);
+      }
+    } catch (error) {
+      console.error(`Email verification error: ${error.message}`);
+      return res.redirect(`${frontendUrl}/login?verified=false&error=${encodeURIComponent('Hiba történt a megerősítés során')}`);
     }
   }
 
@@ -1108,13 +1115,15 @@ export class PwaController {
     const verificationMessage = verificationMessages.length > 0
       ? verificationMessages.join(' ') + ' '
       : '';
-    const approvalMessage = 'A fiókod jóváhagyásra vár. Értesítést kapsz, ha aktiválásra került.';
+    // Driver is auto-approved, show the invite code
+    const approvalMessage = 'A fiókod aktiválva lett. Használd a meghívó kódodat a bejelentkezéshez, vagy jelentkezz be telefonszámmal és PIN kóddal.';
 
     return {
       driverId: driver.id,
       firstName: driver.firstName,
       lastName: driver.lastName,
       approvalStatus: driver.approvalStatus,
+      inviteCode: driver.invite?.inviteCode,
       verificationRequired,
       message: baseMessage + verificationMessage + approvalMessage,
     };

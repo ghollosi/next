@@ -1,11 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { EmailProvider } from '@prisma/client';
+import * as nodemailer from 'nodemailer';
 
 interface SendEmailOptions {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   text?: string;
+  from?: string;
+}
+
+interface NetworkEmailConfig {
+  provider: EmailProvider;
+  resendApiKey?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPassword?: string;
+  smtpFromEmail?: string;
+  smtpFromName?: string;
 }
 
 @Injectable()
@@ -15,21 +30,260 @@ export class EmailService {
   private readonly fromAddress: string;
   private readonly fromName: string;
   private readonly frontendUrl: string;
+  private readonly apiUrl: string;
+  // Platform SMTP config
+  private readonly smtpHost: string;
+  private readonly smtpPort: number;
+  private readonly smtpUser: string;
+  private readonly smtpPass: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     this.resendApiKey = this.configService.get<string>('RESEND_API_KEY') || '';
-    this.fromAddress = this.configService.get<string>('EMAIL_FROM_ADDRESS') || 'noreply@vsys.hu';
-    this.fromName = this.configService.get<string>('EMAIL_FROM_NAME') || 'VSys Wash';
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    this.fromAddress = this.configService.get<string>('EMAIL_FROM_ADDRESS') || this.configService.get<string>('SMTP_FROM') || 'info@vemiax.com';
+    this.fromName = this.configService.get<string>('EMAIL_FROM_NAME') || this.configService.get<string>('SMTP_FROM_NAME') || 'Vemiax';
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://app.vemiax.com';
+    this.apiUrl = this.configService.get<string>('API_URL') || 'https://api.vemiax.com';
+    // Platform SMTP config
+    this.smtpHost = this.configService.get<string>('SMTP_HOST') || '';
+    this.smtpPort = parseInt(this.configService.get<string>('SMTP_PORT') || '587', 10);
+    this.smtpUser = this.configService.get<string>('SMTP_USER') || '';
+    this.smtpPass = this.configService.get<string>('SMTP_PASS') || '';
   }
 
-  private async sendEmail(options: SendEmailOptions): Promise<boolean> {
-    if (!this.resendApiKey) {
-      this.logger.warn('RESEND_API_KEY not configured, email sending disabled');
-      this.logger.debug(`Would send email to ${options.to}: ${options.subject}`);
-      return false;
+  /**
+   * Get email configuration for a network
+   */
+  async getNetworkEmailConfig(networkId: string): Promise<NetworkEmailConfig | null> {
+    const settings = await this.prisma.networkSettings.findUnique({
+      where: { networkId },
+      select: {
+        emailProvider: true,
+        resendApiKey: true,
+        smtpHost: true,
+        smtpPort: true,
+        smtpUser: true,
+        smtpPassword: true,
+        smtpFromEmail: true,
+        smtpFromName: true,
+      },
+    });
+
+    if (!settings) {
+      return null;
     }
 
+    return {
+      provider: settings.emailProvider,
+      resendApiKey: settings.resendApiKey || undefined,
+      smtpHost: settings.smtpHost || undefined,
+      smtpPort: settings.smtpPort || undefined,
+      smtpUser: settings.smtpUser || undefined,
+      smtpPassword: settings.smtpPassword || undefined,
+      smtpFromEmail: settings.smtpFromEmail || undefined,
+      smtpFromName: settings.smtpFromName || undefined,
+    };
+  }
+
+  /**
+   * Send email using network's configured provider
+   */
+  async sendNetworkEmail(networkId: string, options: SendEmailOptions): Promise<boolean> {
+    const config = await this.getNetworkEmailConfig(networkId);
+
+    if (!config) {
+      this.logger.warn(`No email config found for network ${networkId}, using platform default`);
+      return this.sendEmail(options);
+    }
+
+    try {
+      switch (config.provider) {
+        case 'RESEND':
+          return await this.sendViaResend(config, options);
+        case 'SMTP':
+          return await this.sendViaSmtp(config, options);
+        case 'PLATFORM':
+        default:
+          return await this.sendEmail(options);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send network email: ${error.message}`, error.stack);
+      return false;
+    }
+  }
+
+  /**
+   * Send email via network's Resend API key
+   */
+  private async sendViaResend(config: NetworkEmailConfig, options: SendEmailOptions): Promise<boolean> {
+    if (!config.resendApiKey) {
+      this.logger.warn('Network Resend API key not configured, falling back to platform');
+      return this.sendEmail(options);
+    }
+
+    try {
+      const fromName = config.smtpFromName || this.fromName;
+      const fromEmail = config.smtpFromEmail || this.fromAddress;
+
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: options.from || `${fromName} <${fromEmail}>`,
+          to: Array.isArray(options.to) ? options.to : [options.to],
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        this.logger.error(`Network Resend API error: ${error}`);
+        return false;
+      }
+
+      const result = await response.json();
+      this.logger.log(`Email sent via Network Resend: ${result.id}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Network Resend error: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Send email via network's SMTP server
+   */
+  private async sendViaSmtp(config: NetworkEmailConfig, options: SendEmailOptions): Promise<boolean> {
+    if (!config.smtpHost || !config.smtpUser || !config.smtpPassword) {
+      this.logger.warn('Network SMTP configuration incomplete, falling back to platform');
+      return this.sendEmail(options);
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.smtpHost,
+        port: config.smtpPort || 587,
+        secure: config.smtpPort === 465,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPassword,
+        },
+      });
+
+      const fromName = config.smtpFromName || this.fromName;
+      const fromEmail = config.smtpFromEmail || config.smtpUser;
+
+      const info = await transporter.sendMail({
+        from: options.from || `"${fromName}" <${fromEmail}>`,
+        to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      this.logger.log(`Email sent via Network SMTP: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Network SMTP error: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Test email configuration for a network
+   */
+  async testNetworkEmailConfig(networkId: string, testEmail: string): Promise<{ success: boolean; message: string; provider?: string }> {
+    const config = await this.getNetworkEmailConfig(networkId);
+
+    if (!config) {
+      return { success: false, message: 'Email konfiguráció nem található' };
+    }
+
+    const testOptions: SendEmailOptions = {
+      to: testEmail,
+      subject: 'vSys - Email teszt',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1>vSys Wash</h1>
+          </div>
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+            <h2>Email teszt sikeres!</h2>
+            <p>Ez egy teszt email a vSys rendszerből.</p>
+            <p><strong>Provider:</strong> ${config.provider}</p>
+            <p><strong>Időpont:</strong> ${new Date().toLocaleString('hu-HU')}</p>
+          </div>
+        </div>
+      `,
+      text: `Email teszt sikeres! Provider: ${config.provider}`,
+    };
+
+    const success = await this.sendNetworkEmail(networkId, testOptions);
+
+    return {
+      success,
+      message: success
+        ? `Teszt email sikeresen elküldve (${config.provider})`
+        : 'Nem sikerült elküldeni a teszt emailt',
+      provider: config.provider,
+    };
+  }
+
+  // Platform level email sending (fallback)
+  private async sendEmail(options: SendEmailOptions): Promise<boolean> {
+    // Try SMTP first if configured
+    if (this.smtpHost && this.smtpUser && this.smtpPass) {
+      return this.sendViaPlatformSmtp(options);
+    }
+
+    // Fall back to Resend if configured
+    if (this.resendApiKey) {
+      return this.sendViaPlatformResend(options);
+    }
+
+    this.logger.warn('No email provider configured (SMTP or Resend), email sending disabled');
+    this.logger.debug(`Would send email to ${options.to}: ${options.subject}`);
+    return false;
+  }
+
+  // Send via platform SMTP
+  private async sendViaPlatformSmtp(options: SendEmailOptions): Promise<boolean> {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: this.smtpHost,
+        port: this.smtpPort,
+        secure: this.smtpPort === 465,
+        auth: {
+          user: this.smtpUser,
+          pass: this.smtpPass,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: options.from || `"${this.fromName}" <${this.fromAddress}>`,
+        to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      this.logger.log(`Email sent via Platform SMTP: ${info.messageId} to ${options.to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Platform SMTP error: ${error.message}`);
+      return false;
+    }
+  }
+
+  // Send via platform Resend
+  private async sendViaPlatformResend(options: SendEmailOptions): Promise<boolean> {
     try {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -38,8 +292,8 @@ export class EmailService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: `${this.fromName} <${this.fromAddress}>`,
-          to: options.to,
+          from: options.from || `${this.fromName} <${this.fromAddress}>`,
+          to: Array.isArray(options.to) ? options.to : [options.to],
           subject: options.subject,
           html: options.html,
           text: options.text,
@@ -52,10 +306,10 @@ export class EmailService {
         return false;
       }
 
-      this.logger.log(`Email sent successfully to ${options.to}`);
+      this.logger.log(`Email sent via Resend to ${options.to}`);
       return true;
     } catch (error) {
-      this.logger.error(`Email sending error: ${error}`);
+      this.logger.error(`Resend error: ${error}`);
       return false;
     }
   }
@@ -66,7 +320,8 @@ export class EmailService {
     firstName: string,
     token: string,
   ): Promise<boolean> {
-    const verifyUrl = `${this.frontendUrl}/verify?token=${token}&type=email`;
+    // Use API endpoint directly - it will redirect to frontend after verification
+    const verifyUrl = `${this.apiUrl}/pwa/verify-email?token=${token}`;
 
     const html = `
 <!DOCTYPE html>

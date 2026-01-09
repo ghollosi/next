@@ -59,6 +59,8 @@ export default function NetworkAdminLayout({
     { href: '/network-admin/locations', label: 'Helyszínek', icon: '📍' },
     { href: '/network-admin/drivers', label: 'Sofőrök', icon: '👤' },
     { href: '/network-admin/partners', label: 'Partner cégek', icon: '🏢' },
+    { href: '/network-admin/invoices', label: 'Számlák', icon: '🧾' },
+    { href: '/network-admin/reports', label: 'Riportok', icon: '📈' },
     { href: '/network-admin/delete-requests', label: 'Törlési kérelmek', icon: '🗑️' },
     { href: '/network-admin/prices', label: 'Árlista', icon: '💰' },
     { href: '/network-admin/audit-logs', label: 'Audit napló', icon: '📋' },

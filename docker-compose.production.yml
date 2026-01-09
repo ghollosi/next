@@ -1,0 +1,80 @@
+# VSys Next - Docker Compose (Production)
+# Security hardened configuration
+# Version: v0.2.0
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vsys-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vsys}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-vsys_next}
+    # SECURITY: Only expose to localhost, not public internet
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vsys} -d ${POSTGRES_DB:-vsys_next}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # SECURITY: Limit container resources
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: vsys-app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vsys}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vsys_next}?schema=public
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    # SECURITY: Run as non-root user
+    user: "1000:1000"
+    # SECURITY: Limit container resources
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  pwa:
+    build:
+      context: ./pwa
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+    container_name: vsys-pwa
+    ports:
+      - "3001:3000"
+    depends_on:
+      - app
+    restart: unless-stopped
+    # SECURITY: Already runs as nextjs user in Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  postgres_data:

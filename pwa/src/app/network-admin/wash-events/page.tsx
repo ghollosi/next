@@ -50,7 +50,7 @@ export default function WashEventsListPage() {
       setLocations(locs);
 
       // Load wash events for ALL locations (no locationId filter)
-      const data = await fetchOperatorApi<{ data: WashEvent[] }>('/operator/wash-events?limit=500');
+      const data = await fetchOperatorApi<{ data: WashEvent[] }>('/operator/wash-events?limit=100');
       setWashEvents(data.data || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');

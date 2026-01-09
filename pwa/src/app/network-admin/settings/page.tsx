@@ -42,6 +42,7 @@ interface Settings {
     smtpHost: string;
     smtpPort: number;
     smtpUser: string;
+    smtpPassword: string;
     smtpFromEmail: string;
     smtpFromName: string;
     resendApiKey: string;
@@ -124,6 +125,61 @@ const INVOICE_PROVIDERS = [
   { code: 'billingo', name: 'Billingo' },
 ];
 
+// Test Email Button Component
+function TestEmailButton({ settings }: { settings: Settings }) {
+  const [testEmail, setTestEmail] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestEmail = async () => {
+    if (!testEmail) {
+      setTestResult({ success: false, message: 'Kérlek add meg a teszt email címet' });
+      return;
+    }
+
+    try {
+      setTesting(true);
+      setTestResult(null);
+
+      const result = await networkAdminApi.testEmailConfig(testEmail);
+      setTestResult(result);
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message || 'Hiba történt' });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="bg-blue-50 rounded-xl p-4">
+      <h4 className="font-semibold text-blue-900 mb-3">Email teszt</h4>
+      <p className="text-sm text-blue-700 mb-3">
+        Küldj egy teszt emailt, hogy ellenőrizd a beállításokat.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={testEmail}
+          onChange={(e) => setTestEmail(e.target.value)}
+          placeholder="teszt@example.com"
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+        />
+        <button
+          onClick={handleTestEmail}
+          disabled={testing}
+          className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {testing ? 'Küldés...' : 'Teszt küldése'}
+        </button>
+      </div>
+      {testResult && (
+        <div className={`mt-3 p-3 rounded-lg text-sm ${testResult.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+          {testResult.message}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -889,17 +945,22 @@ export default function SettingsPage() {
                   Email szolgáltató
                 </label>
                 <select
-                  value={settings.email.emailProvider || 'none'}
+                  value={settings.email.emailProvider || 'PLATFORM'}
                   onChange={(e) => updateSettings('email', 'emailProvider', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
-                  <option value="none">Nincs (email küldés letiltva)</option>
-                  <option value="smtp">SMTP szerver</option>
-                  <option value="resend">Resend</option>
+                  <option value="PLATFORM">Platform alapértelmezett</option>
+                  <option value="SMTP">SMTP szerver (saját)</option>
+                  <option value="RESEND">Resend (saját API kulcs)</option>
                 </select>
+                <p className="text-sm text-gray-500 mt-1">
+                  {settings.email.emailProvider === 'PLATFORM' && 'A platform által biztosított email küldést használja.'}
+                  {settings.email.emailProvider === 'SMTP' && 'Saját SMTP szervert használ az email küldéshez.'}
+                  {settings.email.emailProvider === 'RESEND' && 'Saját Resend API kulcsot használ az email küldéshez.'}
+                </p>
               </div>
 
-              {settings.email.emailProvider === 'smtp' && (
+              {settings.email.emailProvider === 'SMTP' && (
                 <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -926,17 +987,31 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SMTP felhasználó
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.email.smtpUser || ''}
-                      onChange={(e) => updateSettings('email', 'smtpUser', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-                      placeholder="user@example.com"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        SMTP felhasználó
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.email.smtpUser || ''}
+                        onChange={(e) => updateSettings('email', 'smtpUser', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+                        placeholder="user@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        SMTP jelszó
+                      </label>
+                      <input
+                        type="password"
+                        value={settings.email.smtpPassword || ''}
+                        onChange={(e) => updateSettings('email', 'smtpPassword', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+                        placeholder="••••••••"
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -967,7 +1042,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {settings.email.emailProvider === 'resend' && (
+              {settings.email.emailProvider === 'RESEND' && (
                 <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -980,8 +1055,42 @@ export default function SettingsPage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl"
                       placeholder="re_xxxxx..."
                     />
+                    <p className="text-sm text-gray-500 mt-1">
+                      A Resend API kulcsot a <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">resend.com</a> oldalon tudod létrehozni.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Feladó email
+                      </label>
+                      <input
+                        type="email"
+                        value={settings.email.smtpFromEmail || ''}
+                        onChange={(e) => updateSettings('email', 'smtpFromEmail', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+                        placeholder="noreply@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Feladó név
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.email.smtpFromName || ''}
+                        onChange={(e) => updateSettings('email', 'smtpFromName', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+                        placeholder="VSys Mosórendszer"
+                      />
+                    </div>
                   </div>
                 </div>
+              )}
+
+              {/* Test Email Button */}
+              {settings.email.emailProvider !== 'PLATFORM' && (
+                <TestEmailButton settings={settings} />
               )}
 
               <hr className="my-6" />

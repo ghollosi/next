@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { StripeModule } from '../stripe/stripe.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
+import { EmailModule } from '../modules/email/email.module';
 import { NetworkAdminController } from './network-admin.controller';
 import { NetworkAdminService } from './network-admin.service';
 
@@ -13,12 +14,19 @@ import { NetworkAdminService } from './network-admin.service';
     ConfigModule,
     StripeModule,
     AuditLogModule,
+    EmailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET') || 'vsys-network-secret',
-        signOptions: { expiresIn: '24h' },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get('JWT_SECRET');
+        if (!secret && process.env.NODE_ENV === 'production') {
+          throw new Error('JWT_SECRET environment variable is required in production');
+        }
+        return {
+          secret: secret || 'dev-only-secret-do-not-use-in-production',
+          signOptions: { expiresIn: '24h' },
+        };
+      },
       inject: [ConfigService],
     }),
   ],
