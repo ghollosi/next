@@ -1,5 +1,5 @@
 # VSys / Vemiax - Teljes Rendszer Visszaállítási Pont
-## Verzió: v1.1.0-vemiax
+## Verzió: v1.1.1-vemiax
 ## Dátum: 2026-01-09
 
 ---
@@ -191,7 +191,7 @@ git clone https://github.com/ghollosi/next.git vsys
 cd vsys
 
 # Visszaállítás erre a verzióra
-git checkout v1.1.0-vemiax
+git checkout v1.1.1-vemiax
 ```
 
 ## 7.2 Adatbázis visszaállítás
@@ -388,11 +388,33 @@ swaks --to test@example.com \
 1. **SSL tanúsítványok** automatikusan megújulnak (Let's Encrypt/Certbot)
 2. **Email küldés** elsődlegesen SMTP-n keresztül, fallback Resend API
 3. **Adatbázis** Docker volume-ban perzisztálva
-4. **Git tag**: `v1.1.0-vemiax` - visszaállítási pont
+4. **Git tag**: `v1.1.1-vemiax` - visszaállítási pont
 
 ---
 
-# 13. KAPCSOLAT
+# 13. VÁLTOZÁSOK v1.1.0 ÓTA
+
+## v1.1.1-vemiax (2026-01-09)
+### Platform Admin hálózat részletek oldal javítás
+
+**Probléma:** A Platform Admin > Hálózatok > Részletek oldal 401 Unauthorized hibát dobott.
+
+**Gyökér ok:** A `next.config.js` rewrite szabályai ütköztek az oldal útvonalakkal. A `/platform-admin/networks/:path*` rewrite szabály elfogta az oldal kéréseket is, nem csak az API hívásokat.
+
+**Javítás:**
+1. **`pwa/next.config.js`**: Eltávolítottuk a `/platform-admin/*` és `/network-admin/*` rewrite szabályokat
+2. **`pwa/src/lib/platform-api.ts`**: Dinamikus `getApiUrl()` függvény bevezetése:
+   - Kliens oldal (böngésző): `https://api.vemiax.com`
+   - Szerver oldal (Docker): `http://vsys-app:3000`
+
+**Módosított fájlok:**
+- `pwa/next.config.js`
+- `pwa/src/lib/platform-api.ts`
+- Nginx konfig: admin.vemiax.com átirányítás app.vemiax.com-ra
+
+---
+
+# 14. KAPCSOLAT
 
 - **Domain provider:** WebSupport.hu
 - **VPS provider:** Hetzner
@@ -402,4 +424,4 @@ swaks --to test@example.com \
 ---
 
 *Dokumentum készült: 2026-01-09*
-*Verzió: v1.1.0-vemiax*
+*Verzió: v1.1.1-vemiax*

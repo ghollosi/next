@@ -1,6 +1,13 @@
 // Platform Admin API client
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+function getApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    // Client-side: use public API URL
+    return 'https://api.vemiax.com';
+  }
+  // Server-side: use internal Docker network
+  return 'http://vsys-app:3000';
+}
 
 interface PlatformLoginResponse {
   accessToken: string;
@@ -132,7 +139,7 @@ export function clearPlatformSession() {
 async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getPlatformToken();
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(`${getApiUrl()}${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -157,7 +164,7 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Pr
 export const platformApi = {
   // Auth
   async login(email: string, password: string): Promise<PlatformLoginResponse> {
-    const response = await fetch(`${API_URL}/platform-admin/login`, {
+    const response = await fetch(`${getApiUrl()}/platform-admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -269,7 +276,7 @@ export const platformApi = {
 
   // Password reset
   async requestPasswordReset(email: string): Promise<{ message: string }> {
-    const response = await fetch(`${API_URL}/platform-admin/request-password-reset`, {
+    const response = await fetch(`${getApiUrl()}/platform-admin/request-password-reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -284,7 +291,7 @@ export const platformApi = {
   },
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    const response = await fetch(`${API_URL}/platform-admin/reset-password`, {
+    const response = await fetch(`${getApiUrl()}/platform-admin/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, newPassword }),
@@ -306,7 +313,7 @@ export const platformApi = {
   },
 
   async emergencyLogin(token: string): Promise<PlatformLoginResponse> {
-    const response = await fetch(`${API_URL}/platform-admin/emergency-login`, {
+    const response = await fetch(`${getApiUrl()}/platform-admin/emergency-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
