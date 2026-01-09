@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vemiax - Járműmosó Menedzsment Rendszer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            padding: 20px 0;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+            background: rgba(13, 27, 42, 0.9);
+            backdrop-filter: blur(10px);
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            color: #4fc3f7;
+        }
+        .nav-links a {
+            color: #fff;
+            text-decoration: none;
+            margin-left: 30px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover {
+            color: #4fc3f7;
+        }
+        .btn-login {
+            background: #4fc3f7;
+            color: #0d1b2a;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        /* Hero */
+        .hero {
+            padding: 160px 0 100px;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 24px;
+            line-height: 1.2;
+        }
+        .hero h1 span {
+            color: #4fc3f7;
+        }
+        .hero p {
+            font-size: 1.25rem;
+            color: #b0bec5;
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            background: #4fc3f7;
+            color: #0d1b2a;
+            padding: 16px 32px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.3);
+        }
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid #4fc3f7;
+            color: #4fc3f7;
+            padding: 14px 32px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover {
+            background: #4fc3f7;
+            color: #0d1b2a;
+        }
+        
+        /* Features */
+        .features {
+            padding: 80px 0;
+        }
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 32px;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: #4fc3f7;
+        }
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+        }
+        .feature-card p {
+            color: #b0bec5;
+            line-height: 1.6;
+        }
+        
+        /* Stats */
+        .stats {
+            padding: 60px 0;
+            background: rgba(79, 195, 247, 0.1);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #4fc3f7;
+        }
+        .stat-label {
+            color: #b0bec5;
+            margin-top: 8px;
+        }
+        
+        /* CTA */
+        .cta {
+            padding: 100px 0;
+            text-align: center;
+        }
+        .cta h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+        .cta p {
+            color: #b0bec5;
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+        }
+        
+        /* Footer */
+        footer {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 40px 0;
+            text-align: center;
+        }
+        footer p {
+            color: #78909c;
+        }
+        footer a {
+            color: #4fc3f7;
+            text-decoration: none;
+        }
+        
+        /* Mobile */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.2rem;
+            }
+            .nav-links {
+                display: none;
+            }
+            .features h2, .cta h2 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <div class="logo">Vemiax</div>
+                <div class="nav-links">
+                    <a href="#features">Funkciók</a>
+                    <a href="#about">Rólunk</a>
+                    <a href="https://app.vemiax.com/network-admin" class="btn-login">Belépés</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Modern <span>járműmosó</span><br>menedzsment rendszer</h1>
+            <p>Egyszerűsítse járműmosó hálózata működését. Valós idejű nyomon követés, automatikus számlázás, részletes riportok - egy helyen.</p>
+            <div class="hero-buttons">
+                <a href="https://app.vemiax.com/network-admin" class="btn-primary">Próbálja ki ingyen</a>
+                <a href="#features" class="btn-secondary">További információ</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <h2>Minden ami a sikeres működéshez kell</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🚛</div>
+                    <h3>Sofőr alkalmazás</h3>
+                    <p>Mobil PWA alkalmazás sofőröknek. QR kód alapú bejelentkezés, mosás indítás egyetlen érintéssel.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Valós idejű dashboard</h3>
+                    <p>Kövesse nyomon az összes helyszín forgalmát, bevételeit és teljesítményét egyetlen felületen.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💳</div>
+                    <h3>Automatikus számlázás</h3>
+                    <p>Partner cégek automatikus havi számlázása. Stripe integráció az online fizetéshez.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏢</div>
+                    <h3>Multi-tenant architektúra</h3>
+                    <p>Több mosóhálózat kezelése egyetlen platformról. Mindegyik saját beállításokkal és árazással.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Operátor felület</h3>
+                    <p>Egyszerű kezelőfelület a mosó személyzetnek. Mosás rögzítés, járműazonosítás pillanatok alatt.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Részletes riportok</h3>
+                    <p>Excel export, időszaki összesítők, partner cég statisztikák. Minden adat kéznél.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats">
+        <div class="container">
+            <div class="stats-grid">
+                <div>
+                    <div class="stat-number">99.9%</div>
+                    <div class="stat-label">Rendelkezésre állás</div>
+                </div>
+                <div>
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">Működés</div>
+                </div>
+                <div>
+                    <div class="stat-number">GDPR</div>
+                    <div class="stat-label">Megfelelőség</div>
+                </div>
+                <div>
+                    <div class="stat-number">SSL</div>
+                    <div class="stat-label">Biztonság</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta" id="about">
+        <div class="container">
+            <h2>Készen áll a hatékonyabb működésre?</h2>
+            <p>Vegye fel velünk a kapcsolatot és kezdje el a próbaidőszakot még ma.</p>
+            <a href="mailto:info@vemiax.com" class="btn-primary">Kapcsolat: info@vemiax.com</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Vemiax. Minden jog fenntartva.</p>
+            <p style="margin-top: 10px;">
+                <a href="https://app.vemiax.com/network-admin">Mosóhálózat kezelés</a> · 
+                <a href="https://app.vemiax.com/platform-admin">Platform Admin</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
