@@ -1,0 +1,141 @@
+# app.vemiax.com - PWA (sofőrök, operátorok, network admin)
+server {
+    listen 80;
+    server_name app.vemiax.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name app.vemiax.com;
+
+    ssl_certificate /etc/letsencrypt/live/app.vemiax.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.vemiax.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# admin.vemiax.com - Platform Admin (redirect to /platform-admin)
+server {
+    listen 80;
+    server_name admin.vemiax.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name admin.vemiax.com;
+
+    ssl_certificate /etc/letsencrypt/live/app.vemiax.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.vemiax.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Redirect root to /platform-admin
+    location = / {
+        return 301 /platform-admin;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host app.vemiax.com;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# api.vemiax.com - Backend API
+server {
+    listen 80;
+    server_name api.vemiax.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name api.vemiax.com;
+
+    ssl_certificate /etc/letsencrypt/live/app.vemiax.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.vemiax.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# www.vemiax.com and vemiax.com - Landing page
+server {
+    if ($host = vemiax.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    if ($host = www.vemiax.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name www.vemiax.com vemiax.com;
+    return 301 https://www.vemiax.com$request_uri;
+
+
+
+
+}
+
+server {
+    listen 443 ssl;
+    server_name vemiax.com;
+    ssl_certificate /etc/letsencrypt/live/www.vemiax.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/www.vemiax.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    return 301 https://www.vemiax.com$request_uri;
+
+}
+
+server {
+    listen 443 ssl;
+    server_name www.vemiax.com;
+    ssl_certificate /etc/letsencrypt/live/www.vemiax.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/www.vemiax.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    root /var/www/vemiax;
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+}

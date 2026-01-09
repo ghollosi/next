@@ -1,0 +1,31 @@
+# VSys Next - Environment Configuration
+# Module 1: Core Wash Registration & Wash Ledger
+
+# Database Configuration
+DATABASE_URL="postgresql://vsys:vsys_dev_password@localhost:5432/vsys_next?schema=public"
+
+# Application
+NODE_ENV=development
+PORT=3000
+
+# JWT Configuration
+JWT_SECRET=change-me-in-production
+
+# Logging
+LOG_LEVEL=debug
+
+# Email configuration (Resend)
+RESEND_API_KEY=re_YVXpiKdE_8y1HbhcUGeEzcZMRafE9KX4E
+EMAIL_FROM_ADDRESS=info@vemiax.com
+EMAIL_FROM_NAME=Vemiax
+FRONTEND_URL=https://app.vemiax.com
+API_URL=https://api.vemiax.com
+
+# WebSupport SMTP Configuration
+SMTP_HOST=smtp.websupport.hu
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=info@vemiax.com
+SMTP_PASS=Vemiax2026!
+SMTP_FROM=info@vemiax.com
+SMTP_FROM_NAME=Vemiax
