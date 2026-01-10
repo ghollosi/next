@@ -205,7 +205,7 @@ export class PwaController {
       verificationRequired = dto.email ? 'BOTH' : 'PHONE';
     }
 
-    // Notify partner company and admin about new registration
+    // Notify driver, partner company and network admin about new registration
     await this.notificationService.notifyNewRegistration(
       {
         id: driver.id,
@@ -219,6 +219,7 @@ export class PwaController {
         email: partnerCompany.email,
         contactName: partnerCompany.contactName,
       },
+      nid, // networkId
     );
 
     const baseMessage = 'Regisztráció sikeres! ';
@@ -1095,7 +1096,7 @@ export class PwaController {
       verificationRequired = dto.email ? 'BOTH' : 'PHONE';
     }
 
-    // Notify partner company and admin about new registration
+    // Notify driver, partner company and network admin about new registration
     await this.notificationService.notifyNewRegistration(
       {
         id: driver.id,
@@ -1109,6 +1110,7 @@ export class PwaController {
         email: partnerCompany.email,
         contactName: partnerCompany.contactName,
       },
+      network.id, // networkId (from QR code location)
     );
 
     const baseMessage = 'Regisztráció sikeres! ';

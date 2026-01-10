@@ -179,11 +179,27 @@ export class NotificationService {
       email: string | null;
       contactName: string | null;
     },
+    networkId?: string,
   ): Promise<void> {
     const driverName = `${driver.firstName} ${driver.lastName}`;
+    const sentEmails = new Set<string>(); // Prevent duplicate emails
 
-    // 1. Partner cég értesítése (ha van email)
-    if (partnerCompany.email) {
+    // 1. Sofőrnek értesítés (ha van email)
+    if (driver.email) {
+      const sent = await this.emailService['sendEmail']({
+        to: driver.email,
+        subject: 'VSys Wash - Regisztráció sikeres!',
+        html: this.getDriverRegistrationEmailHtml(driverName, partnerCompany.name),
+        text: `Kedves ${driverName}!\n\nSikeres regisztrációdat köszönjük! A hozzáférésed jóváhagyás után válik aktívvá.\n\nPartner: ${partnerCompany.name}`,
+      });
+      if (sent) {
+        sentEmails.add(driver.email);
+        this.logger.log(`Registration confirmation email sent to driver: ${driver.email}`);
+      }
+    }
+
+    // 2. Partner cég értesítése (ha van email)
+    if (partnerCompany.email && !sentEmails.has(partnerCompany.email)) {
       await this.emailService.sendNewRegistrationNotification(
         partnerCompany.email,
         partnerCompany.contactName || 'Tisztelt Partner',
@@ -192,10 +208,37 @@ export class NotificationService {
         driver.email,
         partnerCompany.name,
       );
+      sentEmails.add(partnerCompany.email);
     }
 
-    // 2. Admin értesítése
-    if (this.adminNotificationEmail) {
+    // 3. Hálózat admin értesítése (ha van networkId)
+    if (networkId) {
+      const networkAdmins = await this.prisma.networkAdmin.findMany({
+        where: {
+          networkId,
+          isActive: true,
+          deletedAt: null,
+        },
+      });
+
+      for (const admin of networkAdmins) {
+        if (!sentEmails.has(admin.email)) {
+          await this.emailService.sendNewRegistrationNotification(
+            admin.email,
+            admin.name,
+            driverName,
+            driver.phone,
+            driver.email,
+            partnerCompany.name,
+          );
+          sentEmails.add(admin.email);
+          this.logger.log(`New driver notification sent to network admin: ${admin.email}`);
+        }
+      }
+    }
+
+    // 4. Platform admin értesítése
+    if (this.adminNotificationEmail && !sentEmails.has(this.adminNotificationEmail)) {
       await this.emailService.sendNewRegistrationNotification(
         this.adminNotificationEmail,
         'Admin',
@@ -204,9 +247,10 @@ export class NotificationService {
         driver.email,
         partnerCompany.name,
       );
+      sentEmails.add(this.adminNotificationEmail);
     }
 
-    // 3. Adatbázisból lekérjük az admin usereket is
+    // 5. Adatbázisból lekérjük az admin usereket is (platform adminok)
     const adminUsers = await this.prisma.adminUser.findMany({
       where: {
         isActive: true,
@@ -214,7 +258,7 @@ export class NotificationService {
     });
 
     for (const admin of adminUsers) {
-      if (admin.email !== this.adminNotificationEmail) {
+      if (!sentEmails.has(admin.email)) {
         await this.emailService.sendNewRegistrationNotification(
           admin.email,
           admin.name,
@@ -223,8 +267,57 @@ export class NotificationService {
           driver.email,
           partnerCompany.name,
         );
+        sentEmails.add(admin.email);
       }
     }
+  }
+
+  private getDriverRegistrationEmailHtml(driverName: string, partnerCompanyName: string): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>VSys Wash</h1>
+      <p>Regisztráció sikeres!</p>
+    </div>
+    <div class="content">
+      <h2>Kedves ${driverName}!</h2>
+      <p>Köszönjük, hogy regisztráltál a VSys Wash rendszerbe!</p>
+
+      <div class="info-box">
+        <p><strong>Partner cég:</strong> ${partnerCompanyName}</p>
+        <p><strong>Státusz:</strong> Jóváhagyásra vár</p>
+      </div>
+
+      <p>A regisztrációdat a partner cég adminisztrátora fogja jóváhagyni. Amint ez megtörtént, emailben értesítünk és megkapod a bejelentkezési adataidat.</p>
+
+      <h3>Mi történik ezután?</h3>
+      <ol>
+        <li>A partner cég jóváhagyja a regisztrációdat</li>
+        <li>Megkapod a meghívó kódodat emailben</li>
+        <li>Bejelentkezhetsz az alkalmazásba és használhatod a szolgáltatást</li>
+      </ol>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Wash. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
   }
 
   // Partner váltásról értesítés
