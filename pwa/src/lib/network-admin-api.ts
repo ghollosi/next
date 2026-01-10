@@ -1,6 +1,15 @@
 // Network Admin API client
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+function getApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    // Client-side: use public API URL
+    return 'https://api.vemiax.com';
+  }
+  // Server-side: use internal Docker network
+  return 'http://vsys-app:3000';
+}
+
+const API_URL = getApiUrl();
 
 interface NetworkAdminLoginResponse {
   accessToken: string;
