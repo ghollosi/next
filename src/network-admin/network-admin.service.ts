@@ -143,18 +143,24 @@ export class NetworkAdminService {
   // =========================================================================
 
   async register(dto: NetworkRegisterDto): Promise<NetworkRegisterResponseDto> {
-    // Check if slug is already taken
-    const existingNetwork = await this.prisma.network.findUnique({
-      where: { slug: dto.slug.toLowerCase() },
+    // Check if slug is already taken (only active networks)
+    const existingNetwork = await this.prisma.network.findFirst({
+      where: {
+        slug: dto.slug.toLowerCase(),
+        deletedAt: null, // Allow re-registration after soft delete
+      },
     });
 
     if (existingNetwork) {
       throw new ConflictException('Ez a hálózat azonosító már foglalt');
     }
 
-    // Check if email is already used anywhere
+    // Check if email is already used anywhere (only active admins)
     const existingAdmin = await this.prisma.networkAdmin.findFirst({
-      where: { email: dto.email.toLowerCase(), deletedAt: null },
+      where: {
+        email: dto.email.toLowerCase(),
+        deletedAt: null, // Allow re-registration after soft delete
+      },
     });
 
     if (existingAdmin) {

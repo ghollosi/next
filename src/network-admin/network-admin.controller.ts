@@ -11,7 +11,10 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiTags,
   ApiOperation,
@@ -51,6 +54,7 @@ export class NetworkAdminController {
   constructor(
     private readonly networkAdminService: NetworkAdminService,
     private readonly stripeService: StripeService,
+    private readonly configService: ConfigService,
   ) {}
 
   private async validateAuth(authHeader: string | undefined): Promise<{
@@ -107,13 +111,36 @@ export class NetworkAdminController {
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify email address' })
+  @ApiOperation({ summary: 'Verify email address (POST)' })
   @ApiResponse({
     status: 200,
     description: 'Email verified successfully',
   })
   async verifyEmail(@Body() dto: VerifyEmailDto): Promise<{ success: boolean; message: string }> {
     return this.networkAdminService.verifyEmail(dto.token);
+  }
+
+  @Get('verify-email')
+  @ApiOperation({ summary: 'Verify email address from link (GET)' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to frontend with result',
+  })
+  async verifyEmailGet(
+    @Query('token') token: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://app.vemiax.com';
+
+    try {
+      const result = await this.networkAdminService.verifyEmail(token);
+      // Redirect to network admin login with success message
+      res.redirect(`${frontendUrl}/network-admin?verified=true&message=${encodeURIComponent(result.message)}`);
+    } catch (error) {
+      // Redirect with error message
+      const errorMessage = error.message || 'Email megerősítés sikertelen';
+      res.redirect(`${frontendUrl}/network-admin?verified=false&error=${encodeURIComponent(errorMessage)}`);
+    }
   }
 
   @Post('resend-verification')

@@ -735,11 +735,34 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       throw new NotFoundException('Network nem található');
     }
 
-    // Soft delete
+    const now = new Date();
+    const timestamp = now.getTime();
+
+    // Soft delete network - modify slug to allow re-registration with same slug
     await this.prisma.network.update({
       where: { id },
-      data: { deletedAt: new Date(), isActive: false },
+      data: {
+        deletedAt: now,
+        isActive: false,
+        slug: `${network.slug}_deleted_${timestamp}`, // Modify slug to free it up
+      },
     });
+
+    // Soft delete all network admins and modify their emails
+    const admins = await this.prisma.networkAdmin.findMany({
+      where: { networkId: id, deletedAt: null },
+    });
+
+    for (const admin of admins) {
+      await this.prisma.networkAdmin.update({
+        where: { id: admin.id },
+        data: {
+          deletedAt: now,
+          isActive: false,
+          email: `${admin.email}_deleted_${timestamp}`, // Modify email to free it up
+        },
+      });
+    }
   }
 
   // =========================================================================
