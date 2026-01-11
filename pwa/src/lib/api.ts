@@ -79,6 +79,14 @@ class ApiClient {
     this.baseUrl = API_URL;
   }
 
+  // SECURITY: Default fetch options with credentials for httpOnly cookies
+  private fetchOptions(options?: RequestInit): RequestInit {
+    return {
+      ...options,
+      credentials: 'include', // Send cookies with cross-origin requests
+    };
+  }
+
   private handleSessionError(response: Response): void {
     // If session is invalid, clear localStorage and redirect to login
     if (response.status === 400 || response.status === 401) {
@@ -91,13 +99,13 @@ class ApiClient {
   }
 
   async activate(inviteCode: string, pin: string): Promise<ActivateResponse> {
-    const response = await fetch(`${this.baseUrl}/pwa/activate`, {
+    const response = await fetch(`${this.baseUrl}/pwa/activate`, this.fetchOptions({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ inviteCode, pin }),
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -108,13 +116,13 @@ class ApiClient {
   }
 
   async loginByPhone(phone: string, pin: string): Promise<ActivateResponse> {
-    const response = await fetch(`${this.baseUrl}/pwa/login-phone`, {
+    const response = await fetch(`${this.baseUrl}/pwa/login-phone`, this.fetchOptions({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ phone, pin }),
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -125,11 +133,11 @@ class ApiClient {
   }
 
   async getProfile(sessionId: string): Promise<ActivateResponse> {
-    const response = await fetch(`${this.baseUrl}/pwa/profile`, {
+    const response = await fetch(`${this.baseUrl}/pwa/profile`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       throw new Error('Failed to get profile');
@@ -139,11 +147,11 @@ class ApiClient {
   }
 
   async getLocations(sessionId: string): Promise<Location[]> {
-    const response = await fetch(`${this.baseUrl}/pwa/locations`, {
+    const response = await fetch(`${this.baseUrl}/pwa/locations`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       this.handleSessionError(response);
@@ -154,11 +162,11 @@ class ApiClient {
   }
 
   async getLocationByCode(sessionId: string, code: string): Promise<Location> {
-    const response = await fetch(`${this.baseUrl}/pwa/locations/${code}`, {
+    const response = await fetch(`${this.baseUrl}/pwa/locations/${code}`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       throw new Error('Location not found');
@@ -168,11 +176,11 @@ class ApiClient {
   }
 
   async getServices(sessionId: string, locationCode: string): Promise<ServicePackage[]> {
-    const response = await fetch(`${this.baseUrl}/pwa/locations/${locationCode}/services`, {
+    const response = await fetch(`${this.baseUrl}/pwa/locations/${locationCode}/services`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       throw new Error('Failed to get services');
@@ -203,14 +211,14 @@ class ApiClient {
       trailerPlateManual?: string;
     }
   ): Promise<WashEvent> {
-    const response = await fetch(`${this.baseUrl}/pwa/wash-events`, {
+    const response = await fetch(`${this.baseUrl}/pwa/wash-events`, this.fetchOptions({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-driver-session': sessionId,
       },
       body: JSON.stringify(data),
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -221,12 +229,12 @@ class ApiClient {
   }
 
   async startWashEvent(sessionId: string, washEventId: string): Promise<WashEvent> {
-    const response = await fetch(`${this.baseUrl}/pwa/wash-events/${washEventId}/start`, {
+    const response = await fetch(`${this.baseUrl}/pwa/wash-events/${washEventId}/start`, this.fetchOptions({
       method: 'POST',
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -237,12 +245,12 @@ class ApiClient {
   }
 
   async completeWashEvent(sessionId: string, washEventId: string): Promise<WashEvent> {
-    const response = await fetch(`${this.baseUrl}/pwa/wash-events/${washEventId}/complete`, {
+    const response = await fetch(`${this.baseUrl}/pwa/wash-events/${washEventId}/complete`, this.fetchOptions({
       method: 'POST',
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -253,11 +261,11 @@ class ApiClient {
   }
 
   async getActiveWashEvent(sessionId: string): Promise<WashEvent | null> {
-    const response = await fetch(`${this.baseUrl}/pwa/wash-events/active`, {
+    const response = await fetch(`${this.baseUrl}/pwa/wash-events/active`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (response.status === 404) {
       return null;
@@ -271,11 +279,11 @@ class ApiClient {
   }
 
   async getWashEvent(sessionId: string, washEventId: string): Promise<WashEvent> {
-    const response = await fetch(`${this.baseUrl}/pwa/wash-events/${washEventId}`, {
+    const response = await fetch(`${this.baseUrl}/pwa/wash-events/${washEventId}`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -286,11 +294,11 @@ class ApiClient {
   }
 
   async getWashHistory(sessionId: string): Promise<WashEvent[]> {
-    const response = await fetch(`${this.baseUrl}/pwa/wash-events`, {
+    const response = await fetch(`${this.baseUrl}/pwa/wash-events`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       throw new Error('Failed to get wash history');
@@ -302,11 +310,11 @@ class ApiClient {
   }
 
   async getVehicles(sessionId: string): Promise<VehiclesResponse> {
-    const response = await fetch(`${this.baseUrl}/pwa/vehicles`, {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles`, this.fetchOptions({
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       this.handleSessionError(response);
@@ -324,14 +332,14 @@ class ApiClient {
       nickname?: string;
     }
   ): Promise<Vehicle> {
-    const response = await fetch(`${this.baseUrl}/pwa/vehicles`, {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles`, this.fetchOptions({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-driver-session': sessionId,
       },
       body: JSON.stringify(data),
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();
@@ -342,12 +350,12 @@ class ApiClient {
   }
 
   async deleteVehicle(sessionId: string, vehicleId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/pwa/vehicles/${vehicleId}`, {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles/${vehicleId}`, this.fetchOptions({
       method: 'DELETE',
       headers: {
         'x-driver-session': sessionId,
       },
-    });
+    }));
 
     if (!response.ok) {
       const error = await response.json();

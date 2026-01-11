@@ -5,6 +5,7 @@ import {
   Body,
   Query,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
   BadRequestException,
@@ -17,13 +18,19 @@ import {
   ApiBody,
   ApiQuery,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { PartnerCompanyService } from '../modules/partner-company/partner-company.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, PartnerSessionData } from '../common/session/session.service';
 import { SessionType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import {
+  setSessionCookie,
+  clearSessionCookie,
+  getSessionId,
+  SESSION_COOKIES,
+} from '../common/session/cookie.helper';
 
 // Default network ID
 const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
@@ -39,7 +46,8 @@ export class PartnerPortalController {
   ) {}
 
   private async getPartnerSession(req: Request): Promise<PartnerSessionData> {
-    const sessionId = req.get('x-partner-session');
+    // SECURITY: Check cookie first, then header for backwards compatibility
+    const sessionId = getSessionId(req, SESSION_COOKIES.PARTNER, 'x-partner-session');
     if (!sessionId) {
       throw new BadRequestException('Partner session required');
     }
@@ -72,6 +80,7 @@ export class PartnerPortalController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() body: { code: string; pin: string },
+    @Res({ passthrough: true }) res: Response,
   ) {
     try {
       const partner = await this.partnerCompanyService.findByCode(
@@ -104,6 +113,9 @@ export class PartnerPortalController {
           userId: partner.id,
         },
       );
+
+      // SECURITY: Set httpOnly cookie for session
+      setSessionCookie(res, SESSION_COOKIES.PARTNER, sessionId);
 
       return {
         sessionId,
@@ -414,11 +426,17 @@ export class PartnerPortalController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout partner session' })
   @ApiResponse({ status: 200, description: 'Logged out' })
-  async logout(@Req() req: Request) {
-    const sessionId = req.get('x-partner-session');
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // SECURITY: Check cookie first, then header
+    const sessionId = getSessionId(req, SESSION_COOKIES.PARTNER, 'x-partner-session');
     if (sessionId) {
       await this.sessionService.deleteSession(sessionId);
     }
+    // SECURITY: Clear httpOnly cookie
+    clearSessionCookie(res, SESSION_COOKIES.PARTNER);
     return { message: 'Kijelentkezve' };
   }
 }

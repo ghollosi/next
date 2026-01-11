@@ -36,6 +36,7 @@ import { NotificationService } from '../modules/notification/notification.servic
 import { NetworkService } from '../modules/network/network.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, DriverSessionData } from '../common/session/session.service';
+import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } from '../common/session/cookie.helper';
 import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType } from '@prisma/client';
 import { ActivateDto, ActivateByPhoneDto, ActivateResponseDto } from './dto/activate.dto';
 import { CreateWashEventPwaDto } from './dto/create-wash-event.dto';
@@ -84,7 +85,8 @@ export class PwaController {
   }
 
   private async getDriverSession(req: Request): Promise<DriverSessionData> {
-    const sessionId = req.get('x-driver-session');
+    // SECURITY: Try cookie first (httpOnly), then fall back to header
+    const sessionId = getSessionId(req, SESSION_COOKIES.DRIVER, 'x-driver-session');
     if (!sessionId) {
       throw new BadRequestException('Driver session required');
     }
@@ -322,6 +324,7 @@ export class PwaController {
   async activate(
     @Body() dto: ActivateDto,
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<ActivateResponseDto & { sessionId: string }> {
     const driver = await this.driverService.activateByInviteCode(
       dto.inviteCode.toUpperCase(),
@@ -343,6 +346,9 @@ export class PwaController {
         userId: driver.id,
       },
     );
+
+    // SECURITY: Set httpOnly cookie for session (XSS protection)
+    setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
 
     return {
       sessionId,
@@ -369,6 +375,7 @@ export class PwaController {
   async loginByPhone(
     @Body() dto: ActivateByPhoneDto,
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<ActivateResponseDto & { sessionId: string }> {
     const driver = await this.driverService.activateByPhone(
       dto.phone,
@@ -390,6 +397,9 @@ export class PwaController {
         userId: driver.id,
       },
     );
+
+    // SECURITY: Set httpOnly cookie for session (XSS protection)
+    setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
 
     return {
       sessionId,

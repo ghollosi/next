@@ -11,8 +11,9 @@ import {
   UnauthorizedException,
   BadRequestException,
   Req,
+  Res,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { LocationService } from '../modules/location/location.service';
@@ -22,6 +23,7 @@ import { SessionType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } from '../common/session/cookie.helper';
 
 @Controller('operator-portal')
 export class OperatorPortalController {
@@ -33,7 +35,17 @@ export class OperatorPortalController {
     private readonly sessionService: SessionService,
   ) {}
 
-  private async getSession(sessionId: string | undefined): Promise<OperatorSessionData> {
+  // SECURITY: Get session from cookie (httpOnly) or header (backwards compatibility)
+  private async getSession(headerSessionId: string | undefined, req?: Request): Promise<OperatorSessionData> {
+    // Try cookie first if request is provided
+    let sessionId = headerSessionId;
+    if (req) {
+      const cookieSessionId = getSessionId(req, SESSION_COOKIES.OPERATOR, 'x-operator-session');
+      if (cookieSessionId) {
+        sessionId = cookieSessionId;
+      }
+    }
+
     if (!sessionId) {
       throw new UnauthorizedException('Session ID required');
     }
@@ -51,6 +63,7 @@ export class OperatorPortalController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() body: { locationCode: string; pin: string },
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (!body.locationCode || !body.pin) {
       throw new BadRequestException('Location code and PIN are required');
@@ -113,6 +126,9 @@ export class OperatorPortalController {
         userId: authenticatedOperator.id,
       },
     );
+
+    // SECURITY: Set httpOnly cookie for session (XSS protection)
+    setSessionCookie(res, SESSION_COOKIES.OPERATOR, sessionId);
 
     return {
       sessionId,
@@ -1103,11 +1119,20 @@ export class OperatorPortalController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(
-    @Headers('x-operator-session') sessionId: string,
+    @Headers('x-operator-session') headerSessionId: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
+    // Get session ID from cookie or header
+    const sessionId = getSessionId(req, SESSION_COOKIES.OPERATOR, 'x-operator-session') || headerSessionId;
+
     if (sessionId) {
       await this.sessionService.deleteSession(sessionId);
     }
+
+    // SECURITY: Clear the httpOnly cookie
+    clearSessionCookie(res, SESSION_COOKIES.OPERATOR);
+
     return { success: true };
   }
 }

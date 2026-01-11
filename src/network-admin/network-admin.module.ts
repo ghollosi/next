@@ -24,6 +24,7 @@ import { NetworkAdminService } from './network-admin.service';
         }
         return {
           secret: secret || 'dev-only-secret-do-not-use-in-production',
+          // TODO: Consider implementing refresh tokens and reducing expiresIn to 4h
           signOptions: { expiresIn: '24h' },
         };
       },

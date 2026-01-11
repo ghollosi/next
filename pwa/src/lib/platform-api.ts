@@ -141,6 +141,7 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Pr
 
   const response = await fetch(`${getApiUrl()}${endpoint}`, {
     ...options,
+    credentials: 'include', // SECURITY: Send cookies with cross-origin requests
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -166,6 +167,7 @@ export const platformApi = {
   async login(email: string, password: string): Promise<PlatformLoginResponse> {
     const response = await fetch(`${getApiUrl()}/platform-admin/login`, {
       method: 'POST',
+      credentials: 'include', // SECURITY: Send cookies with cross-origin requests
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
@@ -278,6 +280,7 @@ export const platformApi = {
   async requestPasswordReset(email: string): Promise<{ message: string }> {
     const response = await fetch(`${getApiUrl()}/platform-admin/request-password-reset`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
@@ -293,6 +296,7 @@ export const platformApi = {
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
     const response = await fetch(`${getApiUrl()}/platform-admin/reset-password`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, newPassword }),
     });
@@ -315,6 +319,7 @@ export const platformApi = {
   async emergencyLogin(token: string): Promise<PlatformLoginResponse> {
     const response = await fetch(`${getApiUrl()}/platform-admin/emergency-login`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
     });

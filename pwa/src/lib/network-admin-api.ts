@@ -148,6 +148,7 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Pr
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    credentials: 'include', // SECURITY: Send cookies with cross-origin requests
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -176,6 +177,7 @@ export async function fetchOperatorApi<T>(endpoint: string, options: RequestInit
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    credentials: 'include', // SECURITY: Send cookies with cross-origin requests
     headers: {
       'Content-Type': 'application/json',
       'x-network-id': admin.networkId,
@@ -243,6 +245,7 @@ export const networkAdminApi = {
   async login(email: string, password: string, slug: string): Promise<NetworkAdminLoginResponse> {
     const response = await fetch(`${API_URL}/network-admin/login`, {
       method: 'POST',
+      credentials: 'include', // SECURITY: Send cookies with cross-origin requests
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, slug }),
     });
@@ -259,6 +262,7 @@ export const networkAdminApi = {
   async register(data: NetworkRegisterData): Promise<NetworkRegisterResponse> {
     const response = await fetch(`${API_URL}/network-admin/register`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
@@ -274,6 +278,7 @@ export const networkAdminApi = {
   async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/network-admin/verify-email`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
     });
@@ -289,6 +294,7 @@ export const networkAdminApi = {
   async resendVerificationEmail(email: string, slug: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/network-admin/resend-verification`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, slug }),
     });
@@ -304,6 +310,7 @@ export const networkAdminApi = {
   async resendVerification(email: string, slug: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/network-admin/resend-verification`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, slug }),
     });
@@ -607,7 +614,9 @@ export const networkAdminApi = {
   },
 
   async getStripePublishableKey(): Promise<{ publishableKey: string | null }> {
-    const response = await fetch(`${API_URL}/stripe/publishable-key`);
+    const response = await fetch(`${API_URL}/stripe/publishable-key`, {
+      credentials: 'include',
+    });
     if (!response.ok) {
       throw new Error('Failed to get Stripe publishable key');
     }
@@ -615,7 +624,9 @@ export const networkAdminApi = {
   },
 
   async isStripeConfigured(): Promise<{ configured: boolean }> {
-    const response = await fetch(`${API_URL}/stripe/configured`);
+    const response = await fetch(`${API_URL}/stripe/configured`, {
+      credentials: 'include',
+    });
     if (!response.ok) {
       return { configured: false };
     }
