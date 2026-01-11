@@ -1,22 +1,43 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi, saveNetworkAdminSession } from '@/lib/network-admin-api';
 
-export default function NetworkAdminLoginPage() {
+function NetworkAdminLoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [slug, setSlug] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState('');
+
+  // Check for verification status from URL params
+  useEffect(() => {
+    const verified = searchParams.get('verified');
+    const message = searchParams.get('message');
+    const errorParam = searchParams.get('error');
+
+    if (verified === 'true' && message) {
+      setVerificationMessage(decodeURIComponent(message));
+    } else if (verified === 'false' && errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setEmailNotVerified(false);
+    setResendSuccess(false);
+    setVerificationMessage('');
 
     try {
       const response = await networkAdminApi.login(email, password, slug);
@@ -31,9 +52,35 @@ export default function NetworkAdminLoginPage() {
       });
       router.push('/network-admin/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bejelentkezés sikertelen');
+      const errorMessage = err instanceof Error ? err.message : 'Bejelentkezés sikertelen';
+      if (errorMessage.includes('EMAIL_NOT_VERIFIED')) {
+        setEmailNotVerified(true);
+        setError('Az email cím nincs megerősítve. Kérlek kattints a megerősítő linkre az emailedben, vagy kérj újat.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email || !slug) {
+      setError('Kérlek add meg az email címet és a hálózat azonosítót.');
+      return;
+    }
+
+    setResendLoading(true);
+    setError('');
+    setResendSuccess(false);
+
+    try {
+      await networkAdminApi.resendVerificationEmail(email, slug);
+      setResendSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nem sikerült újraküldeni az emailt');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -96,10 +143,33 @@ export default function NetworkAdminLoginPage() {
               />
             </div>
 
+            {verificationMessage && (
+              <div className="bg-green-900/50 border border-green-500 rounded-lg px-4 py-3 text-green-300 text-sm">
+                {verificationMessage}
+              </div>
+            )}
+
+            {resendSuccess && (
+              <div className="bg-green-900/50 border border-green-500 rounded-lg px-4 py-3 text-green-300 text-sm">
+                Megerősítő email elküldve! Kérlek ellenőrizd a postafiókod.
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-900/50 border border-red-500 rounded-lg px-4 py-3 text-red-300 text-sm">
                 {error}
               </div>
+            )}
+
+            {emailNotVerified && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendLoading}
+                className="w-full py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {resendLoading ? 'Küldés...' : 'Megerősítő email újraküldése'}
+              </button>
             )}
 
             <button
@@ -125,5 +195,17 @@ export default function NetworkAdminLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NetworkAdminLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white">Betöltés...</div>
+      </div>
+    }>
+      <NetworkAdminLoginContent />
+    </Suspense>
   );
 }

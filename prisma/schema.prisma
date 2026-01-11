@@ -1189,6 +1189,10 @@ model NetworkAdmin {
   isActive     Boolean     @default(true) @map("is_active")
   lastLoginAt  DateTime?   @map("last_login_at")
 
+  // Email verification
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+
   // Location Manager esetén: melyik helyszínekhez van hozzáférése
   allowedLocationIds String[] @map("allowed_location_ids")
 

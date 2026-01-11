@@ -286,6 +286,21 @@ export const networkAdminApi = {
     return response.json();
   },
 
+  async resendVerificationEmail(email: string, slug: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/network-admin/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, slug }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Email küldés sikertelen' }));
+      throw new Error(error.message);
+    }
+
+    return response.json();
+  },
+
   async resendVerification(email: string, slug: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/network-admin/resend-verification`, {
       method: 'POST',

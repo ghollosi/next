@@ -83,6 +83,11 @@ export class NetworkAdminService {
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
 
+    // Check email verification
+    if (!admin.emailVerified) {
+      throw new UnauthorizedException('EMAIL_NOT_VERIFIED');
+    }
+
     // Update last login
     await this.prisma.networkAdmin.update({
       where: { id: admin.id },
@@ -296,11 +301,14 @@ export class NetworkAdminService {
       data: { usedAt: new Date() },
     });
 
-    // Mark admin email as verified (we could add a field for this)
+    // Mark admin email as verified
     if (verificationToken.networkAdminId) {
       await this.prisma.networkAdmin.update({
         where: { id: verificationToken.networkAdminId },
-        data: { isActive: true },
+        data: {
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+        },
       });
     }
 
@@ -353,12 +361,48 @@ export class NetworkAdminService {
       },
     });
 
-    // TODO: Send email with verification link
+    // Send verification email
+    await this.sendVerificationEmail(admin, network, verificationToken);
 
     return {
       success: true,
       message: 'Új megerősítő email elküldve.',
     };
+  }
+
+  private async sendVerificationEmail(
+    admin: any,
+    network: any,
+    verificationToken: string,
+  ): Promise<void> {
+    const apiUrl = this.configService.get<string>('API_URL') || 'https://api.vemiax.com';
+    const verifyUrl = `${apiUrl}/network-admin/verify-email?token=${verificationToken}`;
+
+    const text = `Kedves ${admin.name}!
+
+Kérjük, erősítse meg email címét az alábbi linkre kattintva:
+
+${verifyUrl}
+
+A link 24 órán belül lejár.
+
+Hálózat: ${network.name} (${network.slug})
+
+Üdvözlettel,
+Vemiax csapata`;
+
+    try {
+      await this.emailService['sendEmail']({
+        to: admin.email,
+        subject: 'Email cím megerősítése - Vemiax',
+        html: text.replace(/\n/g, '<br>'),
+        text,
+      });
+      this.logger.log(`Verification email sent to ${admin.email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send verification email: ${error.message}`);
+      throw error;
+    }
   }
 
   // =========================================================================
@@ -556,96 +600,41 @@ export class NetworkAdminService {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://app.vemiax.com';
     const apiUrl = this.configService.get<string>('API_URL') || 'https://api.vemiax.com';
     const verifyUrl = `${apiUrl}/network-admin/verify-email?token=${verificationToken}`;
+    const trialEndDate = network.trialEndsAt ? new Date(network.trialEndsAt).toLocaleDateString('hu-HU') : 'N/A';
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
-    .label { color: #6b7280; font-size: 12px; text-transform: uppercase; }
-    .value { font-weight: bold; font-size: 16px; color: #2563eb; }
-    .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
-    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Vemiax - VSys Wash</h1>
-      <p>Üdvözöljük!</p>
-    </div>
-    <div class="content">
-      <h2>Kedves ${admin.name}!</h2>
-      <p>Köszönjük, hogy regisztrált a Vemiax - VSys Wash rendszerbe!</p>
-      <p>Az Ön hálózata sikeresen létrejött. A próbaidőszak ${new Date(network.trialEndsAt).toLocaleDateString('hu-HU')}-ig tart.</p>
+    const text = `Kedves ${admin.name}!
 
-      <div class="info-box">
-        <div class="label">Hálózat neve</div>
-        <div class="value">${network.name}</div>
-      </div>
+Köszönjük, hogy regisztrált a Vemiax - VSys Wash rendszerbe!
 
-      <div class="info-box">
-        <div class="label">Hálózat azonosító</div>
-        <div class="value">${network.slug}</div>
-      </div>
+Az Ön hálózata sikeresen létrejött.
 
-      <div class="info-box">
-        <div class="label">Bejelentkezési email</div>
-        <div class="value">${admin.email}</div>
-      </div>
+Hálózat neve: ${network.name}
+Hálózat azonosító: ${network.slug}
+Bejelentkezési email: ${admin.email}
+Próbaidőszak vége: ${trialEndDate}
 
-      <h3>Kérjük, erősítse meg email címét!</h3>
-      <p>A rendszer használatához kattintson az alábbi gombra:</p>
+FONTOS: Kérjük, erősítse meg email címét az alábbi linkre kattintva:
+${verifyUrl}
 
-      <p style="text-align: center;">
-        <a href="${verifyUrl}" class="button">Email cím megerősítése</a>
-      </p>
+A link 24 órán belül lejár.
 
-      <p style="font-size: 12px; color: #6b7280;">
-        Ha a gomb nem működik, másolja be ezt a linket a böngészőbe:<br>
-        <span style="word-break: break-all;">${verifyUrl}</span>
-      </p>
+Következő lépések:
+1. Erősítse meg az email címét (fenti link)
+2. Jelentkezzen be a rendszerbe: ${frontendUrl}/network-admin
+3. Hozza létre az első mosóhelyszínt
+4. Adjon hozzá partner cégeket és sofőröket
 
-      <p>A link 24 órán belül lejár.</p>
+Ha kérdése van, írjon nekünk: info@vemiax.com
 
-      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-
-      <h3>Következő lépések</h3>
-      <ol>
-        <li>Erősítse meg az email címét</li>
-        <li>Jelentkezzen be a rendszerbe</li>
-        <li>Hozza létre az első mosóhelyszínt</li>
-        <li>Adjon hozzá partner cégeket és sofőröket</li>
-      </ol>
-
-      <p style="text-align: center; margin-top: 20px;">
-        <a href="${frontendUrl}/network-admin"
-           style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-          Bejelentkezés
-        </a>
-      </p>
-    </div>
-    <div class="footer">
-      <p>Ha kérdése van, írjon nekünk: info@vemiax.com</p>
-      <p>© ${new Date().getFullYear()} Vemiax. Minden jog fenntartva.</p>
-    </div>
-  </div>
-</body>
-</html>
-    `;
+Üdvözlettel,
+Vemiax csapata`;
 
     try {
       await this.emailService['sendEmail']({
         to: admin.email,
-        subject: 'Üdvözöljük a Vemiax - VSys Wash rendszerben!',
-        html,
-        text: `Kedves ${admin.name}!\n\nKöszönjük, hogy regisztrált a Vemiax rendszerbe!\n\nHálózat: ${network.name}\nAzonosító: ${network.slug}\n\nKérjük, erősítse meg email címét: ${verifyUrl}\n\nBejelentkezés: ${frontendUrl}/network-admin`,
+        subject: 'Üdvözöljük a Vemiax rendszerben - Email megerősítés szükséges',
+        html: text.replace(/\n/g, '<br>'),
+        text,
       });
       this.logger.log(`Welcome email sent to ${admin.email}`);
     } catch (error) {
