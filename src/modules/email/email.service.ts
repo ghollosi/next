@@ -237,7 +237,7 @@ export class EmailService {
   }
 
   // Platform level email sending (fallback)
-  private async sendEmail(options: SendEmailOptions): Promise<boolean> {
+  async sendEmail(options: SendEmailOptions): Promise<boolean> {
     // Try SMTP first if configured
     if (this.smtpHost && this.smtpUser && this.smtpPass) {
       return this.sendViaPlatformSmtp(options);

@@ -392,7 +392,7 @@ Hálózat: ${network.name} (${network.slug})
 Vemiax csapata`;
 
     try {
-      await this.emailService['sendEmail']({
+      await this.emailService.sendEmail({
         to: admin.email,
         subject: 'Email cím megerősítése - Vemiax',
         html: text.replace(/\n/g, '<br>'),
@@ -580,7 +580,7 @@ Vemiax csapata`;
     `;
 
     try {
-      await this.emailService['sendEmail']({
+      await this.emailService.sendEmail({
         to: platformEmail,
         subject: `Új hálózat regisztrált: ${network.name}`,
         html,
@@ -630,7 +630,7 @@ Ha kérdése van, írjon nekünk: info@vemiax.com
 Vemiax csapata`;
 
     try {
-      await this.emailService['sendEmail']({
+      await this.emailService.sendEmail({
         to: admin.email,
         subject: 'Üdvözöljük a Vemiax rendszerben - Email megerősítés szükséges',
         html: text.replace(/\n/g, '<br>'),

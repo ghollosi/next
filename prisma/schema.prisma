@@ -647,6 +647,8 @@ model WashEvent {
   @@index([status])
   @@index([createdAt])
   @@index([invoiceId])
+  @@index([locationId, status])
+  @@index([networkId, status, createdAt])
   @@map("wash_events")
 }
 
@@ -886,6 +888,7 @@ model VerificationToken {
   @@index([driverId])
   @@index([networkAdminId])
   @@index([token])
+  @@index([expiresAt])
   @@map("verification_tokens")
 }
 
@@ -1098,9 +1101,9 @@ model NetworkCurrency {
 
   // Árfolyam kezelés
   exchangeRateSource ExchangeRateSource  @default(MNB) @map("exchange_rate_source")
-  fixedExchangeRate  Decimal?            @db.Decimal(10, 4) @map("fixed_exchange_rate")
+  fixedExchangeRate  Decimal?            @db.Decimal(18, 6) @map("fixed_exchange_rate")
   exchangeRateMargin Float               @default(0) @map("exchange_rate_margin") // % margin (pl. -20% = -0.20)
-  lastExchangeRate   Decimal?            @db.Decimal(10, 4) @map("last_exchange_rate")
+  lastExchangeRate   Decimal?            @db.Decimal(18, 6) @map("last_exchange_rate")
   rateUpdatedAt      DateTime?           @map("rate_updated_at")
 
   isActive  Boolean  @default(true) @map("is_active")
@@ -1340,7 +1343,7 @@ model ExchangeRateCache {
 
   sourceCurrency String   @map("source_currency")
   targetCurrency String   @map("target_currency")
-  rate           Decimal  @db.Decimal(10, 6)
+  rate           Decimal  @db.Decimal(18, 6)
   source         ExchangeRateSource
   fetchedAt      DateTime @map("fetched_at")
   validUntil     DateTime @map("valid_until")
