@@ -21,6 +21,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { LocationService } from '../modules/location/location.service';
 import { BillingService } from '../billing/billing.service';
+import { BookingService } from '../modules/booking/booking.service';
 import { SessionService, OperatorSessionData } from '../common/session/session.service';
 import { SessionType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -35,6 +36,7 @@ export class OperatorPortalController {
     private readonly washEventService: WashEventService,
     private readonly locationService: LocationService,
     private readonly billingService: BillingService,
+    private readonly bookingService: BookingService,
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -1171,5 +1173,153 @@ export class OperatorPortalController {
     clearSessionCookie(res, SESSION_COOKIES.OPERATOR);
 
     return { success: true };
+  }
+
+  // ==================== Foglalások (Bookings) ====================
+
+  @Get('bookings/today')
+  async getTodaysBookings(
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+    return this.bookingService.getTodaysBookings(session.networkId, session.locationId);
+  }
+
+  @Get('bookings')
+  async getBookings(
+    @Headers('x-operator-session') sessionId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('status') status?: string,
+    @Req() req?: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    return this.bookingService.listBookings(session.networkId, {
+      locationId: session.locationId,
+      dateFrom,
+      dateTo,
+      status: status as any,
+      limit: 50,
+    });
+  }
+
+  @Get('bookings/:id')
+  async getBookingDetails(
+    @Param('id') id: string,
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+
+    // Verify the booking belongs to this location
+    if (booking.locationId !== session.locationId) {
+      throw new BadRequestException('Ez a foglalás nem ehhez a helyszínhez tartozik');
+    }
+
+    return booking;
+  }
+
+  @Post('bookings/:id/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmBooking(
+    @Param('id') id: string,
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    // Verify the booking belongs to this location
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+    if (booking.locationId !== session.locationId) {
+      throw new BadRequestException('Ez a foglalás nem ehhez a helyszínhez tartozik');
+    }
+
+    return this.bookingService.confirmBooking(session.networkId, id);
+  }
+
+  @Post('bookings/:id/start')
+  @HttpCode(HttpStatus.OK)
+  async startBooking(
+    @Param('id') id: string,
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    // Verify the booking belongs to this location
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+    if (booking.locationId !== session.locationId) {
+      throw new BadRequestException('Ez a foglalás nem ehhez a helyszínhez tartozik');
+    }
+
+    return this.bookingService.startBooking(session.networkId, id);
+  }
+
+  @Post('bookings/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  async completeBooking(
+    @Param('id') id: string,
+    @Body() body: { washEventId?: string },
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    // Verify the booking belongs to this location
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+    if (booking.locationId !== session.locationId) {
+      throw new BadRequestException('Ez a foglalás nem ehhez a helyszínhez tartozik');
+    }
+
+    return this.bookingService.completeBooking(session.networkId, id, body.washEventId);
+  }
+
+  @Post('bookings/:id/no-show')
+  @HttpCode(HttpStatus.OK)
+  async markNoShow(
+    @Param('id') id: string,
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    // Verify the booking belongs to this location
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+    if (booking.locationId !== session.locationId) {
+      throw new BadRequestException('Ez a foglalás nem ehhez a helyszínhez tartozik');
+    }
+
+    return this.bookingService.markNoShow(session.networkId, id);
+  }
+
+  @Post('bookings/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancelBooking(
+    @Param('id') id: string,
+    @Body() body: { reason: string },
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    // Verify the booking belongs to this location
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+    if (booking.locationId !== session.locationId) {
+      throw new BadRequestException('Ez a foglalás nem ehhez a helyszínhez tartozik');
+    }
+
+    const operatorIdentifier = session.operatorId
+      ? `operator:${session.locationCode}:${session.operatorName}`
+      : `operator:${session.locationCode}`;
+
+    return this.bookingService.cancelBooking(
+      session.networkId,
+      id,
+      { reason: body.reason },
+      operatorIdentifier,
+    );
   }
 }

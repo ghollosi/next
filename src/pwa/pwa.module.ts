@@ -10,6 +10,7 @@ import { NotificationModule } from '../modules/notification/notification.module'
 import { NetworkModule } from '../modules/network/network.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
+import { BookingModule } from '../modules/booking/booking.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PrismaModule } from '../common/prisma/prisma.module';
     NotificationModule,
     NetworkModule,
     AuditLogModule,
+    BookingModule,
   ],
   controllers: [PwaController],
 })

@@ -39,6 +39,8 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, DriverSessionData } from '../common/session/session.service';
 import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } from '../common/session/cookie.helper';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { BookingService } from '../modules/booking/booking.service';
+import { CreateBookingDto, CancelBookingDto } from '../modules/booking/dto/booking.dto';
 import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType, AuditAction } from '@prisma/client';
 import { ActivateDto, ActivateByPhoneDto, ActivateResponseDto } from './dto/activate.dto';
 import { CreateWashEventPwaDto } from './dto/create-wash-event.dto';
@@ -78,6 +80,7 @@ export class PwaController {
     private readonly configService: ConfigService,
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
+    private readonly bookingService: BookingService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -1265,5 +1268,235 @@ export class PwaController {
       inviteCode,
       message,
     };
+  }
+
+  // =========================================================================
+  // BOOKING ENDPOINTS (Driver)
+  // =========================================================================
+
+  @Get('bookings/locations')
+  @ApiOperation({ summary: 'Get locations with booking enabled' })
+  @ApiHeader({
+    name: 'x-driver-session',
+    required: true,
+    description: 'Driver session ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of locations with booking enabled',
+  })
+  async getBookingLocations(
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+
+    const locations = await this.prisma.location.findMany({
+      where: {
+        networkId: session.networkId,
+        bookingEnabled: true,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        city: true,
+        address: true,
+        slotIntervalMinutes: true,
+        minBookingNoticeHours: true,
+        maxBookingAdvanceDays: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return locations;
+  }
+
+  @Get('bookings/slots')
+  @ApiOperation({ summary: 'Get available booking slots for a date' })
+  @ApiHeader({
+    name: 'x-driver-session',
+    required: true,
+    description: 'Driver session ID',
+  })
+  @ApiQuery({ name: 'locationId', description: 'Location ID' })
+  @ApiQuery({ name: 'date', description: 'Date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'servicePackageId', required: false })
+  @ApiQuery({ name: 'vehicleType', required: false })
+  @ApiResponse({
+    status: 200,
+    description: 'Available time slots',
+  })
+  async getAvailableSlots(
+    @Query('locationId') locationId: string,
+    @Query('date') date: string,
+    @Query('servicePackageId') servicePackageId?: string,
+    @Query('vehicleType') vehicleType?: string,
+    @Req() req?: Request,
+  ) {
+    const session = await this.getDriverSession(req!);
+
+    return this.bookingService.getAvailableSlots(session.networkId, {
+      locationId,
+      date,
+      servicePackageId,
+      vehicleType: vehicleType as any,
+    });
+  }
+
+  @Get('bookings')
+  @ApiOperation({ summary: 'Get driver bookings' })
+  @ApiHeader({
+    name: 'x-driver-session',
+    required: true,
+    description: 'Driver session ID',
+  })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiResponse({
+    status: 200,
+    description: 'List of driver bookings',
+  })
+  async getDriverBookings(
+    @Query('status') status?: string,
+    @Req() req?: Request,
+  ) {
+    const session = await this.getDriverSession(req!);
+
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        networkId: session.networkId,
+        driverId: session.driverId,
+        ...(status ? { status: status as any } : {}),
+      },
+      include: {
+        location: { select: { id: true, name: true, code: true, city: true } },
+        servicePackage: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: { scheduledStart: 'desc' },
+      take: 50,
+    });
+
+    return bookings;
+  }
+
+  @Get('bookings/:id')
+  @ApiOperation({ summary: 'Get booking details' })
+  @ApiHeader({
+    name: 'x-driver-session',
+    required: true,
+    description: 'Driver session ID',
+  })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking details',
+  })
+  async getBookingDetails(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+
+    // Verify the booking belongs to this driver
+    if (booking.driverId !== session.driverId) {
+      throw new UnauthorizedException('Nincs jogosultságod ehhez a foglaláshoz');
+    }
+
+    return booking;
+  }
+
+  @Post('bookings')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new booking' })
+  @ApiHeader({
+    name: 'x-driver-session',
+    required: true,
+    description: 'Driver session ID',
+  })
+  @ApiBody({ type: CreateBookingDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking created',
+  })
+  async createBooking(
+    @Body() dto: CreateBookingDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+
+    // Get driver details for customer info
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: session.driverId },
+      select: { firstName: true, lastName: true, phone: true, email: true },
+    });
+
+    const bookingDto: CreateBookingDto = {
+      ...dto,
+      driverId: session.driverId,
+      customerName: dto.customerName || `${driver?.firstName} ${driver?.lastName}`,
+      customerPhone: dto.customerPhone || driver?.phone || undefined,
+      customerEmail: dto.customerEmail || driver?.email || undefined,
+    };
+
+    return this.bookingService.createBooking(
+      session.networkId,
+      bookingDto,
+      { type: 'DRIVER', id: session.driverId },
+    );
+  }
+
+  @Post('bookings/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a booking' })
+  @ApiHeader({
+    name: 'x-driver-session',
+    required: true,
+    description: 'Driver session ID',
+  })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiBody({ type: CancelBookingDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking cancelled',
+  })
+  async cancelBooking(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+
+    // Verify the booking belongs to this driver
+    const booking = await this.bookingService.getBooking(session.networkId, id);
+    if (booking.driverId !== session.driverId) {
+      throw new UnauthorizedException('Nincs jogosultságod ehhez a foglaláshoz');
+    }
+
+    return this.bookingService.cancelBooking(
+      session.networkId,
+      id,
+      dto,
+      `driver:${session.driverId}`,
+    );
+  }
+
+  // =========================================================================
+  // PUBLIC BOOKING ENDPOINT (by booking code)
+  // =========================================================================
+
+  @Get('booking/:code')
+  @ApiOperation({ summary: 'Get booking by code (public)' })
+  @ApiParam({ name: 'code', description: 'Booking code' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking details',
+  })
+  async getBookingByCode(
+    @Param('code') code: string,
+  ) {
+    return this.bookingService.getBookingByCode(code);
   }
 }

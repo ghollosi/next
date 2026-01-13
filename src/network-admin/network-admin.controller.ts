@@ -25,6 +25,17 @@ import {
 } from '@nestjs/swagger';
 import { NetworkAdminService } from './network-admin.service';
 import { StripeService } from '../stripe/stripe.service';
+import { BookingService } from '../modules/booking/booking.service';
+import {
+  CreateBookingDto,
+  UpdateBookingDto,
+  CancelBookingDto,
+  GetAvailableSlotsDto,
+  ListBookingsQueryDto,
+  UpdateBookingSettingsDto,
+  CreateBlockedTimeSlotDto,
+  CreateRecurringBlockDto,
+} from '../modules/booking/dto/booking.dto';
 import {
   NetworkAdminLoginDto,
   NetworkAdminLoginResponseDto,
@@ -59,6 +70,7 @@ export class NetworkAdminController {
     private readonly networkAdminService: NetworkAdminService,
     private readonly stripeService: StripeService,
     private readonly configService: ConfigService,
+    private readonly bookingService: BookingService,
   ) {}
 
   private async validateAuth(authHeader: string | undefined): Promise<{
@@ -1293,5 +1305,300 @@ export class NetworkAdminController {
       partnerCompanyId,
       status,
     });
+  }
+
+  // =========================================================================
+  // BOOKINGS
+  // =========================================================================
+
+  @Get('bookings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bookings' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of bookings',
+  })
+  async listBookings(
+    @Query('locationId') locationId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.listBookings(networkId, {
+      locationId,
+      dateFrom,
+      dateTo,
+      status: status as any,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
+  }
+
+  @Get('bookings/today/:locationId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get todays bookings for a location' })
+  @ApiResponse({
+    status: 200,
+    description: 'Todays bookings',
+  })
+  async getTodaysBookings(
+    @Param('locationId') locationId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.getTodaysBookings(networkId, locationId);
+  }
+
+  @Get('bookings/slots')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get available slots for a date' })
+  @ApiResponse({
+    status: 200,
+    description: 'Available time slots',
+  })
+  async getAvailableSlots(
+    @Query('locationId') locationId: string,
+    @Query('date') date: string,
+    @Query('servicePackageId') servicePackageId?: string,
+    @Query('vehicleType') vehicleType?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.getAvailableSlots(networkId, {
+      locationId,
+      date,
+      servicePackageId,
+      vehicleType: vehicleType as any,
+    });
+  }
+
+  @Get('bookings/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get booking details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking details',
+  })
+  async getBooking(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.getBooking(networkId, id);
+  }
+
+  @Post('bookings')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a booking' })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking created',
+  })
+  async createBooking(
+    @Body() dto: CreateBookingDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.bookingService.createBooking(networkId, dto, { type: 'NETWORK_ADMIN', id: adminId });
+  }
+
+  @Put('bookings/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a booking' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking updated',
+  })
+  async updateBooking(
+    @Param('id') id: string,
+    @Body() dto: UpdateBookingDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.updateBooking(networkId, id, dto);
+  }
+
+  @Post('bookings/:id/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm a booking' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking confirmed',
+  })
+  async confirmBooking(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.confirmBooking(networkId, id);
+  }
+
+  @Post('bookings/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel a booking' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking cancelled',
+  })
+  async cancelBooking(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.bookingService.cancelBooking(networkId, id, dto, `network_admin:${adminId}`);
+  }
+
+  @Post('bookings/:id/start')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Start a booking (begin wash)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking started',
+  })
+  async startBooking(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.startBooking(networkId, id);
+  }
+
+  @Post('bookings/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Complete a booking' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking completed',
+  })
+  async completeBooking(
+    @Param('id') id: string,
+    @Body() dto: { washEventId?: string },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.completeBooking(networkId, id, dto.washEventId);
+  }
+
+  @Post('bookings/:id/no-show')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark booking as no-show' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking marked as no-show',
+  })
+  async markNoShow(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.markNoShow(networkId, id);
+  }
+
+  // =========================================================================
+  // BOOKING SETTINGS
+  // =========================================================================
+
+  @Get('booking-settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get booking settings' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking settings',
+  })
+  async getBookingSettings(
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.getBookingSettings(networkId);
+  }
+
+  @Put('booking-settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update booking settings' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking settings updated',
+  })
+  async updateBookingSettings(
+    @Body() dto: UpdateBookingSettingsDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.updateBookingSettings(networkId, dto);
+  }
+
+  // =========================================================================
+  // BLOCKED TIME SLOTS
+  // =========================================================================
+
+  @Get('blocked-slots')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List blocked time slots' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of blocked time slots',
+  })
+  async listBlockedTimeSlots(
+    @Query('locationId') locationId?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.bookingService.listBlockedTimeSlots(networkId, locationId);
+  }
+
+  @Post('blocked-slots')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create blocked time slot' })
+  @ApiResponse({
+    status: 201,
+    description: 'Blocked time slot created',
+  })
+  async createBlockedTimeSlot(
+    @Body() dto: CreateBlockedTimeSlotDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.bookingService.createBlockedTimeSlot(networkId, dto, adminId);
+  }
+
+  @Post('blocked-slots/recurring')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create recurring blocked time slot' })
+  @ApiResponse({
+    status: 201,
+    description: 'Recurring blocked time slot created',
+  })
+  async createRecurringBlock(
+    @Body() dto: CreateRecurringBlockDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId, adminId } = await this.validateAuth(auth);
+    return this.bookingService.createRecurringBlock(networkId, dto, adminId);
+  }
+
+  @Delete('blocked-slots/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete blocked time slot' })
+  @ApiResponse({ status: 204, description: 'Blocked time slot deleted' })
+  async deleteBlockedTimeSlot(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<void> {
+    const { networkId } = await this.validateAuth(auth);
+    await this.bookingService.deleteBlockedTimeSlot(networkId, id);
   }
 }
