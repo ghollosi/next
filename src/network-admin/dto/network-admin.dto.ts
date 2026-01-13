@@ -504,3 +504,43 @@ export class WashEventListItemDto {
   @ApiProperty()
   createdAt: Date;
 }
+
+// ============================================================================
+// OPENING HOURS DTOs
+// ============================================================================
+
+export class OpeningHoursItemDto {
+  @ApiProperty({ enum: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] })
+  dayOfWeek: string;
+
+  @ApiProperty({ description: 'Opening time in HH:MM format', example: '08:00' })
+  @IsString()
+  @Matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, { message: 'Invalid time format, use HH:MM' })
+  openTime: string;
+
+  @ApiProperty({ description: 'Closing time in HH:MM format', example: '20:00' })
+  @IsString()
+  @Matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, { message: 'Invalid time format, use HH:MM' })
+  closeTime: string;
+
+  @ApiProperty({ description: 'Is closed on this day', default: false })
+  @IsBoolean()
+  isClosed: boolean;
+}
+
+export class LocationOpeningHoursDto {
+  @ApiProperty({ type: [OpeningHoursItemDto] })
+  @IsArray()
+  hours: OpeningHoursItemDto[];
+}
+
+export class LocationOpeningHoursResponseDto {
+  @ApiProperty()
+  locationId: string;
+
+  @ApiProperty()
+  locationName: string;
+
+  @ApiProperty({ type: [OpeningHoursItemDto] })
+  hours: OpeningHoursItemDto[];
+}

@@ -41,6 +41,8 @@ import {
   VerifyEmailDto,
   ResendVerificationDto,
   TrialStatusDto,
+  LocationOpeningHoursDto,
+  LocationOpeningHoursResponseDto,
 } from './dto/network-admin.dto';
 import {
   CreateCheckoutSessionDto,
@@ -265,6 +267,43 @@ export class NetworkAdminController {
   ): Promise<void> {
     const { networkId } = await this.validateAuth(auth);
     return this.networkAdminService.deleteLocation(networkId, id);
+  }
+
+  // =========================================================================
+  // LOCATION OPENING HOURS
+  // =========================================================================
+
+  @Get('locations/:id/opening-hours')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get location opening hours' })
+  @ApiResponse({
+    status: 200,
+    description: 'Location opening hours',
+    type: LocationOpeningHoursResponseDto,
+  })
+  async getLocationOpeningHours(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<LocationOpeningHoursResponseDto> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.getLocationOpeningHours(networkId, id);
+  }
+
+  @Put('locations/:id/opening-hours')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update location opening hours' })
+  @ApiResponse({
+    status: 200,
+    description: 'Opening hours updated',
+    type: LocationOpeningHoursResponseDto,
+  })
+  async updateLocationOpeningHours(
+    @Param('id') id: string,
+    @Body() dto: LocationOpeningHoursDto,
+    @Headers('authorization') auth?: string,
+  ): Promise<LocationOpeningHoursResponseDto> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.networkAdminService.updateLocationOpeningHours(networkId, id, dto.hours);
   }
 
   // =========================================================================

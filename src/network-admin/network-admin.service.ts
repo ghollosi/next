@@ -3675,4 +3675,108 @@ Vemiax csapata`;
       rowCount: rows.length,
     };
   }
+
+  // =========================================================================
+  // OPENING HOURS
+  // =========================================================================
+
+  async getLocationOpeningHours(networkId: string, locationId: string) {
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, networkId, deletedAt: null },
+      include: {
+        openingHoursStructured: {
+          orderBy: { dayOfWeek: 'asc' },
+        },
+      },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Helyszín nem található');
+    }
+
+    // Define day order for sorting
+    const dayOrder = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+
+    // Map existing hours
+    const existingHours = new Map(
+      location.openingHoursStructured.map(h => [h.dayOfWeek, h])
+    );
+
+    // Return all days with defaults for missing ones
+    const hours = dayOrder.map(day => {
+      const existing = existingHours.get(day as any);
+      return {
+        dayOfWeek: day,
+        openTime: existing ? existing.openTime : '08:00',
+        closeTime: existing ? existing.closeTime : '18:00',
+        isClosed: existing ? existing.isClosed : false,
+      };
+    });
+
+    return {
+      locationId: location.id,
+      locationName: location.name,
+      hours,
+    };
+  }
+
+  async updateLocationOpeningHours(
+    networkId: string,
+    locationId: string,
+    hours: { dayOfWeek: string; openTime: string; closeTime: string; isClosed: boolean }[],
+  ) {
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, networkId, deletedAt: null },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Helyszín nem található');
+    }
+
+    // Validate time format
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    for (const hour of hours) {
+      if (!timeRegex.test(hour.openTime) || !timeRegex.test(hour.closeTime)) {
+        throw new BadRequestException(`Érvénytelen időformátum: ${hour.dayOfWeek}`);
+      }
+    }
+
+    // Update hours in a transaction
+    await this.prisma.$transaction(async (tx) => {
+      // Delete existing hours for this location
+      await tx.locationOpeningHours.deleteMany({
+        where: { locationId },
+      });
+
+      // Create new hours
+      for (const hour of hours) {
+        await tx.locationOpeningHours.create({
+          data: {
+            locationId,
+            dayOfWeek: hour.dayOfWeek as any,
+            openTime: hour.openTime,
+            closeTime: hour.closeTime,
+            isClosed: hour.isClosed,
+          },
+        });
+      }
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId,
+      action: 'UPDATE',
+      actorType: 'NETWORK_ADMIN',
+      newData: {
+        type: 'LOCATION_OPENING_HOURS',
+        locationId,
+        locationName: location.name,
+        hours
+      },
+      metadata: { entityType: 'location_opening_hours' },
+    });
+
+    // Return updated hours
+    return this.getLocationOpeningHours(networkId, locationId);
+  }
 }

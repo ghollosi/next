@@ -41,6 +41,25 @@ interface ServicePackage {
   isActive: boolean;
 }
 
+interface OpeningHour {
+  dayOfWeek: string;
+  openTime: string;
+  closeTime: string;
+  isClosed: boolean;
+}
+
+const DAY_LABELS: Record<string, string> = {
+  MONDAY: 'Hetfo',
+  TUESDAY: 'Kedd',
+  WEDNESDAY: 'Szerda',
+  THURSDAY: 'Csutortok',
+  FRIDAY: 'Pentek',
+  SATURDAY: 'Szombat',
+  SUNDAY: 'Vasarnap',
+};
+
+const DAYS_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+
 export default function LocationEditPage() {
   const params = useParams();
   const router = useRouter();
@@ -59,11 +78,23 @@ export default function LocationEditPage() {
     zipCode: '',
     operationType: 'OWN' as 'OWN' | 'SUBCONTRACTOR',
     washMode: 'DRIVER_INITIATED',
-    openingHours: '',
     phone: '',
     email: '',
     isActive: true,
   });
+
+  // Opening hours state
+  const [openingHours, setOpeningHours] = useState<OpeningHour[]>(
+    DAYS_ORDER.map(day => ({
+      dayOfWeek: day,
+      openTime: '08:00',
+      closeTime: '18:00',
+      isClosed: false,
+    }))
+  );
+  const [savingHours, setSavingHours] = useState(false);
+  const [hoursError, setHoursError] = useState('');
+  const [hoursSuccess, setHoursSuccess] = useState('');
 
   // Services state
   const [locationServices, setLocationServices] = useState<LocationService[]>([]);
@@ -82,7 +113,7 @@ export default function LocationEditPage() {
       const locations = await fetchOperatorApi<Location[]>('/operator/locations');
       const loc = locations.find(l => l.id === locationId);
       if (!loc) {
-        setError('Helyszín nem található');
+        setError('Helyszin nem talalhato');
         return;
       }
       setForm({
@@ -93,21 +124,30 @@ export default function LocationEditPage() {
         zipCode: loc.zipCode || '',
         operationType: loc.operationType || 'OWN',
         washMode: loc.washMode || 'DRIVER_INITIATED',
-        openingHours: loc.openingHours || '',
         phone: loc.phone || '',
         email: loc.email || '',
         isActive: loc.isActive,
       });
 
-      // Load services
+      // Load services and opening hours
       const [services, packages] = await Promise.all([
         networkAdminApi.listLocationServices(locationId),
         networkAdminApi.listServicePackages(),
       ]);
       setLocationServices(services);
       setAllServicePackages(packages);
+
+      // Try to load opening hours
+      try {
+        const hoursData = await networkAdminApi.getLocationOpeningHours(locationId);
+        if (hoursData.hours && hoursData.hours.length > 0) {
+          setOpeningHours(hoursData.hours);
+        }
+      } catch {
+        // If no hours exist yet, keep defaults
+      }
     } catch (err: any) {
-      setError(err.message || 'Hiba történt');
+      setError(err.message || 'Hiba tortent');
     } finally {
       setLoading(false);
     }
@@ -125,20 +165,83 @@ export default function LocationEditPage() {
         address: form.address || undefined,
         city: form.city || undefined,
         postalCode: form.zipCode || undefined,
-        openingHours: form.openingHours || undefined,
         phone: form.phone || undefined,
         email: form.email || undefined,
         isActive: form.isActive,
       });
-      setSuccessMessage('Helyszín sikeresen frissítve!');
+      setSuccessMessage('Helyszin sikeresen frissitve!');
       setTimeout(() => {
         router.push('/network-admin/locations');
       }, 1500);
     } catch (err: any) {
-      setError(err.message || 'Hiba történt a mentés során');
+      setError(err.message || 'Hiba tortent a mentes soran');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleOpeningHourChange = (dayOfWeek: string, field: keyof OpeningHour, value: string | boolean) => {
+    setOpeningHours(prev => prev.map(hour =>
+      hour.dayOfWeek === dayOfWeek ? { ...hour, [field]: value } : hour
+    ));
+  };
+
+  const handleSaveOpeningHours = async () => {
+    setSavingHours(true);
+    setHoursError('');
+    setHoursSuccess('');
+
+    try {
+      // Validate times
+      for (const hour of openingHours) {
+        if (!hour.isClosed) {
+          const openParts = hour.openTime.split(':').map(Number);
+          const closeParts = hour.closeTime.split(':').map(Number);
+          const openMinutes = openParts[0] * 60 + openParts[1];
+          const closeMinutes = closeParts[0] * 60 + closeParts[1];
+
+          if (closeMinutes <= openMinutes) {
+            setHoursError(`${DAY_LABELS[hour.dayOfWeek]}: A zaras idopont nem lehet korabbi vagy egyenlo a nyitasnal`);
+            setSavingHours(false);
+            return;
+          }
+        }
+      }
+
+      await networkAdminApi.updateLocationOpeningHours(locationId, openingHours);
+      setHoursSuccess('Nyitvatartas sikeresen mentve!');
+      setTimeout(() => setHoursSuccess(''), 3000);
+    } catch (err: any) {
+      setHoursError(err.message || 'Hiba tortent a mentes soran');
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  const copyToAllDays = (sourceDay: string) => {
+    const source = openingHours.find(h => h.dayOfWeek === sourceDay);
+    if (source) {
+      setOpeningHours(prev => prev.map(hour => ({
+        ...hour,
+        openTime: source.openTime,
+        closeTime: source.closeTime,
+        isClosed: source.isClosed,
+      })));
+    }
+  };
+
+  const setWeekdayHours = (openTime: string, closeTime: string) => {
+    setOpeningHours(prev => prev.map(hour => {
+      const isWeekday = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'].includes(hour.dayOfWeek);
+      return isWeekday ? { ...hour, openTime, closeTime, isClosed: false } : hour;
+    }));
+  };
+
+  const setWeekendClosed = () => {
+    setOpeningHours(prev => prev.map(hour => {
+      const isWeekend = ['SATURDAY', 'SUNDAY'].includes(hour.dayOfWeek);
+      return isWeekend ? { ...hour, isClosed: true } : hour;
+    }));
   };
 
   // Service functions
@@ -150,7 +253,7 @@ export default function LocationEditPage() {
 
   const addService = async () => {
     if (!selectedServiceId) {
-      setServiceError('Válassz egy szolgáltatást');
+      setServiceError('Valassz egy szolgaltatast');
       return;
     }
 
@@ -163,14 +266,14 @@ export default function LocationEditPage() {
       setLocationServices(services);
       setServiceModal(false);
     } catch (err: any) {
-      setServiceError(err.message || 'Hiba történt');
+      setServiceError(err.message || 'Hiba tortent');
     } finally {
       setAddingService(false);
     }
   };
 
   const removeService = async (service: LocationService) => {
-    if (!confirm(`Biztosan eltávolítod a "${service.servicePackageName}" szolgáltatást?`)) {
+    if (!confirm(`Biztosan eltavolitod a "${service.servicePackageName}" szolgaltatast?`)) {
       return;
     }
 
@@ -179,7 +282,7 @@ export default function LocationEditPage() {
       const services = await networkAdminApi.listLocationServices(locationId);
       setLocationServices(services);
     } catch (err: any) {
-      alert(err.message || 'Hiba történt');
+      alert(err.message || 'Hiba tortent');
     }
   };
 
@@ -191,7 +294,7 @@ export default function LocationEditPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-gray-500">Betöltés...</div>
+        <div className="text-gray-500">Betoltes...</div>
       </div>
     );
   }
@@ -209,7 +312,7 @@ export default function LocationEditPage() {
           </svg>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Helyszín szerkesztése</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Helyszin szerkesztese</h1>
           <p className="text-gray-500 font-mono">{form.code}</p>
         </div>
       </div>
@@ -232,7 +335,7 @@ export default function LocationEditPage() {
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Helyszín neve *
+              Helyszin neve *
             </label>
             <input
               type="text"
@@ -246,7 +349,7 @@ export default function LocationEditPage() {
           {/* Code (read-only) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Helyszín kód
+              Helyszin kod
             </label>
             <input
               type="text"
@@ -254,19 +357,19 @@ export default function LocationEditPage() {
               disabled
               className="w-full px-4 py-3 border-2 border-gray-100 rounded-xl bg-gray-50 text-gray-500 font-mono"
             />
-            <p className="text-xs text-gray-500 mt-1">A kód nem módosítható</p>
+            <p className="text-xs text-gray-500 mt-1">A kod nem modosithato</p>
           </div>
 
           {/* Address */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Cím
+              Cim
             </label>
             <input
               type="text"
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="pl. Fő utca 1."
+              placeholder="pl. Fo utca 1."
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
             />
           </div>
@@ -275,7 +378,7 @@ export default function LocationEditPage() {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Irányítószám
+                Iranyitoszam
               </label>
               <input
                 type="text"
@@ -287,7 +390,7 @@ export default function LocationEditPage() {
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Város
+                Varos
               </label>
               <input
                 type="text"
@@ -302,45 +405,31 @@ export default function LocationEditPage() {
           {/* Operation Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Üzemeltetés típusa
+              Uzemeltetes tipusa
             </label>
             <select
               value={form.operationType}
               onChange={(e) => setForm({ ...form, operationType: e.target.value as 'OWN' | 'SUBCONTRACTOR' })}
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
             >
-              <option value="OWN">Saját üzemeltetés</option>
-              <option value="SUBCONTRACTOR">Alvállalkozó</option>
+              <option value="OWN">Sajat uzemeltetes</option>
+              <option value="SUBCONTRACTOR">Alvallalkozo</option>
             </select>
           </div>
 
           {/* Wash Mode */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Mosás mód
+              Mosas mod
             </label>
             <select
               value={form.washMode}
               onChange={(e) => setForm({ ...form, washMode: e.target.value })}
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
             >
-              <option value="DRIVER_INITIATED">Sofőr indítja</option>
-              <option value="OPERATOR_INITIATED">Operátor indítja</option>
+              <option value="DRIVER_INITIATED">Sofor inditja</option>
+              <option value="OPERATOR_INITIATED">Operator inditja</option>
             </select>
-          </div>
-
-          {/* Opening Hours */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nyitvatartás
-            </label>
-            <input
-              type="text"
-              value={form.openingHours}
-              onChange={(e) => setForm({ ...form, openingHours: e.target.value })}
-              placeholder="pl. H-P: 6:00-22:00, Szo-V: 8:00-20:00"
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-            />
           </div>
 
           {/* Phone */}
@@ -380,10 +469,10 @@ export default function LocationEditPage() {
                 onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                 className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
-              <span className="font-medium text-gray-700">Aktív helyszín</span>
+              <span className="font-medium text-gray-700">Aktiv helyszin</span>
             </label>
             <p className="text-sm text-gray-500 mt-1 ml-8">
-              Inaktív helyszínen nem lehet mosást indítani.
+              Inaktiv helyszinen nem lehet mosast inditani.
             </p>
           </div>
         </div>
@@ -394,28 +483,123 @@ export default function LocationEditPage() {
             href="/network-admin/locations"
             className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
           >
-            Mégse
+            Megse
           </Link>
           <button
             type="submit"
             disabled={saving}
             className="px-6 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:bg-gray-300"
           >
-            {saving ? 'Mentés...' : 'Mentés'}
+            {saving ? 'Mentes...' : 'Mentes'}
           </button>
         </div>
       </form>
 
+      {/* Opening Hours Section */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Nyitvatartas</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setWeekdayHours('06:00', '22:00')}
+              className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              H-P: 6-22
+            </button>
+            <button
+              onClick={setWeekendClosed}
+              className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Hetvege zarva
+            </button>
+          </div>
+        </div>
+
+        {hoursError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 mb-4">
+            {hoursError}
+          </div>
+        )}
+
+        {hoursSuccess && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-600 mb-4">
+            {hoursSuccess}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {openingHours.map((hour) => (
+            <div key={hour.dayOfWeek} className="flex items-center gap-4 py-3 border-b border-gray-100 last:border-0">
+              <div className="w-28 font-medium text-gray-700">
+                {DAY_LABELS[hour.dayOfWeek]}
+              </div>
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={hour.isClosed}
+                  onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'isClosed', e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                <span className="text-sm text-gray-500">Zarva</span>
+              </label>
+
+              {!hour.isClosed && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={hour.openTime}
+                      onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'openTime', e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
+                    />
+                    <span className="text-gray-400">-</span>
+                    <input
+                      type="time"
+                      value={hour.closeTime}
+                      onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'closeTime', e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => copyToAllDays(hour.dayOfWeek)}
+                    className="text-xs text-primary-600 hover:text-primary-700"
+                    title="Masolas minden napra"
+                  >
+                    Minden napra
+                  </button>
+                </>
+              )}
+
+              {hour.isClosed && (
+                <span className="text-red-500 text-sm font-medium">Zarva</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={handleSaveOpeningHours}
+            disabled={savingHours}
+            className="px-6 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:bg-gray-300"
+          >
+            {savingHours ? 'Mentes...' : 'Nyitvatartas mentese'}
+          </button>
+        </div>
+      </div>
+
       {/* Services Section */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Elérhető szolgáltatások</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Elerheto szolgaltatasok</h2>
           <button
             onClick={openAddService}
             disabled={availableServices.length === 0}
             className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            + Szolgáltatás hozzáadása
+            + Szolgaltatas hozzaadasa
           </button>
         </div>
 
@@ -424,8 +608,8 @@ export default function LocationEditPage() {
             <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
-            <p>Nincsenek szolgáltatások ehhez a helyszínhez.</p>
-            <p className="text-sm mt-1">Add hozzá a szolgáltatásokat, hogy a sofőrök kiválaszthassák.</p>
+            <p>Nincsenek szolgaltatasok ehhez a helyszinhez.</p>
+            <p className="text-sm mt-1">Add hozza a szolgaltatasokat, hogy a soforok kivalaszthassak.</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -445,7 +629,7 @@ export default function LocationEditPage() {
                 <button
                   onClick={() => removeService(service)}
                   className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Eltávolítás"
+                  title="Eltavolitas"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -458,8 +642,8 @@ export default function LocationEditPage() {
 
         <div className="mt-4 bg-amber-50 rounded-xl p-4">
           <p className="text-sm text-amber-700">
-            <strong>Fontos:</strong> Csak azok a szolgáltatások jelennek meg a sofőröknek, amelyek itt hozzá vannak adva.
-            Az árakat a <Link href="/network-admin/prices" className="underline">Szolgáltatások</Link> menüben tudod beállítani.
+            <strong>Fontos:</strong> Csak azok a szolgaltatasok jelennek meg a soforoknek, amelyek itt hozza vannak adva.
+            Az arakat a <Link href="/network-admin/prices" className="underline">Szolgaltatasok</Link> menuben tudod beallitani.
           </p>
         </div>
       </div>
@@ -476,7 +660,7 @@ export default function LocationEditPage() {
           >
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Szolgáltatás hozzáadása</h2>
+                <h2 className="text-xl font-bold text-gray-900">Szolgaltatas hozzaadasa</h2>
                 <button
                   onClick={() => setServiceModal(false)}
                   className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -491,17 +675,17 @@ export default function LocationEditPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Válassz szolgáltatást *
+                  Valassz szolgaltatast *
                 </label>
                 {availableServices.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Minden szolgáltatás már hozzá van adva.</p>
+                  <p className="text-gray-500 text-sm">Minden szolgaltatas mar hozza van adva.</p>
                 ) : (
                   <select
                     value={selectedServiceId}
                     onChange={(e) => setSelectedServiceId(e.target.value)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
                   >
-                    <option value="">-- Válassz --</option>
+                    <option value="">-- Valassz --</option>
                     {availableServices.map((pkg) => (
                       <option key={pkg.id} value={pkg.id}>
                         {pkg.name} ({pkg.code})
@@ -523,14 +707,14 @@ export default function LocationEditPage() {
                 onClick={() => setServiceModal(false)}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
               >
-                Mégse
+                Megse
               </button>
               <button
                 onClick={addService}
                 disabled={addingService || availableServices.length === 0}
                 className="flex-1 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:bg-gray-300"
               >
-                {addingService ? 'Hozzáadás...' : 'Hozzáadás'}
+                {addingService ? 'Hozzaadas...' : 'Hozzaadas'}
               </button>
             </div>
           </div>

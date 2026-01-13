@@ -1005,6 +1005,45 @@ export const networkAdminApi = {
       body: JSON.stringify({ testEmail }),
     });
   },
+
+  // Opening Hours
+  async getLocationOpeningHours(locationId: string): Promise<{
+    locationId: string;
+    locationName: string;
+    hours: Array<{
+      dayOfWeek: string;
+      openTime: string;
+      closeTime: string;
+      isClosed: boolean;
+    }>;
+  }> {
+    return fetchWithAuth(`/network-admin/locations/${locationId}/opening-hours`);
+  },
+
+  async updateLocationOpeningHours(
+    locationId: string,
+    hours: Array<{
+      dayOfWeek: string;
+      openTime: string;
+      closeTime: string;
+      isClosed: boolean;
+    }>,
+  ): Promise<{
+    locationId: string;
+    locationName: string;
+    hours: Array<{
+      dayOfWeek: string;
+      openTime: string;
+      closeTime: string;
+      isClosed: boolean;
+    }>;
+  }> {
+    return fetchWithAuth(`/network-admin/locations/${locationId}/opening-hours`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hours }),
+    });
+  },
 };
 
 // =========================================================================
