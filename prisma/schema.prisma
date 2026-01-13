@@ -171,6 +171,46 @@ enum ExchangeRateSource {
   ECB         // Európai Központi Bank
 }
 
+// =============================================================================
+// BOOKING SYSTEM ENUMS
+// =============================================================================
+
+enum BookingStatus {
+  PENDING       // Foglalás létrejött, várakozik
+  CONFIRMED     // Megerősítve
+  IN_PROGRESS   // Mosás folyamatban
+  COMPLETED     // Befejezve
+  CANCELLED     // Lemondva (ügyfél által)
+  NO_SHOW       // Nem jelent meg
+  REFUNDED      // Visszatérítve
+}
+
+enum PaymentStatus {
+  PENDING         // Fizetésre vár
+  PAID            // Kifizetve
+  PARTIALLY_PAID  // Részben fizetve (előleg)
+  REFUNDED        // Visszatérítve
+  FAILED          // Sikertelen
+}
+
+enum PaymentProvider {
+  STRIPE
+  SIMPLEPAY
+  BARION
+  CASH
+  CARD_ON_SITE
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -312,6 +352,11 @@ model Network {
   usageLogs                   UsageLog[]
   locationOperators           LocationOperator[]
   washDeleteRequests          WashDeleteRequest[]
+  // Booking system
+  blockedTimeSlots            BlockedTimeSlot[]
+  bookingSettings             BookingSettings?
+  bookings                    Booking[]
+  paymentTransactions         PaymentTransaction[]
 
   @@map("networks")
 }
@@ -346,18 +391,28 @@ model Location {
   latitude      Float?
   longitude     Float?
 
-  // Nyitvatartás
+  // Nyitvatartás (szöveges - visszafelé kompatibilitás)
   openingHours  String?       @map("opening_hours") // JSON vagy szöveges formátum
 
   // Kapcsolat
   phone         String?
   email         String?
 
+  // Időpontfoglalás beállítások
+  bookingEnabled        Boolean @default(false) @map("booking_enabled")       // Engedélyezett-e az időpontfoglalás
+  parallelSlots         Int     @default(1) @map("parallel_slots")             // Hány párhuzamos mosás lehetséges
+  slotIntervalMinutes   Int     @default(30) @map("slot_interval_minutes")     // Időrés hossza percben
+  minBookingNoticeHours Int     @default(1) @map("min_booking_notice_hours")   // Minimum előfoglalási idő órában
+  maxBookingAdvanceDays Int     @default(30) @map("max_booking_advance_days")  // Maximum hány napra előre foglalható
+
   // Relations
   network                     Network                       @relation(fields: [networkId], references: [id])
   serviceAvailability         LocationServiceAvailability[]
   washEvents                  WashEvent[]
   operators                   LocationOperator[]
+  openingHoursStructured      LocationOpeningHours[]
+  blockedTimeSlots            BlockedTimeSlot[]
+  bookings                    Booking[]
 
   @@unique([networkId, code])
   @@index([networkId])
@@ -466,6 +521,15 @@ model Driver {
   phoneVerified    Boolean   @default(false) @map("phone_verified")
   phoneVerifiedAt  DateTime? @map("phone_verified_at")
 
+  // Magánszemély ügyfél adatok (személyautó mosókhoz)
+  isPrivateCustomer Boolean   @default(false) @map("is_private_customer")  // Magánszemély-e (nem flottás sofőr)
+  billingName       String?   @map("billing_name")                          // Számlázási név
+  billingAddress    String?   @map("billing_address")                       // Számlázási cím
+  billingCity       String?   @map("billing_city")                          // Város
+  billingZipCode    String?   @map("billing_zip_code")                      // Irányítószám
+  billingCountry    String    @default("HU") @map("billing_country")        // Ország
+  billingTaxNumber  String?   @map("billing_tax_number")                    // Adószám (ha céges)
+
   // Relations
   network            Network                @relation(fields: [networkId], references: [id])
   partnerCompany     PartnerCompany         @relation(fields: [partnerCompanyId], references: [id])
@@ -474,6 +538,7 @@ model Driver {
   vehicles           Vehicle[]              // Sofőr járművei
   verificationTokens VerificationToken[]
   partnerHistory     DriverPartnerHistory[]
+  bookings           Booking[]              // Ügyfél foglalásai
 
   @@index([networkId])
   @@index([partnerCompanyId])
@@ -564,6 +629,7 @@ model ServicePackage {
   servicePrices        ServicePrice[]
   partnerCustomPrices  PartnerCustomPrice[]
   invoiceItems         InvoiceItem[]
+  bookings             Booking[]
 
   @@unique([networkId, code])
   @@index([networkId])
@@ -661,6 +727,7 @@ model WashEvent {
   invoice        Invoice?       @relation(fields: [invoiceId], references: [id])
   services       WashEventService[]  // Több szolgáltatás a mosáshoz
   deleteRequests WashDeleteRequest[] // Törlési kérelmek
+  booking        Booking?       // Kapcsolt foglalás (ha foglalásból indult)
 
   @@index([networkId])
   @@index([locationId])
@@ -716,6 +783,7 @@ model ServicePrice {
   vehicleType      VehicleType @map("vehicle_type")
   price            Decimal     @db.Decimal(10, 2)
   currency         String      @default("HUF")
+  durationMinutes  Int         @default(30) @map("duration_minutes") // Szolgáltatás időtartama percben (5 perc többszörösei)
   isActive         Boolean     @default(true)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
@@ -1376,4 +1444,224 @@ model ExchangeRateCache {
   @@unique([sourceCurrency, targetCurrency, source])
   @@index([fetchedAt])
   @@map("exchange_rate_cache")
+}
+
+// =============================================================================
+// BOOKING SYSTEM MODELS
+// =============================================================================
+
+// Strukturált nyitvatartás naponként
+model LocationOpeningHours {
+  id         String    @id @default(uuid())
+  locationId String    @map("location_id")
+  dayOfWeek  DayOfWeek @map("day_of_week")
+  openTime   String    @map("open_time")  // HH:MM formátum
+  closeTime  String    @map("close_time") // HH:MM formátum
+  isClosed   Boolean   @default(false) @map("is_closed")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, dayOfWeek])
+  @@index([locationId])
+  @@map("location_opening_hours")
+}
+
+// Letiltott időszakok (walk-in ügyfeleknek fenntartva)
+model BlockedTimeSlot {
+  id                   String     @id @default(uuid())
+  networkId            String     @map("network_id")
+  locationId           String     @map("location_id")
+  startTime            DateTime   @map("start_time")
+  endTime              DateTime   @map("end_time")
+  reason               String?
+  isRecurring          Boolean    @default(false) @map("is_recurring")
+  recurringDayOfWeek   DayOfWeek? @map("recurring_day_of_week")
+  recurringStartTime   String?    @map("recurring_start_time") // HH:MM
+  recurringEndTime     String?    @map("recurring_end_time")   // HH:MM
+  createdBy            String?    @map("created_by")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  network  Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([networkId])
+  @@index([locationId])
+  @@index([startTime])
+  @@map("blocked_time_slots")
+}
+
+// Hálózat szintű foglalási beállítások
+model BookingSettings {
+  id        String @id @default(uuid())
+  networkId String @unique @map("network_id")
+
+  // Lemondási szabályzat
+  cancellationDeadlineHours Int     @default(24) @map("cancellation_deadline_hours")
+  cancellationFeePercent    Decimal @default(50) @db.Decimal(5, 2) @map("cancellation_fee_percent")
+  noShowFeePercent          Decimal @default(100) @db.Decimal(5, 2) @map("no_show_fee_percent")
+
+  // Email emlékeztetők
+  reminderEnabled      Boolean @default(true) @map("reminder_enabled")
+  reminderHoursBefore  Int[]   @default([24, 2]) @map("reminder_hours_before")
+
+  // Fizetési beállítások
+  requirePrepaymentOnline Boolean @default(false) @map("require_prepayment_online")
+  allowPayOnSiteCash      Boolean @default(true) @map("allow_pay_on_site_cash")
+  allowPayOnSiteCard      Boolean @default(true) @map("allow_pay_on_site_card")
+  allowOnlineCard         Boolean @default(true) @map("allow_online_card")
+  allowApplePay           Boolean @default(false) @map("allow_apple_pay")
+  allowGooglePay          Boolean @default(false) @map("allow_google_pay")
+
+  // Fizetési szolgáltatók konfiguráció
+  stripeAccountId       String? @map("stripe_account_id")       // Stripe Connect account ID
+  simplepayMerchantId   String? @map("simplepay_merchant_id")   // SimplePay kereskedő azonosító
+  simplepaySecretKey    String? @map("simplepay_secret_key")    // SimplePay titkos kulcs
+  barionPosKey          String? @map("barion_pos_key")          // Barion POS key
+  barionPixelId         String? @map("barion_pixel_id")         // Barion Pixel ID
+
+  // Üzenetszövegek
+  cancellationPolicyText String? @map("cancellation_policy_text") @db.Text
+  confirmationMessage    String? @map("confirmation_message") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  network Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
+
+  @@map("booking_settings")
+}
+
+// Foglalások
+model Booking {
+  id         String @id @default(uuid())
+  networkId  String @map("network_id")
+  locationId String @map("location_id")
+  driverId   String? @map("driver_id")
+
+  // Foglalás azonosító
+  bookingCode String @unique @map("booking_code")
+
+  // Időpont
+  scheduledStart DateTime @map("scheduled_start")
+  scheduledEnd   DateTime @map("scheduled_end")
+
+  // Jármű info
+  vehicleType VehicleType @map("vehicle_type")
+  plateNumber String?     @map("plate_number")
+
+  // Szolgáltatás
+  servicePackageId       String  @map("service_package_id")
+  serviceDurationMinutes Int     @map("service_duration_minutes")
+  servicePrice           Decimal @db.Decimal(10, 2) @map("service_price")
+  currency               String  @default("HUF")
+
+  // Ügyfél adatok
+  customerName  String? @map("customer_name")
+  customerPhone String? @map("customer_phone")
+  customerEmail String? @map("customer_email")
+
+  // Státusz
+  status BookingStatus @default(PENDING)
+
+  // Fizetés
+  paymentStatus         PaymentStatus    @default(PENDING) @map("payment_status")
+  paymentProvider       PaymentProvider? @map("payment_provider")
+  paymentMethodSelected String?          @map("payment_method_selected")
+  prepaidAmount         Decimal          @default(0) @db.Decimal(10, 2) @map("prepaid_amount")
+  paidOnSiteAmount      Decimal          @default(0) @db.Decimal(10, 2) @map("paid_on_site_amount")
+  totalPaid             Decimal          @default(0) @db.Decimal(10, 2) @map("total_paid")
+  refundedAmount        Decimal          @default(0) @db.Decimal(10, 2) @map("refunded_amount")
+
+  // Fizetési szolgáltató referenciák
+  stripePaymentIntentId  String? @map("stripe_payment_intent_id")
+  simplepayTransactionId String? @map("simplepay_transaction_id")
+  barionPaymentId        String? @map("barion_payment_id")
+
+  // Lemondás
+  cancelledAt            DateTime? @map("cancelled_at")
+  cancelledBy            String?   @map("cancelled_by")
+  cancellationReason     String?   @map("cancellation_reason")
+  cancellationFeeApplied Decimal?  @db.Decimal(10, 2) @map("cancellation_fee_applied")
+
+  // Mosáshoz kapcsolás
+  washEventId String? @unique @map("wash_event_id")
+
+  // Emlékeztetők
+  reminderSentAt DateTime[] @map("reminder_sent_at")
+
+  // Létrehozó
+  createdByType String? @map("created_by_type") // DRIVER, OPERATOR, NETWORK_ADMIN
+  createdById   String? @map("created_by_id")
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  notes     String?  @db.Text
+
+  // Relations
+  network        Network         @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  location       Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  driver         Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  servicePackage ServicePackage  @relation(fields: [servicePackageId], references: [id])
+  washEvent      WashEvent?      @relation(fields: [washEventId], references: [id], onDelete: SetNull)
+  transactions   PaymentTransaction[]
+
+  @@index([networkId])
+  @@index([locationId])
+  @@index([driverId])
+  @@index([scheduledStart])
+  @@index([status])
+  @@index([bookingCode])
+  @@index([customerEmail])
+  @@map("bookings")
+}
+
+// Fizetési tranzakciók
+model PaymentTransaction {
+  id          String @id @default(uuid())
+  networkId   String @map("network_id")
+  bookingId   String? @map("booking_id")
+  washEventId String? @map("wash_event_id")
+
+  // Tranzakció típus
+  type     String          // PAYMENT, REFUND, CANCELLATION_FEE
+  provider PaymentProvider
+
+  // Összegek
+  amount    Decimal @db.Decimal(10, 2)
+  currency  String  @default("HUF")
+  feeAmount Decimal @default(0) @db.Decimal(10, 2) @map("fee_amount")
+
+  // Státusz
+  status PaymentStatus
+
+  // Provider specifikus adatok
+  providerTransactionId String? @map("provider_transaction_id")
+  providerResponse      Json?   @map("provider_response")
+
+  // Visszatérítés
+  refundOfTransactionId String? @map("refund_of_transaction_id")
+  refundReason          String? @map("refund_reason")
+
+  // Audit
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  // Relations
+  network        Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  booking        Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  refundOf       PaymentTransaction? @relation("RefundRelation", fields: [refundOfTransactionId], references: [id])
+  refunds        PaymentTransaction[] @relation("RefundRelation")
+
+  @@index([networkId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([providerTransactionId])
+  @@map("payment_transactions")
 }

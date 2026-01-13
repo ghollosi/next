@@ -152,12 +152,12 @@ export default function PriceUploadPage() {
               <div>
                 <p className="font-semibold text-gray-900">Vertikális (soronként)</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Minden sor egy ár: Járműkategória | Mosástípus | Ár
+                  Minden sor egy ár: Járműkategória | Mosástípus | Ár | Időtartam (perc)
                 </p>
                 <div className="mt-2 text-xs text-gray-400 font-mono bg-gray-50 p-2 rounded">
-                  Nyerges szerelvény | HACCP külső | 39370<br />
-                  Nyerges szerelvény | GYORS külső | 21811<br />
-                  Gabonaszállító | GYORS külső | 19763
+                  Nyerges szerelvény | HACCP külső | 39370 | 45<br />
+                  Nyerges szerelvény | GYORS külső | 21811 | 30<br />
+                  Gabonaszállító | GYORS külső | 19763 | 25
                 </div>
               </div>
             </div>
@@ -206,8 +206,9 @@ export default function PriceUploadPage() {
             <p>• A oszlop: Járműkategória neve (pl. "Nyerges szerelvény")</p>
             <p>• B oszlop: Mosástípus neve (pl. "HACCP külső fertőtlenítés")</p>
             <p>• C oszlop: Nettó ár Ft-ban</p>
+            <p>• D oszlop: Szolgáltatás időtartama percben (opcionális, alapértelmezett: 30 perc, 5 perc többszörösei)</p>
             <p className="text-gray-500 mt-4">
-              Az első sor kihagyásra kerül, ha fejléc (pl. "Járműkategória", "Mosástípus", "Ár")
+              Az első sor kihagyásra kerül, ha fejléc (pl. "Járműkategória", "Mosástípus", "Ár", "Időtartam")
             </p>
           </div>
         ) : (

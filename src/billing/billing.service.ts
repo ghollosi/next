@@ -1093,8 +1093,8 @@ export class BillingService {
   }
 
   /**
-   * Import prices from vertical Excel format (VehicleCategory | ServiceType | Price)
-   * Each row contains: A = vehicle category name, B = service/wash type name, C = price
+   * Import prices from vertical Excel format (VehicleCategory | ServiceType | Price | Duration)
+   * Each row contains: A = vehicle category name, B = service/wash type name, C = price, D = duration (minutes, optional)
    *
    * This method will AUTO-CREATE missing service packages (wash types) if they don't exist.
    * The Excel becomes the "source of truth" for the price list.
@@ -1140,6 +1140,19 @@ export class BillingService {
         .substring(0, 30);
     };
 
+    // Helper to parse and validate duration (must be multiple of 5 minutes)
+    const parseDuration = (value: any): number | null => {
+      if (value === null || value === undefined || value === '') {
+        return null; // Will use default 30 minutes
+      }
+      const duration = typeof value === 'number' ? value : parseInt(String(value).replace(/[^\d]/g, ''), 10);
+      if (isNaN(duration) || duration < 5) {
+        return null;
+      }
+      // Round to nearest 5 minutes
+      return Math.round(duration / 5) * 5;
+    };
+
     // Get existing service packages for name lookup
     let servicePackages = await this.prisma.servicePackage.findMany({
       where: { networkId },
@@ -1173,6 +1186,7 @@ export class BillingService {
       const vehicleCategoryRaw = String(row.getCell(1).value || '').trim();
       const serviceTypeRaw = String(row.getCell(2).value || '').trim();
       const priceRaw = row.getCell(3).value;
+      const durationRaw = row.getCell(4).value; // NEW: Duration column (D)
 
       // Skip empty rows
       if (!vehicleCategoryRaw || !serviceTypeRaw) {
@@ -1248,8 +1262,11 @@ export class BillingService {
       // Round to 2 decimal places
       price = Math.round(price * 100) / 100;
 
+      // Parse duration (optional, default 30 minutes)
+      const durationMinutes = parseDuration(durationRaw) || 30;
+
       try {
-        // Upsert price
+        // Upsert price with duration
         await this.prisma.servicePrice.upsert({
           where: {
             networkId_servicePackageId_vehicleType: {
@@ -1260,6 +1277,7 @@ export class BillingService {
           },
           update: {
             price: new Decimal(price),
+            durationMinutes,
             isActive: true,
             updatedAt: new Date(),
           },
@@ -1268,6 +1286,7 @@ export class BillingService {
             servicePackageId: servicePackage.id,
             vehicleType: vehicleType as any,
             price: new Decimal(price),
+            durationMinutes,
             currency: 'HUF',
             isActive: true,
           },
