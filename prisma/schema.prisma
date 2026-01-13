@@ -357,6 +357,7 @@ model Network {
   bookingSettings             BookingSettings?
   bookings                    Booking[]
   paymentTransactions         PaymentTransaction[]
+  walkInCustomers             WalkInCustomer[]
 
   @@map("networks")
 }
@@ -1495,6 +1496,27 @@ model BlockedTimeSlot {
   @@map("blocked_time_slots")
 }
 
+// Walk-in ügyfelek (nem regisztrált, helyszínen érkező ügyfelek)
+model WalkInCustomer {
+  id        String  @id @default(uuid())
+  networkId String  @map("network_id")
+  name      String
+  phone     String?
+  email     String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  network  Network   @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([networkId])
+  @@index([phone])
+  @@index([email])
+  @@map("walk_in_customers")
+}
+
 // Hálózat szintű foglalási beállítások
 model BookingSettings {
   id        String @id @default(uuid())
@@ -1539,10 +1561,11 @@ model BookingSettings {
 
 // Foglalások
 model Booking {
-  id         String @id @default(uuid())
-  networkId  String @map("network_id")
-  locationId String @map("location_id")
-  driverId   String? @map("driver_id")
+  id               String  @id @default(uuid())
+  networkId        String  @map("network_id")
+  locationId       String  @map("location_id")
+  driverId         String? @map("driver_id")
+  walkInCustomerId String? @map("walk_in_customer_id")
 
   // Foglalás azonosító
   bookingCode String @unique @map("booking_code")
@@ -1605,16 +1628,18 @@ model Booking {
   notes     String?  @db.Text
 
   // Relations
-  network        Network         @relation(fields: [networkId], references: [id], onDelete: Cascade)
-  location       Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  driver         Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  servicePackage ServicePackage  @relation(fields: [servicePackageId], references: [id])
-  washEvent      WashEvent?      @relation(fields: [washEventId], references: [id], onDelete: SetNull)
+  network        Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  location       Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  driver         Driver?          @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  walkInCustomer WalkInCustomer?  @relation(fields: [walkInCustomerId], references: [id], onDelete: SetNull)
+  servicePackage ServicePackage   @relation(fields: [servicePackageId], references: [id])
+  washEvent      WashEvent?       @relation(fields: [washEventId], references: [id], onDelete: SetNull)
   transactions   PaymentTransaction[]
 
   @@index([networkId])
   @@index([locationId])
   @@index([driverId])
+  @@index([walkInCustomerId])
   @@index([scheduledStart])
   @@index([status])
   @@index([bookingCode])

@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   Query,
@@ -190,8 +191,19 @@ export class OperatorPortalController {
       where: { id: session.locationId },
       include: {
         network: true,
+        openingHoursStructured: true,
       },
     });
+
+    // Nyitvatartási órák mapelése
+    const openingHours = location?.openingHoursStructured?.reduce((acc, oh) => {
+      acc[oh.dayOfWeek] = {
+        openTime: oh.openTime,
+        closeTime: oh.closeTime,
+        isClosed: oh.isClosed,
+      };
+      return acc;
+    }, {} as Record<string, { openTime: string; closeTime: string; isClosed: boolean }>) || {};
 
     return {
       locationId: session.locationId,
@@ -201,6 +213,7 @@ export class OperatorPortalController {
       networkName: location?.network.name,
       operatorId: session.operatorId,
       operatorName: session.operatorName,
+      openingHours,
     };
   }
 
@@ -1321,5 +1334,206 @@ export class OperatorPortalController {
       { reason: body.reason },
       operatorIdentifier,
     );
+  }
+
+  // ==================== Blokkolt időszakok (Walk-in fenntartás) ====================
+
+  @Get('blocked-slots')
+  async getBlockedSlots(
+    @Headers('x-operator-session') sessionId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Req() req?: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+    return this.bookingService.listBlockedTimeSlots(
+      session.networkId,
+      session.locationId,
+    );
+  }
+
+  @Post('blocked-slots')
+  @HttpCode(HttpStatus.CREATED)
+  async createBlockedSlot(
+    @Headers('x-operator-session') sessionId: string,
+    @Body() body: { startTime: string; endTime: string; reason?: string },
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    const operatorIdentifier = session.operatorId
+      ? `operator:${session.locationCode}:${session.operatorName}`
+      : `operator:${session.locationCode}`;
+
+    return this.bookingService.createBlockedTimeSlot(session.networkId, {
+      locationId: session.locationId,
+      startTime: body.startTime,
+      endTime: body.endTime,
+      reason: body.reason || 'Walk-in ügyfeleknek fenntartva',
+    }, operatorIdentifier);
+  }
+
+  @Post('blocked-slots/recurring')
+  @HttpCode(HttpStatus.CREATED)
+  async createRecurringBlockedSlot(
+    @Headers('x-operator-session') sessionId: string,
+    @Body() body: {
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      reason?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    const operatorIdentifier = session.operatorId
+      ? `operator:${session.locationCode}:${session.operatorName}`
+      : `operator:${session.locationCode}`;
+
+    const dayOfWeekMap = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+    return this.bookingService.createRecurringBlock(session.networkId, {
+      locationId: session.locationId,
+      dayOfWeek: dayOfWeekMap[body.dayOfWeek] as any,
+      startTime: body.startTime,
+      endTime: body.endTime,
+      reason: body.reason || 'Walk-in ügyfeleknek fenntartva (ismétlődő)',
+    }, operatorIdentifier);
+  }
+
+  @Delete('blocked-slots/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteBlockedSlot(
+    @Param('id') id: string,
+    @Headers('x-operator-session') sessionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+    return this.bookingService.deleteBlockedTimeSlot(session.networkId, id);
+  }
+
+  // ==================== Új foglalás létrehozása (ügyfél nevében) ====================
+
+  @Get('available-slots')
+  async getAvailableSlots(
+    @Headers('x-operator-session') sessionId: string,
+    @Query('date') date: string,
+    @Query('vehicleType') vehicleType: string,
+    @Req() req?: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+    return this.bookingService.getAvailableSlots(session.networkId, {
+      locationId: session.locationId,
+      date,
+      vehicleType: vehicleType as any,
+    });
+  }
+
+  @Post('bookings/create')
+  @HttpCode(HttpStatus.CREATED)
+  async createBookingForCustomer(
+    @Headers('x-operator-session') sessionId: string,
+    @Body() body: {
+      // Ügyfél adatok
+      customerName?: string;
+      customerPhone?: string;
+      customerEmail?: string;
+      // Foglalás adatok
+      servicePackageId: string;
+      scheduledStart: string;
+      vehicleType: string;
+      plateNumber?: string;
+      notes?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    const operatorIdentifier = session.operatorId
+      ? `operator:${session.locationCode}:${session.operatorName}`
+      : `operator:${session.locationCode}`;
+
+    return this.bookingService.createBooking(
+      session.networkId,
+      {
+        locationId: session.locationId,
+        servicePackageId: body.servicePackageId,
+        scheduledStart: body.scheduledStart,
+        vehicleType: body.vehicleType as any,
+        plateNumber: body.plateNumber,
+        customerName: body.customerName,
+        customerPhone: body.customerPhone,
+        customerEmail: body.customerEmail,
+        notes: body.notes,
+      },
+      { type: 'OPERATOR', id: operatorIdentifier },
+    );
+  }
+
+  @Get('customers/search')
+  async searchCustomers(
+    @Headers('x-operator-session') sessionId: string,
+    @Query('q') query: string,
+    @Req() req?: Request,
+  ) {
+    const session = await this.getSession(sessionId, req);
+
+    if (!query || query.length < 2) {
+      return { data: [] };
+    }
+
+    // Keresés sofőrök között
+    const drivers = await this.prisma.driver.findMany({
+      where: {
+        networkId: session.networkId,
+        deletedAt: null,
+        OR: [
+          { firstName: { contains: query, mode: 'insensitive' } },
+          { lastName: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query } },
+          { email: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Keresés korábbi foglalások alapján (customerEmail/customerPhone)
+    const previousBookings = await this.prisma.booking.findMany({
+      where: {
+        networkId: session.networkId,
+        driverId: null, // Csak walk-in foglalások
+        OR: [
+          { customerName: { contains: query, mode: 'insensitive' } },
+          { customerPhone: { contains: query } },
+          { customerEmail: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      distinct: ['customerEmail'],
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      data: [
+        ...drivers.map((d) => ({
+          id: d.id,
+          type: 'driver' as const,
+          name: `${d.firstName} ${d.lastName}`,
+          phone: d.phone,
+          email: d.email,
+        })),
+        ...previousBookings
+          .filter((b) => b.customerName)
+          .map((b) => ({
+            id: `prev-${b.id}`,
+            type: 'previous' as const,
+            name: b.customerName!,
+            phone: b.customerPhone,
+            email: b.customerEmail,
+          })),
+      ],
+    };
   }
 }

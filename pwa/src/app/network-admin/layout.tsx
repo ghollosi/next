@@ -70,6 +70,7 @@ export default function NetworkAdminLayout({
 
   const navItems = [
     { href: '/network-admin/dashboard', label: 'Dashboard', icon: '📊' },
+    { href: '/network-admin/bookings', label: 'Foglalások', icon: '📅' },
     { href: '/network-admin/wash-events', label: 'Mosások', icon: '🚿' },
     { href: '/network-admin/locations', label: 'Helyszínek', icon: '📍' },
     { href: '/network-admin/drivers', label: 'Sofőrök', icon: '👤' },

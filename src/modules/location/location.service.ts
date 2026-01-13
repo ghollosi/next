@@ -6,12 +6,15 @@ import { Location, OperationType, WashMode } from '@prisma/client';
 export class LocationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(networkId: string, id: string): Promise<Location> {
+  async findById(networkId: string, id: string): Promise<Location & { openingHoursStructured?: Record<string, { openTime: string; closeTime: string; isClosed: boolean }> }> {
     const location = await this.prisma.location.findFirst({
       where: {
         id,
         networkId,
         deletedAt: null,
+      },
+      include: {
+        openingHoursStructured: true,
       },
     });
 
@@ -19,7 +22,20 @@ export class LocationService {
       throw new NotFoundException(`Location not found`);
     }
 
-    return location;
+    // Nyitvatartási órák mapelése
+    const openingHoursMap = location.openingHoursStructured?.reduce((acc, oh) => {
+      acc[oh.dayOfWeek] = {
+        openTime: oh.openTime,
+        closeTime: oh.closeTime,
+        isClosed: oh.isClosed,
+      };
+      return acc;
+    }, {} as Record<string, { openTime: string; closeTime: string; isClosed: boolean }>) || {};
+
+    return {
+      ...location,
+      openingHoursStructured: openingHoursMap,
+    } as any;
   }
 
   async findByCode(networkId: string, code: string): Promise<Location> {
@@ -38,15 +54,34 @@ export class LocationService {
     return location;
   }
 
-  async findAll(networkId: string): Promise<Location[]> {
-    return this.prisma.location.findMany({
+  async findAll(networkId: string): Promise<(Location & { openingHoursStructured?: Record<string, { openTime: string; closeTime: string; isClosed: boolean }> })[]> {
+    const locations = await this.prisma.location.findMany({
       where: {
         networkId,
         deletedAt: null,
       },
+      include: {
+        openingHoursStructured: true,
+      },
       orderBy: {
         name: 'asc',
       },
+    });
+
+    return locations.map((loc) => {
+      const openingHoursMap = loc.openingHoursStructured?.reduce((acc, oh) => {
+        acc[oh.dayOfWeek] = {
+          openTime: oh.openTime,
+          closeTime: oh.closeTime,
+          isClosed: oh.isClosed,
+        };
+        return acc;
+      }, {} as Record<string, { openTime: string; closeTime: string; isClosed: boolean }>) || {};
+
+      return {
+        ...loc,
+        openingHoursStructured: openingHoursMap,
+      } as any;
     });
   }
 

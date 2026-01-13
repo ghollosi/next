@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { BookingStatus, PaymentStatus, DayOfWeek, Prisma } from '@prisma/client';
+import { BookingStatus, PaymentStatus, DayOfWeek, Prisma, VehicleType } from '@prisma/client';
 import {
   CreateBookingDto,
   UpdateBookingDto,
@@ -41,7 +41,7 @@ export class BookingService {
       where: {
         networkId,
         servicePackageId: dto.servicePackageId,
-        vehicleType: dto.vehicleType,
+        vehicleType: dto.vehicleType as VehicleType,
         isActive: true,
       },
       include: { servicePackage: true },
@@ -105,7 +105,7 @@ export class BookingService {
         bookingCode,
         scheduledStart,
         scheduledEnd,
-        vehicleType: dto.vehicleType,
+        vehicleType: dto.vehicleType as VehicleType,
         plateNumber: dto.plateNumber,
         servicePackageId: dto.servicePackageId,
         serviceDurationMinutes: servicePrice.durationMinutes,

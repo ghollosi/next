@@ -45,6 +45,7 @@ interface NetworkDashboard {
 interface Location {
   id: string;
   name: string;
+  code: string;
   address: string;
   city: string;
   isActive: boolean;
@@ -1043,6 +1044,209 @@ export const networkAdminApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hours }),
     });
+  },
+
+  // =========================================================================
+  // BOOKING API
+  // =========================================================================
+
+  async getBookingSettings(): Promise<{
+    cancellationDeadlineHours: number;
+    cancellationFeePercent: number;
+    noShowFeePercent: number;
+    reminderEnabled: boolean;
+    reminderHoursBefore: number[];
+    requirePrepaymentOnline: boolean;
+    allowPayOnSiteCash: boolean;
+    allowPayOnSiteCard: boolean;
+    allowOnlineCard: boolean;
+    allowApplePay: boolean;
+    allowGooglePay: boolean;
+    hasStripeAccount: boolean;
+    hasSimplePay: boolean;
+    hasBarion: boolean;
+    cancellationPolicyText?: string;
+    confirmationMessage?: string;
+  }> {
+    return fetchWithAuth('/network-admin/booking-settings');
+  },
+
+  async updateBookingSettings(settings: {
+    cancellationDeadlineHours?: number;
+    cancellationFeePercent?: number;
+    noShowFeePercent?: number;
+    reminderEnabled?: boolean;
+    reminderHoursBefore?: number[];
+    requirePrepaymentOnline?: boolean;
+    allowPayOnSiteCash?: boolean;
+    allowPayOnSiteCard?: boolean;
+    allowOnlineCard?: boolean;
+    allowApplePay?: boolean;
+    allowGooglePay?: boolean;
+    stripeAccountId?: string;
+    simplepayMerchantId?: string;
+    simplepaySecretKey?: string;
+    barionPosKey?: string;
+    barionPixelId?: string;
+    cancellationPolicyText?: string;
+    confirmationMessage?: string;
+  }): Promise<any> {
+    return fetchWithAuth('/network-admin/booking-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+  },
+
+  async listBookings(options?: {
+    locationId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.locationId) params.set('locationId', options.locationId);
+    if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.set('dateTo', options.dateTo);
+    if (options?.status) params.set('status', options.status);
+    if (options?.page) params.set('page', String(options.page));
+    if (options?.limit) params.set('limit', String(options.limit));
+    return fetchWithAuth(`/network-admin/bookings?${params.toString()}`);
+  },
+
+  async getBooking(id: string): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}`);
+  },
+
+  async getTodaysBookings(locationId: string): Promise<any[]> {
+    return fetchWithAuth(`/network-admin/bookings/today/${locationId}`);
+  },
+
+  async getAvailableSlots(options: {
+    locationId: string;
+    date: string;
+    servicePackageId?: string;
+    vehicleType?: string;
+  }): Promise<Array<{
+    startTime: string;
+    endTime: string;
+    available: boolean;
+    remainingSlots: number;
+  }>> {
+    const params = new URLSearchParams();
+    params.set('locationId', options.locationId);
+    params.set('date', options.date);
+    if (options.servicePackageId) params.set('servicePackageId', options.servicePackageId);
+    if (options.vehicleType) params.set('vehicleType', options.vehicleType);
+    return fetchWithAuth(`/network-admin/bookings/slots?${params.toString()}`);
+  },
+
+  async createBooking(data: {
+    locationId: string;
+    scheduledStart: string;
+    servicePackageId: string;
+    vehicleType: string;
+    plateNumber?: string;
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    driverId?: string;
+    paymentProvider?: string;
+    notes?: string;
+  }): Promise<any> {
+    return fetchWithAuth('/network-admin/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateBooking(id: string, data: {
+    scheduledStart?: string;
+    servicePackageId?: string;
+    vehicleType?: string;
+    plateNumber?: string;
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    notes?: string;
+  }): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async confirmBooking(id: string): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}/confirm`, { method: 'POST' });
+  },
+
+  async cancelBooking(id: string, reason: string): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  async startBooking(id: string): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}/start`, { method: 'POST' });
+  },
+
+  async completeBooking(id: string, washEventId?: string): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ washEventId }),
+    });
+  },
+
+  async markNoShow(id: string): Promise<any> {
+    return fetchWithAuth(`/network-admin/bookings/${id}/no-show`, { method: 'POST' });
+  },
+
+  async listBlockedSlots(locationId?: string): Promise<any[]> {
+    const params = locationId ? `?locationId=${locationId}` : '';
+    return fetchWithAuth(`/network-admin/blocked-slots${params}`);
+  },
+
+  async createBlockedSlot(data: {
+    locationId: string;
+    startTime: string;
+    endTime: string;
+    reason?: string;
+  }): Promise<any> {
+    return fetchWithAuth('/network-admin/blocked-slots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async createRecurringBlock(data: {
+    locationId: string;
+    dayOfWeek: string;
+    startTime: string;
+    endTime: string;
+    reason?: string;
+  }): Promise<any> {
+    return fetchWithAuth('/network-admin/blocked-slots/recurring', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteBlockedSlot(id: string): Promise<void> {
+    await fetchWithAuth(`/network-admin/blocked-slots/${id}`, { method: 'DELETE' });
   },
 };
 

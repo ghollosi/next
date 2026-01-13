@@ -96,7 +96,7 @@ export default function DashboardPage() {
         </button>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-3 mt-6 mb-6">
+        <div className="grid grid-cols-4 gap-3 mt-6 mb-6">
           <button
             onClick={() => router.push('/wash/scan')}
             className="bg-white rounded-xl shadow-sm p-4 flex flex-col items-center gap-2
@@ -111,6 +111,19 @@ export default function DashboardPage() {
           </button>
 
           <button
+            onClick={() => router.push('/booking')}
+            className="bg-white rounded-xl shadow-sm p-4 flex flex-col items-center gap-2
+                       hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          >
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <span className="text-sm font-medium text-gray-700">Foglalás</span>
+          </button>
+
+          <button
             onClick={() => router.push('/vehicles')}
             className="bg-white rounded-xl shadow-sm p-4 flex flex-col items-center gap-2
                        hover:bg-gray-50 active:bg-gray-100 transition-colors"
@@ -120,7 +133,7 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
             </div>
-            <span className="text-sm font-medium text-gray-700">Jarmuvek</span>
+            <span className="text-sm font-medium text-gray-700">Jármuvek</span>
           </button>
 
           <button
@@ -133,7 +146,7 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <span className="text-sm font-medium text-gray-700">Elozmenyek</span>
+            <span className="text-sm font-medium text-gray-700">Előzmények</span>
           </button>
         </div>
       </div>
