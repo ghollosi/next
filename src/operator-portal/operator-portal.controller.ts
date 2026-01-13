@@ -1423,11 +1423,40 @@ export class OperatorPortalController {
     @Req() req?: Request,
   ) {
     const session = await this.getSession(sessionId, req);
-    return this.bookingService.getAvailableSlots(session.networkId, {
+
+    // Get available slots
+    const slots = await this.bookingService.getAvailableSlots(session.networkId, {
       locationId: session.locationId,
       date,
       vehicleType: vehicleType as any,
     });
+
+    // Get available services for the vehicle type
+    let services: any[] = [];
+    if (vehicleType) {
+      const servicePrices = await this.prisma.servicePrice.findMany({
+        where: {
+          networkId: session.networkId,
+          vehicleType: vehicleType as any,
+          isActive: true,
+        },
+        include: {
+          servicePackage: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { price: 'asc' },
+      });
+
+      services = servicePrices.map((sp) => ({
+        id: sp.servicePackage.id,  // servicePackageId - this is what backend expects
+        name: sp.servicePackage.name,
+        code: sp.servicePackage.code,
+        durationMinutes: sp.durationMinutes,
+        price: Number(sp.price),
+        currency: sp.currency,
+      }));
+    }
+
+    return { slots, services };
   }
 
   @Post('bookings/create')

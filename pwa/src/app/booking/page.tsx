@@ -77,7 +77,7 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [selectedService, setSelectedService] = useState<ServicePackage | null>(null);
   const [plateNumber, setPlateNumber] = useState('');
-  const [vehicleType, setVehicleType] = useState('TRUCK');
+  const [vehicleType, setVehicleType] = useState('CAR');
 
   useEffect(() => {
     const session = getSession();
@@ -174,7 +174,7 @@ export default function BookingPage() {
         },
         body: JSON.stringify({
           locationId: selectedLocation.id,
-          servicePriceId: selectedService.id,
+          servicePackageId: selectedService.id,
           scheduledStart: selectedSlot.startTime,
           vehicleType,
           plateNumber: plateNumber.toUpperCase(),
@@ -437,12 +437,12 @@ export default function BookingPage() {
                     onChange={(e) => setVehicleType(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
-                    <option value="TRUCK">Kamion</option>
+                    <option value="CAR">Személyautó</option>
+                    <option value="VAN">Kisteherautó</option>
+                    <option value="BUS">Busz</option>
+                    <option value="SEMI_TRUCK">Kamion</option>
                     <option value="TRUCK_12T">Kamion 12t</option>
                     <option value="TRAILER">Pótkocsi</option>
-                    <option value="BUS">Busz</option>
-                    <option value="VAN">Kisteherautó</option>
-                    <option value="CAR">Személyautó</option>
                   </select>
                 </div>
 

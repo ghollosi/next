@@ -100,12 +100,12 @@ const dayLabels: Record<string, string> = {
 };
 
 const vehicleTypes = [
-  { value: 'TRUCK', label: 'Kamion' },
+  { value: 'CAR', label: 'Személyautó' },
+  { value: 'VAN', label: 'Kisteherautó' },
+  { value: 'BUS', label: 'Busz' },
+  { value: 'SEMI_TRUCK', label: 'Kamion' },
   { value: 'TRUCK_12T', label: 'Kamion 12t' },
   { value: 'TRAILER', label: 'Pótkocsi' },
-  { value: 'BUS', label: 'Busz' },
-  { value: 'VAN', label: 'Kisteherautó' },
-  { value: 'CAR', label: 'Személyautó' },
 ];
 
 // Napok nevei a JS getDay() függvényhez (0 = vasárnap)
@@ -163,7 +163,7 @@ export default function OperatorBookingsPage() {
     customerName: '',
     customerPhone: '',
     customerEmail: '',
-    vehicleType: 'TRUCK',
+    vehicleType: 'CAR',
     plateNumber: '',
     servicePackageId: '',
     scheduledStart: '',

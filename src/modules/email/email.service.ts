@@ -526,6 +526,173 @@ Kérjük, ellenőrizd és hagyd jóvá a regisztrációt az admin felületen.
     });
   }
 
+  // Foglalás visszaigazoló email
+  async sendBookingConfirmationEmail(
+    networkId: string,
+    to: string,
+    customerName: string,
+    bookingDetails: {
+      bookingCode: string;
+      locationName: string;
+      locationAddress?: string;
+      scheduledStart: Date;
+      scheduledEnd: Date;
+      serviceName: string;
+      vehicleType: string;
+      plateNumber?: string;
+      price: number;
+      currency: string;
+    },
+  ): Promise<boolean> {
+    const vehicleTypeLabels: Record<string, string> = {
+      CAR: 'Személyautó',
+      VAN: 'Kisteherautó',
+      BUS: 'Busz',
+      SEMI_TRUCK: 'Kamion',
+      TRUCK_12T: 'Kamion 12t',
+      TRAILER: 'Pótkocsi',
+    };
+
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('hu-HU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+      });
+    };
+
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const formatPrice = (price: number, currency: string) => {
+      return new Intl.NumberFormat('hu-HU', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0,
+      }).format(price);
+    };
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .code-box { background: white; border: 2px solid #2563eb; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+    .code { font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #2563eb; font-family: monospace; }
+    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #6b7280; }
+    .info-value { font-weight: 600; text-align: right; }
+    .price-row { font-size: 18px; color: #2563eb; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 15px 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Foglalás visszaigazolás</h1>
+      <p>VSys Wash</p>
+    </div>
+    <div class="content">
+      <h2>Kedves ${customerName}!</h2>
+      <p>Foglalásod sikeresen rögzítettük. Az alábbi összefoglalóban találod a részleteket:</p>
+
+      <div class="code-box">
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Foglalási kód</div>
+        <div class="code">${bookingDetails.bookingCode}</div>
+      </div>
+
+      <div class="info-box">
+        <div class="info-row">
+          <span class="info-label">Helyszín</span>
+          <span class="info-value">${bookingDetails.locationName}</span>
+        </div>
+        ${bookingDetails.locationAddress ? `
+        <div class="info-row">
+          <span class="info-label">Cím</span>
+          <span class="info-value">${bookingDetails.locationAddress}</span>
+        </div>
+        ` : ''}
+        <div class="info-row">
+          <span class="info-label">Dátum</span>
+          <span class="info-value">${formatDate(bookingDetails.scheduledStart)}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Időpont</span>
+          <span class="info-value">${formatTime(bookingDetails.scheduledStart)} - ${formatTime(bookingDetails.scheduledEnd)}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Szolgáltatás</span>
+          <span class="info-value">${bookingDetails.serviceName}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Jármű típusa</span>
+          <span class="info-value">${vehicleTypeLabels[bookingDetails.vehicleType] || bookingDetails.vehicleType}</span>
+        </div>
+        ${bookingDetails.plateNumber ? `
+        <div class="info-row">
+          <span class="info-label">Rendszám</span>
+          <span class="info-value">${bookingDetails.plateNumber}</span>
+        </div>
+        ` : ''}
+        <div class="info-row price-row">
+          <span class="info-label">Ár</span>
+          <span class="info-value">${formatPrice(bookingDetails.price, bookingDetails.currency)}</span>
+        </div>
+      </div>
+
+      <div class="warning">
+        <strong>Fontos!</strong> Kérjük, érkezz meg időben a megadott helyszínre. Ha nem tudsz megjelenni, kérjük, mondsd le a foglalást legalább 2 órával az időpont előtt.
+      </div>
+
+      <p>Ha kérdésed van, keress minket bizalommal!</p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Wash. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+Kedves ${customerName}!
+
+Foglalásod sikeresen rögzítettük.
+
+Foglalási kód: ${bookingDetails.bookingCode}
+
+Helyszín: ${bookingDetails.locationName}
+${bookingDetails.locationAddress ? `Cím: ${bookingDetails.locationAddress}` : ''}
+Dátum: ${formatDate(bookingDetails.scheduledStart)}
+Időpont: ${formatTime(bookingDetails.scheduledStart)} - ${formatTime(bookingDetails.scheduledEnd)}
+Szolgáltatás: ${bookingDetails.serviceName}
+Jármű: ${vehicleTypeLabels[bookingDetails.vehicleType] || bookingDetails.vehicleType}
+${bookingDetails.plateNumber ? `Rendszám: ${bookingDetails.plateNumber}` : ''}
+Ár: ${formatPrice(bookingDetails.price, bookingDetails.currency)}
+
+Fontos: Kérjük, érkezz meg időben a megadott helyszínre. Ha nem tudsz megjelenni, kérjük, mondsd le a foglalást legalább 2 órával az időpont előtt.
+
+© ${new Date().getFullYear()} VSys Wash
+    `;
+
+    return this.sendNetworkEmail(networkId, {
+      to,
+      subject: `Foglalás visszaigazolás - ${bookingDetails.bookingCode}`,
+      html,
+      text,
+    });
+  }
+
   // Regisztráció jóváhagyva email
   async sendApprovalEmail(
     to: string,

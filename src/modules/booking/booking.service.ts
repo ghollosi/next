@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { BookingStatus, PaymentStatus, DayOfWeek, Prisma, VehicleType } from '@prisma/client';
 import {
   CreateBookingDto,
@@ -15,7 +16,12 @@ import {
 
 @Injectable()
 export class BookingService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(BookingService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   // =============================================================================
   // BOOKING CRUD
@@ -122,10 +128,37 @@ export class BookingService {
         notes: dto.notes,
       },
       include: {
-        location: { select: { id: true, name: true, code: true, city: true } },
+        location: { select: { id: true, name: true, code: true, city: true, address: true } },
         servicePackage: { select: { id: true, name: true, code: true } },
       },
     });
+
+    // 7. Visszaigazoló email küldése
+    if (dto.customerEmail) {
+      try {
+        await this.emailService.sendBookingConfirmationEmail(
+          networkId,
+          dto.customerEmail,
+          dto.customerName || 'Kedves Ügyfelünk',
+          {
+            bookingCode,
+            locationName: booking.location?.name || location.name,
+            locationAddress: booking.location?.address || location.address || undefined,
+            scheduledStart,
+            scheduledEnd,
+            serviceName: booking.servicePackage?.name || servicePrice.servicePackage.name,
+            vehicleType: dto.vehicleType as string,
+            plateNumber: dto.plateNumber,
+            price: Number(servicePrice.price),
+            currency: servicePrice.currency,
+          },
+        );
+        this.logger.log(`Booking confirmation email sent to ${dto.customerEmail} for booking ${bookingCode}`);
+      } catch (error) {
+        // Email küldési hiba nem akadályozza meg a foglalást
+        this.logger.error(`Failed to send booking confirmation email: ${error.message}`);
+      }
+    }
 
     return booking;
   }
