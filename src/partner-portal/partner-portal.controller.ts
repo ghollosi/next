@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { LoginThrottle } from '../common/throttler/login-throttle.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -23,7 +24,8 @@ import { PartnerCompanyService } from '../modules/partner-company/partner-compan
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, PartnerSessionData } from '../common/session/session.service';
-import { SessionType } from '@prisma/client';
+import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { SessionType, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   setSessionCookie,
@@ -43,6 +45,7 @@ export class PartnerPortalController {
     private readonly washEventService: WashEventService,
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private async getPartnerSession(req: Request): Promise<PartnerSessionData> {
@@ -64,6 +67,7 @@ export class PartnerPortalController {
   }
 
   @Post('login')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Partner login with company code and PIN' })
   @ApiBody({
@@ -80,8 +84,12 @@ export class PartnerPortalController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() body: { code: string; pin: string },
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
     try {
       const partner = await this.partnerCompanyService.findByCode(
         DEFAULT_NETWORK_ID,
@@ -90,11 +98,29 @@ export class PartnerPortalController {
 
       // Verify PIN using bcrypt hash stored in database
       if (!partner.pinHash) {
+        // AUDIT: Log failed login - no PIN configured
+        await this.auditLogService.log({
+          networkId: partner.networkId,
+          action: AuditAction.LOGIN_FAILED,
+          actorType: 'PARTNER',
+          metadata: { partnerCode: body.code.toUpperCase(), partnerId: partner.id, error: 'No PIN configured' },
+          ipAddress,
+          userAgent,
+        });
         throw new UnauthorizedException('Nincs beállítva PIN kód. Kérd a Network Admin-t a PIN beállításához.');
       }
 
       const isValidPin = await bcrypt.compare(body.pin, partner.pinHash);
       if (!isValidPin) {
+        // AUDIT: Log failed login - invalid PIN
+        await this.auditLogService.log({
+          networkId: partner.networkId,
+          action: AuditAction.LOGIN_FAILED,
+          actorType: 'PARTNER',
+          metadata: { partnerCode: body.code.toUpperCase(), partnerId: partner.id, error: 'Invalid PIN' },
+          ipAddress,
+          userAgent,
+        });
         throw new UnauthorizedException('Hibás PIN kód');
       }
 
@@ -117,6 +143,17 @@ export class PartnerPortalController {
       // SECURITY: Set httpOnly cookie for session
       setSessionCookie(res, SESSION_COOKIES.PARTNER, sessionId);
 
+      // AUDIT: Log successful login
+      await this.auditLogService.log({
+        networkId: partner.networkId,
+        action: AuditAction.LOGIN_SUCCESS,
+        actorType: 'PARTNER',
+        actorId: partner.id,
+        metadata: { partnerCode: body.code.toUpperCase(), partnerName: partner.name },
+        ipAddress,
+        userAgent,
+      });
+
       return {
         sessionId,
         partnerId: partner.id,
@@ -127,6 +164,14 @@ export class PartnerPortalController {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
+      // AUDIT: Log failed login - partner not found
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'PARTNER',
+        metadata: { partnerCode: body.code.toUpperCase(), error: 'Partner not found' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hibás partner kód vagy PIN');
     }
   }

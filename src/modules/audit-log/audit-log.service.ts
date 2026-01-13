@@ -3,10 +3,10 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditLog, AuditAction, ActorType } from '@prisma/client';
 
 export interface CreateAuditLogInput {
-  networkId: string;
+  networkId?: string; // Optional for platform-level events
   washEventId?: string;
   action: AuditAction;
-  actorType: 'USER' | 'DRIVER' | 'SYSTEM';
+  actorType: 'USER' | 'DRIVER' | 'SYSTEM' | 'OPERATOR' | 'PARTNER' | 'NETWORK_ADMIN' | 'PLATFORM_ADMIN';
   actorId?: string;
   previousData?: any;
   newData?: any;

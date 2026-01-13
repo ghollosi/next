@@ -13,7 +13,10 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { LoginThrottle } from '../common/throttler/login-throttle.decorator';
 import { Request, Response } from 'express';
+import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { AuditAction } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { LocationService } from '../modules/location/location.service';
@@ -33,6 +36,7 @@ export class OperatorPortalController {
     private readonly locationService: LocationService,
     private readonly billingService: BillingService,
     private readonly sessionService: SessionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // SECURITY: Get session from cookie (httpOnly) or header (backwards compatibility)
@@ -60,11 +64,16 @@ export class OperatorPortalController {
   }
 
   @Post('login')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() body: { locationCode: string; pin: string },
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
     if (!body.locationCode || !body.pin) {
       throw new BadRequestException('Location code and PIN are required');
     }
@@ -88,6 +97,14 @@ export class OperatorPortalController {
     });
 
     if (!location) {
+      // AUDIT: Log failed login - invalid location code
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'OPERATOR',
+        metadata: { locationCode: body.locationCode.toUpperCase(), error: 'Invalid location code' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Invalid location code');
     }
 
@@ -104,6 +121,15 @@ export class OperatorPortalController {
 
     // If no operator found with valid PIN, reject authentication
     if (!authenticatedOperator) {
+      // AUDIT: Log failed login - invalid PIN
+      await this.auditLogService.log({
+        networkId: location.networkId,
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'OPERATOR',
+        metadata: { locationCode: body.locationCode.toUpperCase(), locationId: location.id, error: 'Invalid PIN' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hibás PIN kód. Kérd a Network Admin-t, hogy hozzon létre operátort ehhez a helyszínhez.');
     }
 
@@ -129,6 +155,17 @@ export class OperatorPortalController {
 
     // SECURITY: Set httpOnly cookie for session (XSS protection)
     setSessionCookie(res, SESSION_COOKIES.OPERATOR, sessionId);
+
+    // AUDIT: Log successful login
+    await this.auditLogService.log({
+      networkId: location.networkId,
+      action: AuditAction.LOGIN_SUCCESS,
+      actorType: 'OPERATOR',
+      actorId: authenticatedOperator.id,
+      metadata: { locationCode: body.locationCode.toUpperCase(), locationId: location.id, operatorName: authenticatedOperator.name },
+      ipAddress,
+      userAgent,
+    });
 
     return {
       sessionId,

@@ -5,6 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getNetworkAdminToken, getNetworkAdmin, clearNetworkAdminSession } from '@/lib/network-admin-api';
 import TrialBanner from '@/components/TrialBanner';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
 
 export default function NetworkAdminLayout({
   children,
@@ -20,6 +22,19 @@ export default function NetworkAdminLayout({
     role: string;
     networkName: string;
   } | null>(null);
+
+  const handleLogout = () => {
+    clearNetworkAdminSession();
+    router.push('/network-admin');
+  };
+
+  // SECURITY: Session timeout for automatic logout after inactivity
+  // Must be called unconditionally (React hooks rule)
+  const isLoggedIn = !isLoading && !!admin;
+  const { showWarning, timeRemaining, dismissWarning } = useSessionTimeout({
+    onTimeout: handleLogout,
+    enabled: isLoggedIn,
+  });
 
   useEffect(() => {
     // Skip auth check on login and register pages
@@ -68,13 +83,16 @@ export default function NetworkAdminLayout({
     { href: '/network-admin/settings', label: 'Beállítások', icon: '⚙️' },
   ];
 
-  const handleLogout = () => {
-    clearNetworkAdminSession();
-    router.push('/network-admin');
-  };
-
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* SECURITY: Session timeout warning */}
+      <SessionTimeoutWarning
+        show={showWarning}
+        timeRemaining={timeRemaining}
+        onExtend={dismissWarning}
+        onLogout={handleLogout}
+      />
+
       {/* Trial Banner */}
       <TrialBanner />
 

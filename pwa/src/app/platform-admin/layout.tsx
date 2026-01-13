@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getPlatformToken, getPlatformAdmin, clearPlatformSession } from '@/lib/platform-api';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
 
 export default function PlatformAdminLayout({
   children,
@@ -14,6 +16,19 @@ export default function PlatformAdminLayout({
   const pathname = usePathname();
   const [admin, setAdmin] = useState<{ name: string; email: string; role: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    clearPlatformSession();
+    router.push('/platform-admin');
+  };
+
+  // SECURITY: Session timeout for automatic logout after inactivity
+  // Must be called unconditionally (React hooks rule)
+  const isLoggedIn = pathname !== '/platform-admin' && !!admin;
+  const { showWarning, timeRemaining, dismissWarning } = useSessionTimeout({
+    onTimeout: handleLogout,
+    enabled: isLoggedIn,
+  });
 
   useEffect(() => {
     // Skip auth check on login page
@@ -37,11 +52,6 @@ export default function PlatformAdminLayout({
     return children;
   }
 
-  const handleLogout = () => {
-    clearPlatformSession();
-    router.push('/platform-admin');
-  };
-
   const navigation = [
     { name: 'Dashboard', href: '/platform-admin/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', ownerOnly: false },
     { name: 'Hálózatok', href: '/platform-admin/networks', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', ownerOnly: false },
@@ -52,6 +62,14 @@ export default function PlatformAdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-900">
+      {/* SECURITY: Session timeout warning */}
+      <SessionTimeoutWarning
+        show={showWarning}
+        timeRemaining={timeRemaining}
+        onExtend={dismissWarning}
+        onLogout={handleLogout}
+      />
+
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div

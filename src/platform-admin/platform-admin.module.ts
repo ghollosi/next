@@ -4,11 +4,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PlatformAdminController } from './platform-admin.controller';
 import { PlatformAdminService } from './platform-admin.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
+import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 
 @Module({
   imports: [
     PrismaModule,
     ConfigModule,
+    AuditLogModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

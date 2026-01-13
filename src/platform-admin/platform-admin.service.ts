@@ -8,7 +8,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { PlatformRole, SubscriptionStatus, NetworkRole } from '@prisma/client';
+import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   CreatePlatformAdminDto,
@@ -43,6 +44,7 @@ export class PlatformAdminService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // SECURITY: Get JWT secret with production check
@@ -58,17 +60,34 @@ export class PlatformAdminService {
   // AUTH
   // =========================================================================
 
-  async login(dto: PlatformLoginDto): Promise<PlatformLoginResponseDto> {
+  async login(dto: PlatformLoginDto, ipAddress?: string, userAgent?: string): Promise<PlatformLoginResponseDto> {
     const admin = await this.prisma.platformAdmin.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
 
     if (!admin || !admin.isActive) {
+      // AUDIT: Log failed login - admin not found
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'PLATFORM_ADMIN',
+        metadata: { email: dto.email.toLowerCase(), error: 'Admin not found or inactive' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isPasswordValid) {
+      // AUDIT: Log failed login - invalid password
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'PLATFORM_ADMIN',
+        actorId: admin.id,
+        metadata: { email: dto.email.toLowerCase(), error: 'Invalid password' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
 
@@ -90,6 +109,16 @@ export class PlatformAdminService {
       expiresIn: '24h',
     });
 
+    // AUDIT: Log successful login
+    await this.auditLogService.log({
+      action: AuditAction.LOGIN_SUCCESS,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: admin.id,
+      metadata: { email: dto.email.toLowerCase(), role: admin.role },
+      ipAddress,
+      userAgent,
+    });
+
     return {
       accessToken,
       adminId: admin.id,
@@ -99,7 +128,7 @@ export class PlatformAdminService {
     };
   }
 
-  async createAdmin(dto: CreatePlatformAdminDto): Promise<{ id: string; email: string }> {
+  async createAdmin(dto: CreatePlatformAdminDto, createdByAdminId?: string): Promise<{ id: string; email: string }> {
     const existing = await this.prisma.platformAdmin.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -123,6 +152,15 @@ export class PlatformAdminService {
         role: dto.role || PlatformRole.PLATFORM_ADMIN,
         recoveryEmail: dto.recoveryEmail?.toLowerCase(),
       },
+    });
+
+    // AUDIT: Log admin creation
+    await this.auditLogService.log({
+      action: AuditAction.ADMIN_CREATED,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: createdByAdminId,
+      newData: { id: admin.id, email: admin.email, name: admin.name, role: admin.role },
+      metadata: { targetAdminId: admin.id, targetEmail: admin.email },
     });
 
     return { id: admin.id, email: admin.email };
@@ -210,6 +248,16 @@ export class PlatformAdminService {
       data: updateData,
     });
 
+    // AUDIT: Log admin update
+    await this.auditLogService.log({
+      action: AuditAction.ADMIN_UPDATED,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: currentAdminId,
+      previousData: { name: admin.name, role: admin.role, isActive: admin.isActive },
+      newData: { name: updated.name, role: updated.role, isActive: updated.isActive },
+      metadata: { targetAdminId: adminId, targetEmail: admin.email },
+    });
+
     return {
       id: updated.id,
       email: updated.email,
@@ -253,6 +301,15 @@ export class PlatformAdminService {
 
     await this.prisma.platformAdmin.delete({
       where: { id: adminId },
+    });
+
+    // AUDIT: Log admin deletion
+    await this.auditLogService.log({
+      action: AuditAction.ADMIN_DELETED,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: currentAdminId,
+      previousData: { id: admin.id, email: admin.email, name: admin.name, role: admin.role },
+      metadata: { targetAdminId: adminId, targetEmail: admin.email },
     });
   }
 
@@ -686,10 +743,19 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       });
     }
 
+    // AUDIT: Log network creation
+    await this.auditLogService.log({
+      networkId: network.id,
+      action: AuditAction.CREATE,
+      actorType: 'PLATFORM_ADMIN',
+      newData: { id: network.id, name: network.name, slug: network.slug },
+      metadata: { entityType: 'network', ownerEmail: dto.ownerEmail },
+    });
+
     return this.getNetwork(network.id);
   }
 
-  async updateNetwork(id: string, dto: UpdateNetworkDto): Promise<NetworkDetailDto> {
+  async updateNetwork(id: string, dto: UpdateNetworkDto, updatedByAdminId?: string): Promise<NetworkDetailDto> {
     const network = await this.prisma.network.findUnique({ where: { id } });
 
     if (!network || network.deletedAt) {
@@ -725,10 +791,21 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       data: updateData,
     });
 
+    // AUDIT: Log network update
+    await this.auditLogService.log({
+      networkId: id,
+      action: AuditAction.UPDATE,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: updatedByAdminId,
+      previousData: { name: network.name, isActive: network.isActive, subscriptionStatus: network.subscriptionStatus },
+      newData: { name: dto.name, isActive: dto.isActive, subscriptionStatus: dto.subscriptionStatus },
+      metadata: { entityType: 'network' },
+    });
+
     return this.getNetwork(id);
   }
 
-  async deleteNetwork(id: string): Promise<void> {
+  async deleteNetwork(id: string, deletedByAdminId?: string): Promise<void> {
     const network = await this.prisma.network.findUnique({ where: { id } });
 
     if (!network) {
@@ -763,6 +840,16 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
         },
       });
     }
+
+    // AUDIT: Log network deletion
+    await this.auditLogService.log({
+      networkId: id,
+      action: AuditAction.DELETE,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: deletedByAdminId,
+      previousData: { id: network.id, name: network.name, slug: network.slug },
+      metadata: { entityType: 'network', deletedAdminsCount: admins.length },
+    });
   }
 
   // =========================================================================
@@ -974,8 +1061,57 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
   }
 
   // =========================================================================
-  // NETWORK AUDIT LOGS
+  // AUDIT LOGS
   // =========================================================================
+
+  async getPlatformAuditLogs(
+    options: {
+      action?: string;
+      actorType?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: any[]; total: number }> {
+    const where: any = {
+      networkId: null, // Platform-level events have no networkId
+    };
+
+    if (options?.action) {
+      where.action = options.action;
+    }
+
+    if (options?.actorType) {
+      where.actorType = options.actorType;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: options?.limit || 100,
+        skip: options?.offset || 0,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return {
+      data: data.map((log) => ({
+        id: log.id,
+        action: log.action,
+        actorType: log.actorType,
+        actorId: log.actorId,
+        previousData: log.previousData,
+        newData: log.newData,
+        metadata: log.metadata,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        createdAt: log.createdAt,
+      })),
+      total,
+    };
+  }
 
   async getNetworkAuditLogs(
     networkId: string,

@@ -12,8 +12,10 @@ import {
   HttpStatus,
   UnauthorizedException,
   Res,
+  Req,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
+import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiTags,
@@ -81,6 +83,7 @@ export class NetworkAdminController {
   // =========================================================================
 
   @Post('login')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Network admin login' })
   @ApiResponse({
@@ -88,8 +91,13 @@ export class NetworkAdminController {
     description: 'Login successful',
     type: NetworkAdminLoginResponseDto,
   })
-  async login(@Body() dto: NetworkAdminLoginDto): Promise<NetworkAdminLoginResponseDto> {
-    return this.networkAdminService.login(dto);
+  async login(
+    @Body() dto: NetworkAdminLoginDto,
+    @Req() req: Request,
+  ): Promise<NetworkAdminLoginResponseDto> {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+    return this.networkAdminService.login(dto, ipAddress, userAgent);
   }
 
   // =========================================================================
@@ -97,6 +105,7 @@ export class NetworkAdminController {
   // =========================================================================
 
   @Post('register')
+  @SensitiveThrottle() // SECURITY: Registration limit - 10 attempts per minute
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register new network (open registration)' })
   @ApiResponse({

@@ -16,6 +16,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { LoginThrottle } from '../common/throttler/login-throttle.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -37,7 +38,8 @@ import { NetworkService } from '../modules/network/network.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, DriverSessionData } from '../common/session/session.service';
 import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } from '../common/session/cookie.helper';
-import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType } from '@prisma/client';
+import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType, AuditAction } from '@prisma/client';
 import { ActivateDto, ActivateByPhoneDto, ActivateResponseDto } from './dto/activate.dto';
 import { CreateWashEventPwaDto } from './dto/create-wash-event.dto';
 import {
@@ -75,6 +77,7 @@ export class PwaController {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly sessionService: SessionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -311,6 +314,7 @@ export class PwaController {
   // =========================================================================
 
   @Post('activate')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activate driver account using invite code and PIN' })
   @ApiBody({ type: ActivateDto })
@@ -326,42 +330,68 @@ export class PwaController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ActivateResponseDto & { sessionId: string }> {
-    const driver = await this.driverService.activateByInviteCode(
-      dto.inviteCode.toUpperCase(),
-      dto.pin,
-    );
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
 
-    // Create session and store in database
-    const sessionData: DriverSessionData = {
-      driverId: driver.id,
-      networkId: driver.partnerCompany.networkId,
-      partnerCompanyId: driver.partnerCompany.id,
-    };
+    try {
+      const driver = await this.driverService.activateByInviteCode(
+        dto.inviteCode.toUpperCase(),
+        dto.pin,
+      );
 
-    const sessionId = await this.sessionService.createSession(
-      SessionType.DRIVER,
-      sessionData,
-      {
+      // Create session and store in database
+      const sessionData: DriverSessionData = {
+        driverId: driver.id,
         networkId: driver.partnerCompany.networkId,
-        userId: driver.id,
-      },
-    );
+        partnerCompanyId: driver.partnerCompany.id,
+      };
 
-    // SECURITY: Set httpOnly cookie for session (XSS protection)
-    setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
+      const sessionId = await this.sessionService.createSession(
+        SessionType.DRIVER,
+        sessionData,
+        {
+          networkId: driver.partnerCompany.networkId,
+          userId: driver.id,
+        },
+      );
 
-    return {
-      sessionId,
-      driverId: driver.id,
-      networkId: driver.partnerCompany.networkId,
-      partnerCompanyId: driver.partnerCompany.id,
-      firstName: driver.firstName,
-      lastName: driver.lastName,
-      partnerCompanyName: driver.partnerCompany.name,
-    };
+      // SECURITY: Set httpOnly cookie for session (XSS protection)
+      setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
+
+      // AUDIT: Log successful login
+      await this.auditLogService.log({
+        networkId: driver.partnerCompany.networkId,
+        action: AuditAction.LOGIN_SUCCESS,
+        actorType: 'DRIVER',
+        actorId: driver.id,
+        metadata: { method: 'invite_code', inviteCode: dto.inviteCode.toUpperCase() },
+        ipAddress,
+        userAgent,
+      });
+
+      return {
+        sessionId,
+        driverId: driver.id,
+        networkId: driver.partnerCompany.networkId,
+        partnerCompanyId: driver.partnerCompany.id,
+        firstName: driver.firstName,
+        lastName: driver.lastName,
+        partnerCompanyName: driver.partnerCompany.name,
+      };
+    } catch (error) {
+      // AUDIT: Log failed login attempt
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'DRIVER',
+        metadata: { method: 'invite_code', inviteCode: dto.inviteCode.toUpperCase(), error: error.message },
+        ipAddress,
+        userAgent,
+      });
+      throw error;
+    }
   }
 
   @Post('login-phone')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with phone number and PIN' })
   @ApiBody({ type: ActivateByPhoneDto })
@@ -377,39 +407,66 @@ export class PwaController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ActivateResponseDto & { sessionId: string }> {
-    const driver = await this.driverService.activateByPhone(
-      dto.phone,
-      dto.pin,
-    );
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
+    // Mask phone number for audit log (show last 4 digits only)
+    const maskedPhone = dto.phone.slice(-4).padStart(dto.phone.length, '*');
 
-    // Create session and store in database
-    const sessionData: DriverSessionData = {
-      driverId: driver.id,
-      networkId: driver.partnerCompany.networkId,
-      partnerCompanyId: driver.partnerCompany.id,
-    };
+    try {
+      const driver = await this.driverService.activateByPhone(
+        dto.phone,
+        dto.pin,
+      );
 
-    const sessionId = await this.sessionService.createSession(
-      SessionType.DRIVER,
-      sessionData,
-      {
+      // Create session and store in database
+      const sessionData: DriverSessionData = {
+        driverId: driver.id,
         networkId: driver.partnerCompany.networkId,
-        userId: driver.id,
-      },
-    );
+        partnerCompanyId: driver.partnerCompany.id,
+      };
 
-    // SECURITY: Set httpOnly cookie for session (XSS protection)
-    setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
+      const sessionId = await this.sessionService.createSession(
+        SessionType.DRIVER,
+        sessionData,
+        {
+          networkId: driver.partnerCompany.networkId,
+          userId: driver.id,
+        },
+      );
 
-    return {
-      sessionId,
-      driverId: driver.id,
-      networkId: driver.partnerCompany.networkId,
-      partnerCompanyId: driver.partnerCompany.id,
-      firstName: driver.firstName,
-      lastName: driver.lastName,
-      partnerCompanyName: driver.partnerCompany.name,
-    };
+      // SECURITY: Set httpOnly cookie for session (XSS protection)
+      setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
+
+      // AUDIT: Log successful login
+      await this.auditLogService.log({
+        networkId: driver.partnerCompany.networkId,
+        action: AuditAction.LOGIN_SUCCESS,
+        actorType: 'DRIVER',
+        actorId: driver.id,
+        metadata: { method: 'phone', phone: maskedPhone },
+        ipAddress,
+        userAgent,
+      });
+
+      return {
+        sessionId,
+        driverId: driver.id,
+        networkId: driver.partnerCompany.networkId,
+        partnerCompanyId: driver.partnerCompany.id,
+        firstName: driver.firstName,
+        lastName: driver.lastName,
+        partnerCompanyName: driver.partnerCompany.name,
+      };
+    } catch (error) {
+      // AUDIT: Log failed login attempt
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'DRIVER',
+        metadata: { method: 'phone', phone: maskedPhone, error: error.message },
+        ipAddress,
+        userAgent,
+      });
+      throw error;
+    }
   }
 
   @Get('me')

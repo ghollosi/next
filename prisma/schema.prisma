@@ -179,12 +179,34 @@ enum AuditAction {
   REJECT
   AUTHORIZE
   LOCK
+  // Security events
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_RESET_REQUEST
+  PASSWORD_RESET_COMPLETE
+  SESSION_CREATED
+  SESSION_EXPIRED
+  RATE_LIMITED
+  // Admin events
+  ADMIN_CREATED
+  ADMIN_UPDATED
+  ADMIN_DELETED
+  PERMISSION_CHANGED
+  // Data events
+  DELETE
+  EXPORT
+  IMPORT
 }
 
 enum ActorType {
   USER
   SYSTEM
   DRIVER
+  OPERATOR
+  PARTNER
+  NETWORK_ADMIN
+  PLATFORM_ADMIN
 }
 
 enum BillingType {
@@ -658,26 +680,27 @@ model WashEvent {
 
 model AuditLog {
   id           String      @id @default(uuid())
-  networkId    String      @map("network_id")
+  networkId    String?     @map("network_id") // Optional for platform-level events
   washEventId  String?     @map("wash_event_id")
   action       AuditAction
   actorType    ActorType   @map("actor_type")
   actorId      String?     @map("actor_id") // User ID, Driver ID, or null for SYSTEM
   previousData Json?       @map("previous_data")
   newData      Json?       @map("new_data")
-  metadata     Json?       // Additional context
+  metadata     Json?       // Additional context (email, endpoint, etc.)
   ipAddress    String?     @map("ip_address")
   userAgent    String?     @map("user_agent")
   createdAt    DateTime    @default(now())
 
   // Relations
-  network   Network    @relation(fields: [networkId], references: [id])
+  network   Network?   @relation(fields: [networkId], references: [id])
   washEvent WashEvent? @relation(fields: [washEventId], references: [id])
 
   @@index([networkId])
   @@index([washEventId])
   @@index([action])
   @@index([actorType])
+  @@index([actorId])
   @@index([createdAt])
   @@map("audit_logs")
 }

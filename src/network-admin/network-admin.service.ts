@@ -11,7 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import {
@@ -55,13 +55,21 @@ export class NetworkAdminService {
   // AUTH
   // =========================================================================
 
-  async login(dto: NetworkAdminLoginDto): Promise<NetworkAdminLoginResponseDto> {
+  async login(dto: NetworkAdminLoginDto, ipAddress?: string, userAgent?: string): Promise<NetworkAdminLoginResponseDto> {
     // Find network by slug
     const network = await this.prisma.network.findUnique({
       where: { slug: dto.slug.toLowerCase() },
     });
 
     if (!network || network.deletedAt || !network.isActive) {
+      // AUDIT: Log failed login - network not found
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'NETWORK_ADMIN',
+        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Network not found or inactive' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hálózat nem található vagy inaktív');
     }
 
@@ -75,16 +83,45 @@ export class NetworkAdminService {
     });
 
     if (!admin || !admin.isActive) {
+      // AUDIT: Log failed login - admin not found
+      await this.auditLogService.log({
+        networkId: network.id,
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'NETWORK_ADMIN',
+        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Admin not found or inactive' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isPasswordValid) {
+      // AUDIT: Log failed login - invalid password
+      await this.auditLogService.log({
+        networkId: network.id,
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'NETWORK_ADMIN',
+        actorId: admin.id,
+        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Invalid password' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
 
     // Check email verification
     if (!admin.emailVerified) {
+      // AUDIT: Log failed login - email not verified
+      await this.auditLogService.log({
+        networkId: network.id,
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'NETWORK_ADMIN',
+        actorId: admin.id,
+        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Email not verified' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('EMAIL_NOT_VERIFIED');
     }
 
@@ -105,6 +142,17 @@ export class NetworkAdminService {
     const accessToken = this.jwtService.sign(payload, {
       secret: this.getJwtSecret(),
       expiresIn: '24h',
+    });
+
+    // AUDIT: Log successful login
+    await this.auditLogService.log({
+      networkId: network.id,
+      action: AuditAction.LOGIN_SUCCESS,
+      actorType: 'NETWORK_ADMIN',
+      actorId: admin.id,
+      metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), role: admin.role },
+      ipAddress,
+      userAgent,
     });
 
     return {

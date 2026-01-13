@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
 
 const API_URL = 'https://api.vemiax.com';
 
@@ -149,6 +151,12 @@ export default function OperatorDashboardPage() {
     router.replace('/operator-portal/login');
   };
 
+  // SECURITY: Session timeout for automatic logout after inactivity
+  const { showWarning, timeRemaining, dismissWarning } = useSessionTimeout({
+    onTimeout: handleLogout,
+    enabled: !!operatorInfo,
+  });
+
   const getDriverName = (event: WashEvent) => {
     if (event.driver) {
       return `${event.driver.firstName} ${event.driver.lastName}`;
@@ -202,6 +210,14 @@ export default function OperatorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* SECURITY: Session timeout warning */}
+      <SessionTimeoutWarning
+        show={showWarning}
+        timeRemaining={timeRemaining}
+        onExtend={dismissWarning}
+        onLogout={handleLogout}
+      />
+
       {/* Header */}
       <header className="bg-green-600 text-white px-4 py-4 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

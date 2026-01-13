@@ -12,7 +12,10 @@ import {
   HttpStatus,
   UnauthorizedException,
   UseGuards,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
+import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -85,6 +88,7 @@ export class PlatformAdminController {
   // =========================================================================
 
   @Post('login')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Platform admin login' })
   @ApiResponse({
@@ -93,8 +97,13 @@ export class PlatformAdminController {
     type: PlatformLoginResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: PlatformLoginDto): Promise<PlatformLoginResponseDto> {
-    return this.platformAdminService.login(dto);
+  async login(
+    @Body() dto: PlatformLoginDto,
+    @Req() req: Request,
+  ): Promise<PlatformLoginResponseDto> {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+    return this.platformAdminService.login(dto, ipAddress, userAgent);
   }
 
   @Post('admins')
@@ -108,8 +117,8 @@ export class PlatformAdminController {
     @Body() dto: CreatePlatformAdminDto,
     @Headers('authorization') auth?: string,
   ): Promise<{ id: string; email: string }> {
-    await this.validateOwner(auth);
-    return this.platformAdminService.createAdmin(dto);
+    const { adminId } = await this.validateOwner(auth);
+    return this.platformAdminService.createAdmin(dto, adminId);
   }
 
   @Get('admins')
@@ -178,6 +187,7 @@ export class PlatformAdminController {
   // =========================================================================
 
   @Post('request-password-reset')
+  @SensitiveThrottle() // SECURITY: Password reset limit - 10 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset (public)' })
   @ApiResponse({ status: 200, description: 'Reset email sent if account exists' })
@@ -188,6 +198,7 @@ export class PlatformAdminController {
   }
 
   @Post('reset-password')
+  @SensitiveThrottle() // SECURITY: Password reset limit - 10 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password with token (public)' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
@@ -218,6 +229,7 @@ export class PlatformAdminController {
   }
 
   @Post('emergency-login')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with emergency token (public)' })
   @ApiResponse({
@@ -305,6 +317,29 @@ export class PlatformAdminController {
     return this.platformAdminService.listNetworks();
   }
 
+  @Get('audit-logs')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get platform-level audit logs (no network)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of platform audit logs',
+  })
+  async getPlatformAuditLogs(
+    @Query('action') action?: string,
+    @Query('actorType') actorType?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<{ data: any[]; total: number }> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.getPlatformAuditLogs({
+      action: action as any,
+      actorType: actorType as any,
+      limit: limit ? parseInt(limit, 10) : 100,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
+  }
+
   @Get('networks/:networkId/audit-logs')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get audit logs for a network' })
@@ -379,8 +414,8 @@ export class PlatformAdminController {
     @Body() dto: UpdateNetworkDto,
     @Headers('authorization') auth?: string,
   ): Promise<NetworkDetailDto> {
-    await this.validateAuth(auth);
-    return this.platformAdminService.updateNetwork(id, dto);
+    const { adminId } = await this.validateAuth(auth);
+    return this.platformAdminService.updateNetwork(id, dto, adminId);
   }
 
   @Delete('networks/:id')
@@ -392,8 +427,8 @@ export class PlatformAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    await this.validateOwner(auth);
-    return this.platformAdminService.deleteNetwork(id);
+    const { adminId } = await this.validateOwner(auth);
+    return this.platformAdminService.deleteNetwork(id, adminId);
   }
 
   // =========================================================================

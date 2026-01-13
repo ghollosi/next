@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { platformApi, getPlatformToken } from '@/lib/platform-api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_URL = 'https://api.vemiax.com';
 
 interface Network {
   id: string;
@@ -28,38 +28,56 @@ interface AuditLog {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  WASH_CREATED: 'Mosas letrehozva',
-  WASH_STARTED: 'Mosas elkezdve',
-  WASH_COMPLETED: 'Mosas befejezve',
-  WASH_CANCELLED: 'Mosas visszavonva',
-  WASH_LOCKED: 'Mosas lezarva',
-  PRICE_CHANGED: 'Ar modositva',
-  PARTNER_CREATED: 'Partner letrehozva',
-  PARTNER_UPDATED: 'Partner frissitve',
-  DRIVER_CREATED: 'Sofor letrehozva',
-  DRIVER_UPDATED: 'Sofor frissitve',
-  LOCATION_CREATED: 'Helyszin letrehozva',
-  LOCATION_UPDATED: 'Helyszin frissitve',
-  INVOICE_GENERATED: 'Szamla generalva',
-  INVOICE_SENT: 'Szamla elkuldve',
-  SETTINGS_UPDATED: 'Beallitasok frissitve',
+  // Wash events
+  CREATE: 'Letrehozas',
+  UPDATE: 'Frissites',
+  START: 'Inditas',
+  COMPLETE: 'Befejezve',
+  REJECT: 'Elutasitva',
+  AUTHORIZE: 'Engedelyezve',
+  LOCK: 'Lezarva',
+  DELETE: 'Torles',
+  // Security events
+  LOGIN_SUCCESS: 'Sikeres bejelentkezes',
+  LOGIN_FAILED: 'Sikertelen bejelentkezes',
+  LOGOUT: 'Kijelentkezes',
+  PASSWORD_RESET_REQUEST: 'Jelszo visszaallitas keres',
+  PASSWORD_RESET_COMPLETE: 'Jelszo visszaallitva',
+  SESSION_CREATED: 'Session letrehozva',
+  SESSION_EXPIRED: 'Session lejart',
+  RATE_LIMITED: 'Rate limit tullepve',
+  // Admin events
+  ADMIN_CREATED: 'Admin letrehozva',
+  ADMIN_UPDATED: 'Admin frissitve',
+  ADMIN_DELETED: 'Admin torolve',
+  PERMISSION_CHANGED: 'Jogosultsag valtozas',
+  // Data events
+  EXPORT: 'Export',
+  IMPORT: 'Import',
 };
 
 const ACTOR_TYPE_LABELS: Record<string, string> = {
   USER: 'Felhasznalo',
   DRIVER: 'Sofor',
   SYSTEM: 'Rendszer',
+  OPERATOR: 'Operator',
+  PARTNER: 'Partner',
+  NETWORK_ADMIN: 'Network Admin',
+  PLATFORM_ADMIN: 'Platform Admin',
 };
 
 export default function PlatformAuditLogsPage() {
   const [networks, setNetworks] = useState<Network[]>([]);
   const [selectedNetwork, setSelectedNetwork] = useState<string>('');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [platformLogs, setPlatformLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [logsLoading, setLogsLoading] = useState(false);
   const [error, setError] = useState('');
   const [total, setTotal] = useState(0);
+  const [platformTotal, setPlatformTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState<'platform' | 'network'>('platform');
   const limit = 50;
 
   // Filters
@@ -68,13 +86,16 @@ export default function PlatformAuditLogsPage() {
 
   useEffect(() => {
     loadNetworks();
+    loadPlatformLogs();
   }, []);
 
   useEffect(() => {
-    if (selectedNetwork) {
+    if (viewMode === 'platform') {
+      loadPlatformLogs();
+    } else if (selectedNetwork) {
       loadAuditLogs();
     }
-  }, [selectedNetwork, page, actionFilter, actorTypeFilter]);
+  }, [selectedNetwork, page, actionFilter, actorTypeFilter, viewMode]);
 
   async function loadNetworks() {
     try {
@@ -85,6 +106,43 @@ export default function PlatformAuditLogsPage() {
       setError(err.message || 'Halozatok betoltese sikertelen');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPlatformLogs() {
+    try {
+      setLogsLoading(true);
+      setError('');
+
+      const token = getPlatformToken();
+      const params = new URLSearchParams();
+      params.append('limit', limit.toString());
+      params.append('offset', ((page - 1) * limit).toString());
+      if (actionFilter) params.append('action', actionFilter);
+      if (actorTypeFilter) params.append('actorType', actorTypeFilter);
+
+      const response = await fetch(
+        `${API_URL}/platform-admin/audit-logs?${params}`,
+        {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Platform audit naplo betoltese sikertelen');
+      }
+
+      const data = await response.json();
+      setPlatformLogs(data.data || []);
+      setPlatformTotal(data.total || 0);
+    } catch (err: any) {
+      setError(err.message || 'Platform audit naplo betoltese sikertelen');
+    } finally {
+      setLogsLoading(false);
     }
   }
 
@@ -105,6 +163,7 @@ export default function PlatformAuditLogsPage() {
       const response = await fetch(
         `${API_URL}/platform-admin/networks/${selectedNetwork}/audit-logs?${params}`,
         {
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -137,7 +196,7 @@ export default function PlatformAuditLogsPage() {
     }
   }
 
-  const totalPages = Math.ceil(total / limit);
+  // totalPages calculated inline for both views
 
   if (loading) {
     return (
@@ -152,32 +211,51 @@ export default function PlatformAuditLogsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Audit naplo</h1>
-        <p className="text-gray-400 mt-1">Halozatok audit naploinak megtekintese</p>
+        <p className="text-gray-400 mt-1">Platform es halozat szintu esemenyek megtekintese</p>
       </div>
 
-      {/* Network selector */}
+      {/* View mode selector */}
       <div className="bg-gray-800 rounded-xl p-4">
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Valassz halozatot
-        </label>
-        <select
-          value={selectedNetwork}
-          onChange={(e) => {
-            setSelectedNetwork(e.target.value);
-            setPage(1);
-          }}
-          className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        >
-          <option value="">Valassz...</option>
-          {networks.map((network) => (
-            <option key={network.id} value={network.id}>
-              {network.name} ({network.slug})
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => { setViewMode('platform'); setPage(1); }}
+            className={`px-4 py-2 rounded-lg transition-colors ${viewMode === 'platform' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+          >
+            Platform esemenyek
+          </button>
+          <button
+            onClick={() => { setViewMode('network'); setPage(1); }}
+            className={`px-4 py-2 rounded-lg transition-colors ${viewMode === 'network' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+          >
+            Halozat esemenyek
+          </button>
+        </div>
+
+        {viewMode === 'network' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Valassz halozatot
+            </label>
+            <select
+              value={selectedNetwork}
+              onChange={(e) => {
+                setSelectedNetwork(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Valassz...</option>
+              {networks.map((network) => (
+                <option key={network.id} value={network.id}>
+                  {network.name} ({network.slug})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {selectedNetwork && (
+      {(viewMode === 'platform' || selectedNetwork) && (
         <>
           {/* Filters */}
           <div className="bg-gray-800 rounded-xl p-4">
@@ -240,16 +318,16 @@ export default function PlatformAuditLogsPage() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-gray-800 rounded-xl p-4">
-              <div className="text-2xl font-bold text-white">{total}</div>
+              <div className="text-2xl font-bold text-white">{viewMode === 'platform' ? platformTotal : total}</div>
               <div className="text-sm text-gray-400">Osszes bejegyzes</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4">
-              <div className="text-2xl font-bold text-white">{auditLogs.length}</div>
+              <div className="text-2xl font-bold text-white">{viewMode === 'platform' ? platformLogs.length : auditLogs.length}</div>
               <div className="text-sm text-gray-400">Megjelenitett</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4">
               <div className="text-2xl font-bold text-white">{page}</div>
-              <div className="text-sm text-gray-400">Oldal / {totalPages || 1}</div>
+              <div className="text-sm text-gray-400">Oldal / {Math.ceil((viewMode === 'platform' ? platformTotal : total) / limit) || 1}</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4">
               <div className="text-2xl font-bold text-white">{networks.length}</div>
@@ -268,9 +346,9 @@ export default function PlatformAuditLogsPage() {
           <div className="bg-gray-800 rounded-xl overflow-hidden">
             {logsLoading ? (
               <div className="p-8 text-center text-gray-400">Betoltes...</div>
-            ) : auditLogs.length === 0 ? (
+            ) : (viewMode === 'platform' ? platformLogs : auditLogs).length === 0 ? (
               <div className="p-8 text-center text-gray-400">
-                Nincs talalat a megadott szurokkel
+                {viewMode === 'network' && !selectedNetwork ? 'Valassz halozatot' : 'Nincs talalat a megadott szurokkel'}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -295,7 +373,7 @@ export default function PlatformAuditLogsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {auditLogs.map((log) => (
+                    {(viewMode === 'platform' ? platformLogs : auditLogs).map((log) => (
                       <tr key={log.id} className="hover:bg-gray-700/50">
                         <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">
                           {new Date(log.createdAt).toLocaleString('hu-HU')}
@@ -346,35 +424,39 @@ export default function PlatformAuditLogsPage() {
             )}
 
             {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="px-4 py-3 border-t border-gray-700 flex items-center justify-between">
-                <div className="text-sm text-gray-400">
-                  {(page - 1) * limit + 1} - {Math.min(page * limit, total)} / {total}
+            {(() => {
+              const currentTotal = viewMode === 'platform' ? platformTotal : total;
+              const currentTotalPages = Math.ceil(currentTotal / limit);
+              return currentTotalPages > 1 && (
+                <div className="px-4 py-3 border-t border-gray-700 flex items-center justify-between">
+                  <div className="text-sm text-gray-400">
+                    {(page - 1) * limit + 1} - {Math.min(page * limit, currentTotal)} / {currentTotal}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
+                    >
+                      Elozo
+                    </button>
+                    <button
+                      onClick={() => setPage(p => Math.min(currentTotalPages, p + 1))}
+                      disabled={page === currentTotalPages}
+                      className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
+                    >
+                      Kovetkezo
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
-                  >
-                    Elozo
-                  </button>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
-                  >
-                    Kovetkezo
-                  </button>
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </>
       )}
 
-      {/* Info box when no network selected */}
-      {!selectedNetwork && (
+      {/* Info box when no network selected in network mode */}
+      {viewMode === 'network' && !selectedNetwork && (
         <div className="bg-gray-800 rounded-xl p-8 text-center">
           <div className="text-gray-400 mb-2">
             Valassz egy halozatot az audit naplo megtekinteshez

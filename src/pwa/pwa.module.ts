@@ -8,6 +8,7 @@ import { LocationModule } from '../modules/location/location.module';
 import { PartnerCompanyModule } from '../modules/partner-company/partner-company.module';
 import { NotificationModule } from '../modules/notification/notification.module';
 import { NetworkModule } from '../modules/network/network.module';
+import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { PrismaModule } from '../common/prisma/prisma.module';
     PartnerCompanyModule,
     NotificationModule,
     NetworkModule,
+    AuditLogModule,
   ],
   controllers: [PwaController],
 })
