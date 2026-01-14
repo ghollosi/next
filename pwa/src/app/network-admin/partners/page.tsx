@@ -56,12 +56,12 @@ export default function PartnersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Partner cégek</h1>
           <p className="text-gray-500">Fuvarozó cégek kezelése</p>
         </div>
-        <button
+        <Link
+          href="/network-admin/partners/new"
           className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-          onClick={() => alert('Új partner cég - hamarosan')}
         >
-          + Új partner
-        </button>
+          + Uj partner
+        </Link>
       </div>
 
       {/* Search */}
