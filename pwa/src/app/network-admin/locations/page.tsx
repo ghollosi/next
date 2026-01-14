@@ -210,22 +210,30 @@ export default function LocationsPage() {
               {location.openingHours && (
                 <div className="mb-3">
                   <div className="flex gap-1">
-                    {parseOpeningHours(location.openingHours).map(({ abbrev, isOpen, time }) => (
-                      <div
-                        key={abbrev}
-                        className={`flex-1 text-center py-1 px-0.5 rounded text-xs ${
-                          isOpen
-                            ? 'bg-green-50 text-green-700'
-                            : 'bg-red-50 text-red-500'
-                        }`}
-                        title={`${abbrev}: ${time}`}
-                      >
-                        <div className="font-medium">{abbrev}</div>
-                        <div className={`text-[10px] ${isOpen ? 'text-green-600' : 'text-red-400'}`}>
-                          {isOpen ? time.split('-')[0] : '-'}
+                    {parseOpeningHours(location.openingHours).map(({ abbrev, isOpen, time }) => {
+                      const [openTime, closeTime] = time.split('-');
+                      return (
+                        <div
+                          key={abbrev}
+                          className={`flex-1 text-center py-1 px-0.5 rounded text-xs ${
+                            isOpen
+                              ? 'bg-green-50 text-green-700'
+                              : 'bg-red-50 text-red-500'
+                          }`}
+                          title={`${abbrev}: ${time}`}
+                        >
+                          <div className="font-medium">{abbrev}</div>
+                          {isOpen ? (
+                            <>
+                              <div className="text-[10px] text-green-600">{openTime}</div>
+                              <div className="text-[10px] text-green-600">{closeTime}</div>
+                            </>
+                          ) : (
+                            <div className="text-[10px] text-red-400">-</div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
