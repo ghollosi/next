@@ -1038,7 +1038,7 @@ Vemiax csapata`;
       const network = await this.prisma.network.findUnique({
         where: { id: networkId },
         include: {
-          admins: {
+          networkAdmins: {
             where: { isActive: true },
             select: { email: true, name: true },
           },
@@ -1047,7 +1047,7 @@ Vemiax csapata`;
 
       if (!network) return;
 
-      const adminEmails = network.admins.map(a => a.email).filter(Boolean);
+      const adminEmails = network.networkAdmins.map((a: { email: string }) => a.email).filter(Boolean);
       const locationEmails = location.email ? [location.email] : [];
 
       const allRecipients = [...new Set([...adminEmails, ...locationEmails])];
