@@ -384,6 +384,21 @@ export class PlatformAdminController {
     return this.platformAdminService.getNetwork(id);
   }
 
+  @Get('networks/:id/locations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List network locations' })
+  @ApiResponse({
+    status: 200,
+    description: 'Network locations list',
+  })
+  async listNetworkLocations(
+    @Param('id') id: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any[]> {
+    await this.validateAuth(auth);
+    return this.platformAdminService.listNetworkLocations(id);
+  }
+
   @Post('networks')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()

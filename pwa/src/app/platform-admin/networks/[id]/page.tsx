@@ -53,6 +53,30 @@ interface NetworkAdmin {
   createdAt: string;
 }
 
+interface NetworkLocation {
+  id: string;
+  name: string;
+  code: string;
+  address?: string;
+  city?: string;
+  zipCode?: string;
+  email?: string;
+  phone?: string;
+  operationType: 'OWN' | 'SUBCONTRACTOR';
+  isActive: boolean;
+  washEventCount: number;
+  // Alvállalkozói adatok
+  subcontractorCompanyName?: string;
+  subcontractorTaxNumber?: string;
+  subcontractorAddress?: string;
+  subcontractorCity?: string;
+  subcontractorZipCode?: string;
+  subcontractorContactName?: string;
+  subcontractorContactPhone?: string;
+  subcontractorContactEmail?: string;
+  subcontractorBankAccount?: string;
+}
+
 export default function NetworkDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -62,11 +86,13 @@ export default function NetworkDetailPage() {
 
   const [network, setNetwork] = useState<NetworkDetail | null>(null);
   const [admins, setAdmins] = useState<NetworkAdmin[]>([]);
+  const [locations, setLocations] = useState<NetworkLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'pricing' | 'billing' | 'admins'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'pricing' | 'billing' | 'admins' | 'locations'>('details');
+  const [selectedLocation, setSelectedLocation] = useState<NetworkLocation | null>(null);
 
   // Edit form state
   const [editMode, setEditMode] = useState(false);
@@ -108,12 +134,14 @@ export default function NetworkDetailPage() {
   const loadNetwork = async () => {
     try {
       setLoading(true);
-      const [networkData, adminsData] = await Promise.all([
+      const [networkData, adminsData, locationsData] = await Promise.all([
         platformApi.getNetwork(networkId),
         platformApi.listNetworkAdmins(networkId),
+        platformApi.listNetworkLocations(networkId),
       ]);
       setNetwork(networkData);
       setAdmins(adminsData);
+      setLocations(locationsData);
 
       // Initialize form fields
       setName(networkData.name);
@@ -477,6 +505,16 @@ export default function NetworkDetailPage() {
             }`}
           >
             Adminok ({admins.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('locations')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'locations'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            Helyszínek ({locations.length})
           </button>
         </nav>
       </div>
@@ -990,6 +1028,183 @@ export default function NetworkDetailPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Locations tab */}
+      {activeTab === 'locations' && (
+        <div className="space-y-4">
+          <div className="bg-gray-800 rounded-xl overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Név</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Cím</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Email</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Típus</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Státusz</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Mosások</th>
+                  <th className="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {locations.map((location) => (
+                  <tr key={location.id} className="hover:bg-gray-700/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="text-white font-medium">{location.name}</div>
+                      <div className="text-gray-500 text-xs font-mono">{location.code}</div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-300 text-sm">
+                      {location.address && <div>{location.address}</div>}
+                      {location.city && <div>{location.zipCode} {location.city}</div>}
+                    </td>
+                    <td className="px-6 py-4 text-gray-300 text-sm">{location.email || '-'}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        location.operationType === 'OWN' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'
+                      }`}>
+                        {location.operationType === 'OWN' ? 'Saját' : 'Alvállalkozó'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        location.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {location.isActive ? 'Aktív' : 'Inaktív'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-300">{location.washEventCount.toLocaleString('hu-HU')}</td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => setSelectedLocation(location)}
+                        className="text-indigo-400 hover:text-indigo-300 text-sm"
+                      >
+                        Részletek
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {locations.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                      Még nincs helyszín
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Location detail modal */}
+      {selectedLocation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{selectedLocation.name}</h2>
+                <p className="text-sm text-gray-400 font-mono">{selectedLocation.code}</p>
+              </div>
+              <button onClick={() => setSelectedLocation(null)} className="text-gray-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Alapadatok */}
+              <div>
+                <h3 className="text-md font-semibold text-white mb-3">Alapadatok</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-400">Cím:</span>
+                    <p className="text-white">{selectedLocation.address || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Város:</span>
+                    <p className="text-white">{selectedLocation.zipCode} {selectedLocation.city || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Email:</span>
+                    <p className="text-white">{selectedLocation.email || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Telefon:</span>
+                    <p className="text-white">{selectedLocation.phone || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Típus:</span>
+                    <p className={selectedLocation.operationType === 'OWN' ? 'text-blue-400' : 'text-orange-400'}>
+                      {selectedLocation.operationType === 'OWN' ? 'Saját üzemeltetés' : 'Alvállalkozó'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Státusz:</span>
+                    <p className={selectedLocation.isActive ? 'text-green-400' : 'text-red-400'}>
+                      {selectedLocation.isActive ? 'Aktív' : 'Inaktív'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Összes mosás:</span>
+                    <p className="text-white">{selectedLocation.washEventCount.toLocaleString('hu-HU')}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Alvállalkozói cégadatok */}
+              {selectedLocation.operationType === 'SUBCONTRACTOR' && (
+                <div className="pt-4 border-t border-gray-700">
+                  <h3 className="text-md font-semibold text-white mb-3">Alvállalkozó cégadatok</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-400">Cégnév:</span>
+                      <p className="text-white">{selectedLocation.subcontractorCompanyName || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Adószám:</span>
+                      <p className="text-white">{selectedLocation.subcontractorTaxNumber || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Székhely:</span>
+                      <p className="text-white">
+                        {selectedLocation.subcontractorAddress || '-'}
+                        {selectedLocation.subcontractorCity && (
+                          <>, {selectedLocation.subcontractorZipCode} {selectedLocation.subcontractorCity}</>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Bankszámla:</span>
+                      <p className="text-white">{selectedLocation.subcontractorBankAccount || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Kapcsolattartó:</span>
+                      <p className="text-white">{selectedLocation.subcontractorContactName || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Kapcs. telefon:</span>
+                      <p className="text-white">{selectedLocation.subcontractorContactPhone || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Kapcs. email:</span>
+                      <p className="text-white">{selectedLocation.subcontractorContactEmail || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-700 flex justify-end">
+              <button
+                onClick={() => setSelectedLocation(null)}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Bezárás
+              </button>
+            </div>
           </div>
         </div>
       )}

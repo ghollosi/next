@@ -419,6 +419,17 @@ model Location {
   minBookingNoticeHours Int     @default(1) @map("min_booking_notice_hours")   // Minimum előfoglalási idő órában
   maxBookingAdvanceDays Int     @default(30) @map("max_booking_advance_days")  // Maximum hány napra előre foglalható
 
+  // Alvállalkozói cégadatok (csak SUBCONTRACTOR típusnál)
+  subcontractorCompanyName  String? @map("subcontractor_company_name")  // Cégnév
+  subcontractorTaxNumber    String? @map("subcontractor_tax_number")    // Adószám
+  subcontractorAddress      String? @map("subcontractor_address")       // Székhely cím
+  subcontractorCity         String? @map("subcontractor_city")          // Város
+  subcontractorZipCode      String? @map("subcontractor_zip_code")      // Irányítószám
+  subcontractorContactName  String? @map("subcontractor_contact_name")  // Kapcsolattartó neve
+  subcontractorContactPhone String? @map("subcontractor_contact_phone") // Kapcsolattartó telefonszáma
+  subcontractorContactEmail String? @map("subcontractor_contact_email") // Kapcsolattartó email címe
+  subcontractorBankAccount  String? @map("subcontractor_bank_account")  // Bankszámlaszám
+
   // Relations
   network                     Network                       @relation(fields: [networkId], references: [id])
   serviceAvailability         LocationServiceAvailability[]

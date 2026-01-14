@@ -1386,4 +1386,74 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
 
     return { results };
   }
+
+  // =========================================================================
+  // NETWORK LOCATIONS (Platform Admin számára)
+  // =========================================================================
+
+  async listNetworkLocations(networkId: string): Promise<any[]> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+    });
+
+    if (!network || network.deletedAt) {
+      throw new NotFoundException('Network nem található');
+    }
+
+    const locations = await this.prisma.location.findMany({
+      where: { networkId, deletedAt: null },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        address: true,
+        city: true,
+        zipCode: true,
+        email: true,
+        phone: true,
+        operationType: true,
+        isActive: true,
+        // Alvállalkozói cégadatok
+        subcontractorCompanyName: true,
+        subcontractorTaxNumber: true,
+        subcontractorAddress: true,
+        subcontractorCity: true,
+        subcontractorZipCode: true,
+        subcontractorContactName: true,
+        subcontractorContactPhone: true,
+        subcontractorContactEmail: true,
+        subcontractorBankAccount: true,
+        _count: {
+          select: {
+            washEvents: true,
+          },
+        },
+      },
+    });
+
+    return locations.map(loc => ({
+      id: loc.id,
+      name: loc.name,
+      code: loc.code,
+      address: loc.address,
+      city: loc.city,
+      zipCode: loc.zipCode,
+      email: loc.email,
+      phone: loc.phone,
+      operationType: loc.operationType,
+      isActive: loc.isActive,
+      washEventCount: loc._count.washEvents,
+      // Alvállalkozói cégadatok
+      subcontractorCompanyName: loc.subcontractorCompanyName,
+      subcontractorTaxNumber: loc.subcontractorTaxNumber,
+      subcontractorAddress: loc.subcontractorAddress,
+      subcontractorCity: loc.subcontractorCity,
+      subcontractorZipCode: loc.subcontractorZipCode,
+      subcontractorContactName: loc.subcontractorContactName,
+      subcontractorContactPhone: loc.subcontractorContactPhone,
+      subcontractorContactEmail: loc.subcontractorContactEmail,
+      subcontractorBankAccount: loc.subcontractorBankAccount,
+    }));
+  }
 }

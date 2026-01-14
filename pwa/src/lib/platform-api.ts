@@ -322,6 +322,10 @@ export const platformApi = {
     return fetchWithAuth(`/platform-admin/networks/${id}`);
   },
 
+  async listNetworkLocations(networkId: string): Promise<any[]> {
+    return fetchWithAuth(`/platform-admin/networks/${networkId}/locations`);
+  },
+
   async createNetwork(data: {
     name: string;
     slug: string;

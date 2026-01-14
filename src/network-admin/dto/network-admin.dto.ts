@@ -422,6 +422,52 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsEnum(OperationType)
   operationType?: OperationType;
+
+  // Alvállalkozói cégadatok (csak SUBCONTRACTOR típusnál)
+  @ApiPropertyOptional({ description: 'Subcontractor company name' })
+  @IsOptional()
+  @IsString()
+  subcontractorCompanyName?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor tax number' })
+  @IsOptional()
+  @IsString()
+  subcontractorTaxNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor address' })
+  @IsOptional()
+  @IsString()
+  subcontractorAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor city' })
+  @IsOptional()
+  @IsString()
+  subcontractorCity?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor zip code' })
+  @IsOptional()
+  @IsString()
+  subcontractorZipCode?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor contact name' })
+  @IsOptional()
+  @IsString()
+  subcontractorContactName?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor contact phone' })
+  @IsOptional()
+  @IsString()
+  subcontractorContactPhone?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor contact email' })
+  @IsOptional()
+  @IsString()
+  subcontractorContactEmail?: string;
+
+  @ApiPropertyOptional({ description: 'Subcontractor bank account' })
+  @IsOptional()
+  @IsString()
+  subcontractorBankAccount?: string;
 }
 
 // ============================================================================

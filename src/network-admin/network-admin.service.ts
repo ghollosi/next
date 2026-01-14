@@ -1138,6 +1138,16 @@ Vemiax csapata`;
     if (dto.phone !== undefined) updateData.phone = dto.phone;
     if (dto.email !== undefined) updateData.email = dto.email;
     if (dto.operationType !== undefined) updateData.operationType = dto.operationType;
+    // Alvállalkozói cégadatok
+    if (dto.subcontractorCompanyName !== undefined) updateData.subcontractorCompanyName = dto.subcontractorCompanyName;
+    if (dto.subcontractorTaxNumber !== undefined) updateData.subcontractorTaxNumber = dto.subcontractorTaxNumber;
+    if (dto.subcontractorAddress !== undefined) updateData.subcontractorAddress = dto.subcontractorAddress;
+    if (dto.subcontractorCity !== undefined) updateData.subcontractorCity = dto.subcontractorCity;
+    if (dto.subcontractorZipCode !== undefined) updateData.subcontractorZipCode = dto.subcontractorZipCode;
+    if (dto.subcontractorContactName !== undefined) updateData.subcontractorContactName = dto.subcontractorContactName;
+    if (dto.subcontractorContactPhone !== undefined) updateData.subcontractorContactPhone = dto.subcontractorContactPhone;
+    if (dto.subcontractorContactEmail !== undefined) updateData.subcontractorContactEmail = dto.subcontractorContactEmail;
+    if (dto.subcontractorBankAccount !== undefined) updateData.subcontractorBankAccount = dto.subcontractorBankAccount;
 
     const updated = await this.prisma.location.update({
       where: { id: locationId },

@@ -23,6 +23,16 @@ interface Location {
   email?: string;
   isActive: boolean;
   createdAt: string;
+  // Alvállalkozói cégadatok
+  subcontractorCompanyName?: string;
+  subcontractorTaxNumber?: string;
+  subcontractorAddress?: string;
+  subcontractorCity?: string;
+  subcontractorZipCode?: string;
+  subcontractorContactName?: string;
+  subcontractorContactPhone?: string;
+  subcontractorContactEmail?: string;
+  subcontractorBankAccount?: string;
 }
 
 interface LocationService {
@@ -81,6 +91,16 @@ export default function LocationEditPage() {
     phone: '',
     email: '',
     isActive: true,
+    // Alvállalkozói cégadatok
+    subcontractorCompanyName: '',
+    subcontractorTaxNumber: '',
+    subcontractorAddress: '',
+    subcontractorCity: '',
+    subcontractorZipCode: '',
+    subcontractorContactName: '',
+    subcontractorContactPhone: '',
+    subcontractorContactEmail: '',
+    subcontractorBankAccount: '',
   });
 
   // Opening hours state
@@ -127,6 +147,16 @@ export default function LocationEditPage() {
         phone: loc.phone || '',
         email: loc.email || '',
         isActive: loc.isActive,
+        // Alvállalkozói cégadatok
+        subcontractorCompanyName: loc.subcontractorCompanyName || '',
+        subcontractorTaxNumber: loc.subcontractorTaxNumber || '',
+        subcontractorAddress: loc.subcontractorAddress || '',
+        subcontractorCity: loc.subcontractorCity || '',
+        subcontractorZipCode: loc.subcontractorZipCode || '',
+        subcontractorContactName: loc.subcontractorContactName || '',
+        subcontractorContactPhone: loc.subcontractorContactPhone || '',
+        subcontractorContactEmail: loc.subcontractorContactEmail || '',
+        subcontractorBankAccount: loc.subcontractorBankAccount || '',
       });
 
       // Load services and opening hours
@@ -169,6 +199,16 @@ export default function LocationEditPage() {
         email: form.email || undefined,
         isActive: form.isActive,
         operationType: form.operationType,
+        // Alvállalkozói cégadatok
+        subcontractorCompanyName: form.subcontractorCompanyName || undefined,
+        subcontractorTaxNumber: form.subcontractorTaxNumber || undefined,
+        subcontractorAddress: form.subcontractorAddress || undefined,
+        subcontractorCity: form.subcontractorCity || undefined,
+        subcontractorZipCode: form.subcontractorZipCode || undefined,
+        subcontractorContactName: form.subcontractorContactName || undefined,
+        subcontractorContactPhone: form.subcontractorContactPhone || undefined,
+        subcontractorContactEmail: form.subcontractorContactEmail || undefined,
+        subcontractorBankAccount: form.subcontractorBankAccount || undefined,
       });
       setSuccessMessage('Helyszin sikeresen frissitve!');
       setTimeout(() => {
@@ -477,6 +517,140 @@ export default function LocationEditPage() {
             </p>
           </div>
         </div>
+
+        {/* Alvállalkozói cégadatok - csak SUBCONTRACTOR típusnál */}
+        {form.operationType === 'SUBCONTRACTOR' && (
+          <div className="pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Alvallalkozo cegadatok</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Cégnév */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cegnev *
+                </label>
+                <input
+                  type="text"
+                  value={form.subcontractorCompanyName}
+                  onChange={(e) => setForm({ ...form, subcontractorCompanyName: e.target.value })}
+                  placeholder="Pelda Mosoda Kft."
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+
+              {/* Adószám */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Adoszam *
+                </label>
+                <input
+                  type="text"
+                  value={form.subcontractorTaxNumber}
+                  onChange={(e) => setForm({ ...form, subcontractorTaxNumber: e.target.value })}
+                  placeholder="12345678-1-23"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+
+              {/* Székhely cím */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Szekhely cim
+                </label>
+                <input
+                  type="text"
+                  value={form.subcontractorAddress}
+                  onChange={(e) => setForm({ ...form, subcontractorAddress: e.target.value })}
+                  placeholder="Fo utca 1."
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+
+              {/* Város és irányítószám */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Iranyitoszam
+                  </label>
+                  <input
+                    type="text"
+                    value={form.subcontractorZipCode}
+                    onChange={(e) => setForm({ ...form, subcontractorZipCode: e.target.value })}
+                    placeholder="1234"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Varos
+                  </label>
+                  <input
+                    type="text"
+                    value={form.subcontractorCity}
+                    onChange={(e) => setForm({ ...form, subcontractorCity: e.target.value })}
+                    placeholder="Budapest"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Kapcsolattartó neve */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kapcsolattarto neve
+                </label>
+                <input
+                  type="text"
+                  value={form.subcontractorContactName}
+                  onChange={(e) => setForm({ ...form, subcontractorContactName: e.target.value })}
+                  placeholder="Kiss Peter"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+
+              {/* Kapcsolattartó telefon */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kapcsolattarto telefon
+                </label>
+                <input
+                  type="tel"
+                  value={form.subcontractorContactPhone}
+                  onChange={(e) => setForm({ ...form, subcontractorContactPhone: e.target.value })}
+                  placeholder="+36 30 123 4567"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+
+              {/* Kapcsolattartó email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kapcsolattarto email
+                </label>
+                <input
+                  type="email"
+                  value={form.subcontractorContactEmail}
+                  onChange={(e) => setForm({ ...form, subcontractorContactEmail: e.target.value })}
+                  placeholder="kapcsolat@pelda.hu"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+
+              {/* Bankszámlaszám */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bankszamlaszam
+                </label>
+                <input
+                  type="text"
+                  value={form.subcontractorBankAccount}
+                  onChange={(e) => setForm({ ...form, subcontractorBankAccount: e.target.value })}
+                  placeholder="12345678-12345678-12345678"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3 pt-4 border-t border-gray-100">
