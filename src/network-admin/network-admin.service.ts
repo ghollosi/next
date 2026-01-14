@@ -1018,6 +1018,9 @@ Vemiax csapata`;
       metadata: { entityType: 'location' },
     });
 
+    // Send notification emails
+    await this.sendLocationCreatedNotification(networkId, location);
+
     return {
       id: location.id,
       name: location.name,
@@ -1027,6 +1030,84 @@ Vemiax csapata`;
       operatorCount: 0,
       washEventCount: (location as any)._count?.washEvents || 0,
     };
+  }
+
+  private async sendLocationCreatedNotification(networkId: string, location: any): Promise<void> {
+    try {
+      // Get network details with admin email
+      const network = await this.prisma.network.findUnique({
+        where: { id: networkId },
+        include: {
+          admins: {
+            where: { isActive: true },
+            select: { email: true, name: true },
+          },
+        },
+      });
+
+      if (!network) return;
+
+      const adminEmails = network.admins.map(a => a.email).filter(Boolean);
+      const locationEmails = location.email ? [location.email] : [];
+
+      const allRecipients = [...new Set([...adminEmails, ...locationEmails])];
+
+      if (allRecipients.length === 0) {
+        this.logger.warn(`No recipients for location created notification (network: ${networkId})`);
+        return;
+      }
+
+      const operationType = location.operationType === 'OWN' ? 'Saját üzemeltetés' : 'Alvállalkozó';
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0;">Új helyszín létrehozva</h1>
+          </div>
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+            <h2 style="color: #1f2937;">${location.name}</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Helyszín kód:</td>
+                <td style="padding: 8px 0; font-weight: bold;">${location.code}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Cím:</td>
+                <td style="padding: 8px 0;">${location.address || '-'}, ${location.zipCode || ''} ${location.city || ''}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Üzemeltetés típusa:</td>
+                <td style="padding: 8px 0;">${operationType}</td>
+              </tr>
+              ${location.phone ? `<tr><td style="padding: 8px 0; color: #6b7280;">Telefon:</td><td style="padding: 8px 0;">${location.phone}</td></tr>` : ''}
+              ${location.email ? `<tr><td style="padding: 8px 0; color: #6b7280;">Email:</td><td style="padding: 8px 0;">${location.email}</td></tr>` : ''}
+            </table>
+            <div style="margin-top: 20px; padding: 15px; background: #dbeafe; border-radius: 8px;">
+              <p style="margin: 0; color: #1e40af; font-size: 14px;">
+                <strong>Következő lépések:</strong><br>
+                1. Adj hozzá operátorokat a helyszínhez<br>
+                2. Állítsd be az elérhető szolgáltatásokat<br>
+                3. Generálj QR kódot a helyszínnek
+              </p>
+            </div>
+            <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
+              Létrehozva: ${new Date().toLocaleString('hu-HU')}
+            </p>
+          </div>
+        </div>
+      `;
+
+      await this.emailService.sendNetworkEmail(networkId, {
+        to: allRecipients,
+        subject: `Új helyszín létrehozva: ${location.name}`,
+        html,
+      });
+
+      this.logger.log(`Location created notification sent to ${allRecipients.join(', ')}`);
+    } catch (error) {
+      this.logger.error(`Failed to send location created notification: ${error.message}`);
+      // Don't throw - notification failure shouldn't break location creation
+    }
   }
 
   async updateLocation(

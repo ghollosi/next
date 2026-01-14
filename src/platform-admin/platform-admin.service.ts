@@ -1273,53 +1273,117 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
   // =========================================================================
 
   async sendTestEmail(to: string): Promise<{ success: boolean; message: string }> {
-    const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
-    const fromAddress = this.configService.get<string>('EMAIL_FROM_ADDRESS') || 'onboarding@resend.dev';
-    const fromName = this.configService.get<string>('EMAIL_FROM_NAME') || 'VSys Admin';
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpPort = parseInt(this.configService.get<string>('SMTP_PORT') || '587', 10);
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPass = this.configService.get<string>('SMTP_PASS');
 
-    if (!resendApiKey) {
-      return { success: false, message: 'RESEND_API_KEY nincs konfigurálva' };
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      return { success: false, message: 'SMTP nincs konfigurálva (SMTP_HOST, SMTP_USER, SMTP_PASS)' };
     }
 
+    const nodemailer = await import('nodemailer');
+
     try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
         },
-        body: JSON.stringify({
-          from: `${fromName} <${fromAddress}>`,
+      });
+
+      const info = await transporter.sendMail({
+        from: '"Vemiax Info" <info@vemiax.com>',
+        to,
+        subject: 'Vemiax Platform - Teszt Email (info@vemiax.com)',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0;">Vemiax Platform</h1>
+            </div>
+            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+              <h2>Teszt email sikeres!</h2>
+              <p>Ez egy teszt email az <strong>info@vemiax.com</strong> címről.</p>
+              <p>Küldés időpontja: ${new Date().toLocaleString('hu-HU')}</p>
+            </div>
+          </div>
+        `,
+      });
+
+      this.logger.log(`Test email sent from info@vemiax.com to ${to}: ${info.messageId}`);
+      return { success: true, message: `Email sikeresen elküldve info@vemiax.com címről: ${to}` };
+    } catch (error) {
+      this.logger.error(`Test email error: ${error.message}`);
+      return { success: false, message: `Hiba: ${error.message}` };
+    }
+  }
+
+  async sendTestEmailsFromAll(to: string): Promise<{ results: Array<{ from: string; success: boolean; message: string }> }> {
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpPort = parseInt(this.configService.get<string>('SMTP_PORT') || '587', 10);
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPass = this.configService.get<string>('SMTP_PASS');
+
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      return {
+        results: [{ from: 'all', success: false, message: 'SMTP nincs konfigurálva' }]
+      };
+    }
+
+    const nodemailer = await import('nodemailer');
+    const senders = [
+      { email: 'info@vemiax.com', name: 'Vemiax Info' },
+      { email: 'support@vemiax.com', name: 'Vemiax Support' },
+      { email: 'noreply@vemiax.com', name: 'Vemiax' },
+    ];
+
+    const results: Array<{ from: string; success: boolean; message: string }> = [];
+
+    for (const sender of senders) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+        });
+
+        const info = await transporter.sendMail({
+          from: `"${sender.name}" <${sender.email}>`,
           to,
-          subject: 'VSys Platform - Teszt Email',
+          subject: `Vemiax Platform - Teszt Email (${sender.email})`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
               <div style="background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="margin: 0;">VSys Platform</h1>
+                <h1 style="margin: 0;">Vemiax Platform</h1>
               </div>
               <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
                 <h2>Teszt email sikeres!</h2>
-                <p>Ez egy teszt email a VSys Platform-ból.</p>
-                <p>Ha ezt az emailt megkaptad, az email küldés megfelelően van konfigurálva.</p>
-                <p style="color: #6b7280; font-size: 12px;">Küldés időpontja: ${new Date().toISOString()}</p>
+                <p>Ez egy teszt email a következő címről: <strong>${sender.email}</strong></p>
+                <p>Feladó neve: ${sender.name}</p>
+                <p>Küldés időpontja: ${new Date().toLocaleString('hu-HU')}</p>
               </div>
             </div>
           `,
-        }),
-      });
+        });
 
-      const result = await response.json();
+        this.logger.log(`Test email sent from ${sender.email} to ${to}: ${info.messageId}`);
+        results.push({ from: sender.email, success: true, message: `Sikeres: ${info.messageId}` });
 
-      if (!response.ok) {
-        this.logger.error(`Test email failed: ${JSON.stringify(result)}`);
-        return { success: false, message: `Email küldés sikertelen: ${result.message || result.error?.message || 'Ismeretlen hiba'}` };
+        // Wait 1 second between emails to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        this.logger.error(`Test email error from ${sender.email}: ${error.message}`);
+        results.push({ from: sender.email, success: false, message: error.message });
       }
-
-      this.logger.log(`Test email sent successfully to ${to}: ${result.id}`);
-      return { success: true, message: `Email sikeresen elküldve: ${to}` };
-    } catch (error) {
-      this.logger.error(`Test email error: ${error}`);
-      return { success: false, message: `Hiba: ${error.message}` };
     }
+
+    return { results };
   }
 }

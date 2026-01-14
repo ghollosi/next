@@ -534,4 +534,17 @@ export class PlatformAdminController {
     await this.validateOwner(auth);
     return this.platformAdminService.sendTestEmail(dto.to);
   }
+
+  @Post('test-email-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send test emails from all senders (info, support, noreply @vemiax.com)' })
+  @ApiResponse({ status: 200, description: 'Test emails sent from multiple senders' })
+  async sendTestEmailsFromAll(
+    @Body() dto: { to: string },
+    @Headers('authorization') auth?: string,
+  ): Promise<{ results: Array<{ from: string; success: boolean; message: string }> }> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.sendTestEmailsFromAll(dto.to);
+  }
 }

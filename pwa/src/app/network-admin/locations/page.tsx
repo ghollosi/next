@@ -34,33 +34,38 @@ interface QRCodeData {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-const DAY_NAMES: Record<string, string> = {
+const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_ABBREV: Record<string, string> = {
   monday: 'H',
   tuesday: 'K',
-  wednesday: 'Sze',
+  wednesday: 'Sz',
   thursday: 'Cs',
   friday: 'P',
   saturday: 'Szo',
   sunday: 'V',
 };
 
-const formatOpeningHours = (openingHoursStr: string): string => {
+interface ParsedOpeningHours {
+  day: string;
+  abbrev: string;
+  isOpen: boolean;
+  time: string;
+}
+
+const parseOpeningHours = (openingHoursStr: string): ParsedOpeningHours[] => {
   try {
     const hours = JSON.parse(openingHoursStr);
-    const parts: string[] = [];
-
-    Object.entries(DAY_NAMES).forEach(([day, abbrev]) => {
+    return DAY_ORDER.map(day => {
       const dayData = hours[day];
-      if (dayData?.isOpen) {
-        parts.push(`${abbrev}: ${dayData.openTime}-${dayData.closeTime}`);
-      } else if (dayData) {
-        parts.push(`${abbrev}: Zárva`);
-      }
+      return {
+        day,
+        abbrev: DAY_ABBREV[day],
+        isOpen: dayData?.isOpen ?? false,
+        time: dayData?.isOpen ? `${dayData.openTime}-${dayData.closeTime}` : 'Zárva',
+      };
     });
-
-    return parts.join(' | ');
   } catch {
-    return openingHoursStr;
+    return [];
   }
 };
 
@@ -203,8 +208,25 @@ export default function LocationsPage() {
               )}
 
               {location.openingHours && (
-                <div className="mb-3 text-xs text-gray-500">
-                  {formatOpeningHours(location.openingHours)}
+                <div className="mb-3">
+                  <div className="flex gap-1">
+                    {parseOpeningHours(location.openingHours).map(({ abbrev, isOpen, time }) => (
+                      <div
+                        key={abbrev}
+                        className={`flex-1 text-center py-1 px-0.5 rounded text-xs ${
+                          isOpen
+                            ? 'bg-green-50 text-green-700'
+                            : 'bg-red-50 text-red-500'
+                        }`}
+                        title={`${abbrev}: ${time}`}
+                      >
+                        <div className="font-medium">{abbrev}</div>
+                        <div className={`text-[10px] ${isOpen ? 'text-green-600' : 'text-red-400'}`}>
+                          {isOpen ? time.split('-')[0] : '-'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
