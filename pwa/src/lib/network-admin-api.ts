@@ -382,6 +382,7 @@ export const networkAdminApi = {
     openingHours?: any;
     latitude?: number;
     longitude?: number;
+    operationType?: 'OWN' | 'SUBCONTRACTOR';
   }): Promise<Location> {
     // Convert openingHours object to JSON string if provided
     const requestData = { ...data };
@@ -410,6 +411,7 @@ export const networkAdminApi = {
       latitude?: number;
       longitude?: number;
       isActive?: boolean;
+      operationType?: 'OWN' | 'SUBCONTRACTOR';
     },
   ): Promise<Location> {
     return fetchWithAuth(`/network-admin/locations/${id}`, {
