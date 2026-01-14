@@ -114,6 +114,7 @@ enum DriverApprovalStatus {
 enum VerificationType {
   EMAIL
   PHONE
+  PASSWORD_RESET
 }
 
 enum AdminRole {
@@ -322,6 +323,16 @@ model Network {
   customPerWashFee      Decimal?  @map("custom_per_wash_fee") @db.Decimal(10, 2)
   pricingNotes          String?   @map("pricing_notes")
 
+  // Platform számlázási adatok (a Platform ezeket használja a Network felé történő számlázáskor)
+  billingCompanyName    String?   @map("billing_company_name")
+  billingAddress        String?   @map("billing_address")
+  billingCity           String?   @map("billing_city")
+  billingZipCode        String?   @map("billing_zip_code")
+  billingCountry        String    @default("HU") @map("billing_country")
+  billingTaxNumber      String?   @map("billing_tax_number")
+  billingEuVatNumber    String?   @map("billing_eu_vat_number")
+  billingEmail          String?   @map("billing_email")         // Számla küldési cím
+
   // Alapértelmezett ország és pénznem
   country             String             @default("HU")
   timezone            String             @default("Europe/Budapest")
@@ -358,6 +369,8 @@ model Network {
   bookings                    Booking[]
   paymentTransactions         PaymentTransaction[]
   walkInCustomers             WalkInCustomer[]
+  // Platform számlák
+  platformInvoices            PlatformInvoice[]
 
   @@map("networks")
 }
@@ -1352,14 +1365,134 @@ model UsageLog {
   paidAt          DateTime? @map("paid_at")
   invoiceNumber   String?  @map("invoice_number")
 
+  // Platform számla kapcsolat
+  platformInvoiceId String? @map("platform_invoice_id")
+
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  network Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  network         Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  platformInvoice PlatformInvoice? @relation(fields: [platformInvoiceId], references: [id])
 
   @@index([networkId])
   @@index([periodStart])
+  @@index([platformInvoiceId])
   @@map("usage_logs")
+}
+
+// =============================================================================
+// PLATFORM INVOICE STATUS
+// =============================================================================
+
+enum PlatformInvoiceStatus {
+  DRAFT       // Előkészített, még nem kiállított
+  ISSUED      // Kiállított
+  SENT        // Elküldött
+  PAID        // Kifizetve
+  CANCELLED   // Sztornózott
+  OVERDUE     // Lejárt fizetési határidő
+}
+
+// =============================================================================
+// PLATFORM INVOICE (Platform számlák Network-ök felé)
+// =============================================================================
+
+model PlatformInvoice {
+  id        String   @id @default(uuid())
+  networkId String   @map("network_id")
+
+  // Számla azonosítók
+  invoiceNumber      String?  @unique @map("invoice_number")
+  externalId         String?  @map("external_id")  // Külső rendszer azonosító (Billingo, Számlázz.hu)
+
+  // Időszak
+  periodStart        DateTime @map("period_start")
+  periodEnd          DateTime @map("period_end")
+
+  // Összegek (HUF)
+  subtotal           Decimal  @db.Decimal(10, 2)              // Nettó összeg
+  vatRate            Float    @default(27) @map("vat_rate")   // ÁFA %
+  vatAmount          Decimal  @db.Decimal(10, 2) @map("vat_amount")
+  total              Decimal  @db.Decimal(10, 2)              // Bruttó összeg
+  currency           String   @default("HUF")
+
+  // Státusz és dátumok
+  status             PlatformInvoiceStatus @default(DRAFT)
+  issueDate          DateTime?     @map("issue_date")
+  dueDate            DateTime?     @map("due_date")
+  paidDate           DateTime?     @map("paid_date")
+  cancelledAt        DateTime?     @map("cancelled_at")
+
+  // Vevő adatok pillanatképe (Network cégadatok)
+  buyerName          String   @map("buyer_name")
+  buyerAddress       String   @map("buyer_address")
+  buyerCity          String   @map("buyer_city")
+  buyerZipCode       String   @map("buyer_zip_code")
+  buyerCountry       String   @default("HU") @map("buyer_country")
+  buyerTaxNumber     String?  @map("buyer_tax_number")
+  buyerEuVatNumber   String?  @map("buyer_eu_vat_number")
+
+  // Eladó adatok pillanatképe (Platform cégadatok)
+  sellerName         String   @map("seller_name")
+  sellerAddress      String   @map("seller_address")
+  sellerCity         String   @map("seller_city")
+  sellerZipCode      String   @map("seller_zip_code")
+  sellerCountry      String   @default("HU") @map("seller_country")
+  sellerTaxNumber    String?  @map("seller_tax_number")
+  sellerEuVatNumber  String?  @map("seller_eu_vat_number")
+  sellerBankAccount  String?  @map("seller_bank_account")
+  sellerBankName     String?  @map("seller_bank_name")
+
+  // Számlázó szolgáltató válasz
+  providerName       String?  @map("provider_name")  // 'szamlazz', 'billingo', 'nav'
+  providerPdfUrl     String?  @map("provider_pdf_url")
+  providerResponse   Json?    @map("provider_response")
+
+  // Stripe kapcsolat (ha Stripe-on keresztül fizetett)
+  stripeInvoiceId    String?  @map("stripe_invoice_id")
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  network    Network              @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  items      PlatformInvoiceItem[]
+  usageLogs  UsageLog[]
+
+  @@index([networkId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([dueDate])
+  @@map("platform_invoices")
+}
+
+// =============================================================================
+// PLATFORM INVOICE ITEM (Platform számla tételek)
+// =============================================================================
+
+model PlatformInvoiceItem {
+  id                 String   @id @default(uuid())
+  platformInvoiceId  String   @map("platform_invoice_id")
+
+  // Tétel adatok
+  description        String
+  quantity           Int      @default(1)
+  unitPrice          Decimal  @db.Decimal(10, 2) @map("unit_price")
+  totalPrice         Decimal  @db.Decimal(10, 2) @map("total_price")
+  vatRate            Float    @default(27) @map("vat_rate")
+  unit               String   @default("db")
+
+  // Típus (havi díj, mosás díj, extra szolgáltatás)
+  itemType           String   @map("item_type") // 'BASE_FEE', 'WASH_FEE', 'EXTRA'
+
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  // Relations
+  platformInvoice PlatformInvoice @relation(fields: [platformInvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([platformInvoiceId])
+  @@map("platform_invoice_items")
 }
 
 // =============================================================================

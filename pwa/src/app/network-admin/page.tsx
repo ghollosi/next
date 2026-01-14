@@ -184,6 +184,11 @@ function NetworkAdminLoginContent() {
 
         <div className="text-center mt-6 space-y-2">
           <p className="text-gray-500 text-sm">
+            <Link href="/network-admin/forgot-password" className="text-blue-400 hover:text-blue-300">
+              Elfelejtett jelszó?
+            </Link>
+          </p>
+          <p className="text-gray-500 text-sm">
             Nincs még fiókja?{' '}
             <Link href="/network-admin/register" className="text-blue-400 hover:text-blue-300">
               Regisztráljon és próbálja ki ingyen!

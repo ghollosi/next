@@ -168,6 +168,7 @@ export default function LocationEditPage() {
         phone: form.phone || undefined,
         email: form.email || undefined,
         isActive: form.isActive,
+        operationType: form.operationType,
       });
       setSuccessMessage('Helyszin sikeresen frissitve!');
       setTimeout(() => {

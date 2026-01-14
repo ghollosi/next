@@ -324,6 +324,39 @@ export const networkAdminApi = {
     return response.json();
   },
 
+  // Password Reset
+  async forgotPassword(email: string, slug: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/network-admin/forgot-password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, slug }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Hiba történt' }));
+      throw new Error(error.message);
+    }
+
+    return response.json();
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/network-admin/reset-password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Jelszó visszaállítás sikertelen' }));
+      throw new Error(error.message);
+    }
+
+    return response.json();
+  },
+
   // Trial Status
   async getTrialStatus(): Promise<TrialStatus> {
     return fetchWithAuth('/network-admin/trial-status');

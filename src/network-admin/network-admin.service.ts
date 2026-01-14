@@ -454,6 +454,184 @@ Vemiax csapata`;
   }
 
   // =========================================================================
+  // PASSWORD RESET
+  // =========================================================================
+
+  async forgotPassword(email: string, slug: string): Promise<{ success: boolean; message: string }> {
+    // Always return success to prevent email enumeration attacks
+    const successResponse = {
+      success: true,
+      message: 'Ha a megadott email cím létezik a rendszerben, elküldtük a jelszó visszaállító linket.',
+    };
+
+    try {
+      const network = await this.prisma.network.findUnique({
+        where: { slug: slug.toLowerCase() },
+      });
+
+      if (!network) {
+        return successResponse;
+      }
+
+      const admin = await this.prisma.networkAdmin.findFirst({
+        where: {
+          networkId: network.id,
+          email: email.toLowerCase(),
+          deletedAt: null,
+        },
+      });
+
+      if (!admin) {
+        return successResponse;
+      }
+
+      // Invalidate old password reset tokens
+      await this.prisma.verificationToken.updateMany({
+        where: {
+          networkAdminId: admin.id,
+          type: 'PASSWORD_RESET',
+          usedAt: null,
+        },
+        data: { usedAt: new Date() },
+      });
+
+      // Generate new token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      await this.prisma.verificationToken.create({
+        data: {
+          token: resetToken,
+          type: 'PASSWORD_RESET',
+          email: email.toLowerCase(),
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+          networkAdminId: admin.id,
+        },
+      });
+
+      // Send password reset email
+      await this.sendPasswordResetEmail(admin, network, resetToken);
+
+      return successResponse;
+    } catch (error) {
+      this.logger.error(`Error in forgotPassword: ${error.message}`);
+      return successResponse;
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const resetToken = await this.prisma.verificationToken.findFirst({
+      where: {
+        token,
+        type: 'PASSWORD_RESET',
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!resetToken) {
+      throw new BadRequestException('Érvénytelen vagy lejárt token. Kérjen új jelszó visszaállító linket.');
+    }
+
+    // Mark token as used
+    await this.prisma.verificationToken.update({
+      where: { id: resetToken.id },
+      data: { usedAt: new Date() },
+    });
+
+    // Update password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.networkAdmin.update({
+      where: { id: resetToken.networkAdminId! },
+      data: { passwordHash },
+    });
+
+    this.logger.log(`Password reset successful for admin ${resetToken.networkAdminId}`);
+
+    return {
+      success: true,
+      message: 'Jelszó sikeresen megváltoztatva. Most már bejelentkezhet az új jelszóval.',
+    };
+  }
+
+  private async sendPasswordResetEmail(
+    admin: any,
+    network: any,
+    resetToken: string,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://app.vemiax.com';
+    const resetUrl = `${frontendUrl}/network-admin/reset-password?token=${resetToken}&slug=${network.slug}`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 15px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Vemiax</h1>
+      <p>Jelszó visszaállítás</p>
+    </div>
+    <div class="content">
+      <h2>Kedves ${admin.name}!</h2>
+      <p>Jelszó visszaállítási kérelmet kaptunk a(z) <strong>${network.name}</strong> hálózathoz tartozó fiókodhoz.</p>
+      <p>Kattints az alábbi gombra az új jelszó beállításához:</p>
+      <p style="text-align: center;">
+        <a href="${resetUrl}" class="button">Új jelszó beállítása</a>
+      </p>
+      <div class="warning">
+        <strong>Fontos!</strong> A link 1 órán belül lejár. Ha nem te kérted a jelszó visszaállítást, hagyd figyelmen kívül ezt az emailt.
+      </div>
+      <p>Ha a gomb nem működik, másold be ezt a linket a böngésződbe:</p>
+      <p style="word-break: break-all; color: #6b7280; font-size: 12px;">${resetUrl}</p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} Vemiax. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+Kedves ${admin.name}!
+
+Jelszó visszaállítási kérelmet kaptunk a(z) ${network.name} hálózathoz tartozó fiókodhoz.
+
+Az új jelszó beállításához kattints erre a linkre:
+${resetUrl}
+
+A link 1 órán belül lejár.
+
+Ha nem te kérted a jelszó visszaállítást, hagyd figyelmen kívül ezt az emailt.
+
+© ${new Date().getFullYear()} Vemiax
+    `;
+
+    try {
+      await this.emailService.sendEmail({
+        to: admin.email,
+        subject: 'Jelszó visszaállítás - Vemiax',
+        html,
+        text,
+      });
+      this.logger.log(`Password reset email sent to ${admin.email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send password reset email: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // =========================================================================
   // TRIAL STATUS
   // =========================================================================
 
@@ -820,6 +998,7 @@ Vemiax csapata`;
         openingHours: dto.openingHours,
         phone: dto.phone,
         email: dto.email,
+        operationType: dto.operationType || 'OWN',
       },
       include: {
         _count: {
@@ -877,6 +1056,7 @@ Vemiax csapata`;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
     if (dto.phone !== undefined) updateData.phone = dto.phone;
     if (dto.email !== undefined) updateData.email = dto.email;
+    if (dto.operationType !== undefined) updateData.operationType = dto.operationType;
 
     const updated = await this.prisma.location.update({
       where: { id: locationId },

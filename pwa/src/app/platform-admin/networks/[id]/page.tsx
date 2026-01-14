@@ -31,6 +31,16 @@ interface NetworkDetail {
   platformPerWashFee?: number;
   effectiveMonthlyFee: number;
   effectivePerWashFee: number;
+  // Platform számlázási adatok
+  billingCompanyName?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingZipCode?: string;
+  billingCountry?: string;
+  billingTaxNumber?: string;
+  billingEuVatNumber?: string;
+  billingEmail?: string;
+  billingDataComplete: boolean;
 }
 
 interface NetworkAdmin {
@@ -56,7 +66,7 @@ export default function NetworkDetailPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'pricing' | 'admins'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'pricing' | 'billing' | 'admins'>('details');
 
   // Edit form state
   const [editMode, setEditMode] = useState(false);
@@ -73,6 +83,16 @@ export default function NetworkDetailPage() {
   const [customMonthlyFee, setCustomMonthlyFee] = useState<string>('');
   const [customPerWashFee, setCustomPerWashFee] = useState<string>('');
   const [pricingNotes, setPricingNotes] = useState('');
+
+  // Billing state (Platform felé irányuló számlázási adatok)
+  const [billingCompanyName, setBillingCompanyName] = useState('');
+  const [billingAddress, setBillingAddress] = useState('');
+  const [billingCity, setBillingCity] = useState('');
+  const [billingZipCode, setBillingZipCode] = useState('');
+  const [billingCountry, setBillingCountry] = useState('HU');
+  const [billingTaxNumber, setBillingTaxNumber] = useState('');
+  const [billingEuVatNumber, setBillingEuVatNumber] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
 
   // Admin modal state
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -110,6 +130,16 @@ export default function NetworkDetailPage() {
       setCustomMonthlyFee(networkData.customMonthlyFee?.toString() || '');
       setCustomPerWashFee(networkData.customPerWashFee?.toString() || '');
       setPricingNotes(networkData.pricingNotes || '');
+
+      // Initialize billing fields
+      setBillingCompanyName(networkData.billingCompanyName || '');
+      setBillingAddress(networkData.billingAddress || '');
+      setBillingCity(networkData.billingCity || '');
+      setBillingZipCode(networkData.billingZipCode || '');
+      setBillingCountry(networkData.billingCountry || 'HU');
+      setBillingTaxNumber(networkData.billingTaxNumber || '');
+      setBillingEuVatNumber(networkData.billingEuVatNumber || '');
+      setBillingEmail(networkData.billingEmail || '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
@@ -168,6 +198,31 @@ export default function NetworkDetailPage() {
       } as any);
       setNetwork(updated);
       setSuccess('Árazás mentve!');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveBilling = async () => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const updated = await platformApi.updateNetwork(networkId, {
+        billingCompanyName: billingCompanyName || undefined,
+        billingAddress: billingAddress || undefined,
+        billingCity: billingCity || undefined,
+        billingZipCode: billingZipCode || undefined,
+        billingCountry: billingCountry,
+        billingTaxNumber: billingTaxNumber || undefined,
+        billingEuVatNumber: billingEuVatNumber || undefined,
+        billingEmail: billingEmail || undefined,
+      } as any);
+      setNetwork(updated);
+      setSuccess('Számlázási adatok mentve!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
@@ -397,6 +452,21 @@ export default function NetworkDetailPage() {
             }`}
           >
             Árazás
+          </button>
+          <button
+            onClick={() => setActiveTab('billing')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'billing'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              Számlázás
+              {!network.billingDataComplete && (
+                <span className="w-2 h-2 bg-orange-400 rounded-full" title="Hiányos adatok" />
+              )}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('admins')}
@@ -684,6 +754,164 @@ export default function NetworkDetailPage() {
               <li>Az egyedi árak felülírják a platform alapértelmezett árait</li>
               <li>A Network Admin a saját subscription oldalán az egyedi árakat látja</li>
               <li>A Stripe számlázás továbbra is a platform árakat használja, a különbözetet manuálisan kell kezelni</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Billing tab */}
+      {activeTab === 'billing' && (
+        <div className="space-y-6">
+          {/* Billing status */}
+          {!network.billingDataComplete && (
+            <div className="bg-orange-900/30 border border-orange-700 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-orange-300 mb-1">Hiányos számlázási adatok</h3>
+              <p className="text-sm text-orange-200">
+                A számlázási adatok nem teljesek. Kérjük, töltsd ki a kötelező mezőket a számlák kiállításához.
+              </p>
+            </div>
+          )}
+
+          {/* Billing form */}
+          <div className="bg-gray-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Platform számlázási adatok</h2>
+            <p className="text-sm text-gray-400 mb-6">
+              Ezeket az adatokat használjuk a Platform által a Network felé kiállított számlákhoz.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Cégnév <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={billingCompanyName}
+                  onChange={(e) => setBillingCompanyName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Példa Kft."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Cím <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={billingAddress}
+                  onChange={(e) => setBillingAddress(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Példa utca 1."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Város <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={billingCity}
+                  onChange={(e) => setBillingCity(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Budapest"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Irányítószám <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={billingZipCode}
+                  onChange={(e) => setBillingZipCode(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="1234"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Ország
+                </label>
+                <select
+                  value={billingCountry}
+                  onChange={(e) => setBillingCountry(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="HU">Magyarország</option>
+                  <option value="AT">Ausztria</option>
+                  <option value="SK">Szlovákia</option>
+                  <option value="RO">Románia</option>
+                  <option value="DE">Németország</option>
+                  <option value="PL">Lengyelország</option>
+                  <option value="CZ">Csehország</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Adószám <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={billingTaxNumber}
+                  onChange={(e) => setBillingTaxNumber(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="12345678-1-23"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  EU ÁFA szám
+                </label>
+                <input
+                  type="text"
+                  value={billingEuVatNumber}
+                  onChange={(e) => setBillingEuVatNumber(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="HU12345678"
+                />
+                <p className="text-xs text-gray-500 mt-1">Csak EU-n belüli ügyleteknél szükséges</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Számla email
+                </label>
+                <input
+                  type="email"
+                  value={billingEmail}
+                  onChange={(e) => setBillingEmail(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="szamla@example.com"
+                />
+                <p className="text-xs text-gray-500 mt-1">Ide küldjük a számlákat</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={handleSaveBilling}
+                disabled={saving}
+                className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
+              >
+                {saving ? 'Mentés...' : 'Számlázási adatok mentése'}
+              </button>
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-blue-300 mb-1">Mire szolgálnak ezek az adatok?</h3>
+            <ul className="text-sm text-blue-200 list-disc list-inside space-y-1">
+              <li>A Platform a havi díjat és mosásonkénti díjat ezen adatokra állítja ki</li>
+              <li>Ez a Network cégadatai a Platform felé, nem a Network saját ügyfelei felé</li>
+              <li>A kötelező mezők (*) kitöltése nélkül nem lehet számlát kiállítani</li>
+              <li>A számlákat a megadott email címre küldjük</li>
             </ul>
           </div>
         </div>

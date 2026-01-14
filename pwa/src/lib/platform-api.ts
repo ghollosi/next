@@ -48,6 +48,16 @@ interface NetworkDetail extends NetworkListItem {
   // Effektív (használt) árak
   effectiveMonthlyFee: number;
   effectivePerWashFee: number;
+  // Platform számlázási adatok (a Platform ezeket használja számlázáskor)
+  billingCompanyName?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingZipCode?: string;
+  billingCountry?: string;
+  billingTaxNumber?: string;
+  billingEuVatNumber?: string;
+  billingEmail?: string;
+  billingDataComplete: boolean;
 }
 
 interface NetworkAdmin {
@@ -114,6 +124,92 @@ interface PlatformSettings {
   billingoApiKey?: string;
   billingoBlockId?: number;
   billingoBankAccountId?: number;
+}
+
+// ========== Billing Types ==========
+
+type PlatformInvoiceStatus = 'DRAFT' | 'ISSUED' | 'SENT' | 'PAID' | 'CANCELLED' | 'OVERDUE';
+
+interface PlatformInvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface PlatformInvoice {
+  id: string;
+  networkId: string;
+  invoiceNumber?: string;
+  externalId?: string;
+  periodStart: string;
+  periodEnd: string;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  total: number;
+  currency: string;
+  status: PlatformInvoiceStatus;
+  issueDate?: string;
+  dueDate?: string;
+  paidDate?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  // Buyer data
+  buyerName?: string;
+  buyerAddress?: string;
+  buyerCity?: string;
+  buyerZipCode?: string;
+  buyerCountry?: string;
+  buyerTaxNumber?: string;
+  buyerEuVatNumber?: string;
+  // Seller data
+  sellerName?: string;
+  sellerAddress?: string;
+  sellerCity?: string;
+  sellerZipCode?: string;
+  sellerCountry?: string;
+  sellerTaxNumber?: string;
+  sellerBankAccount?: string;
+  // Relations
+  network?: NetworkListItem;
+  items?: PlatformInvoiceItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BillingSummary {
+  invoicesByStatus: { status: PlatformInvoiceStatus; count: number; total: number }[];
+  thisMonthRevenue: number;
+  lastMonthRevenue: number;
+  outstandingAmount: number;
+  outstandingCount: number;
+  activeNetworks: number;
+}
+
+interface InvoiceFilters {
+  networkId?: string;
+  status?: PlatformInvoiceStatus;
+  issueDateFrom?: string;
+  issueDateTo?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+}
+
+interface UsagePreview {
+  network: NetworkListItem;
+  periodStart: string;
+  periodEnd: string;
+  baseMonthlyFee: number;
+  washCount: number;
+  perWashFee: number;
+  washTotal: number;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  total: number;
+  currency: string;
 }
 
 // Session management
@@ -388,6 +484,85 @@ export const platformApi = {
   async deleteNetworkAdmin(networkId: string, adminId: string): Promise<void> {
     return fetchWithAuth(`/platform-admin/networks/${networkId}/admins/${adminId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // ========== Billing ==========
+
+  // Get billing summary for dashboard
+  async getBillingSummary(): Promise<BillingSummary> {
+    return fetchWithAuth('/platform-admin/billing/summary');
+  },
+
+  // Get all platform invoices with optional filters
+  async getInvoices(filters?: InvoiceFilters): Promise<PlatformInvoice[]> {
+    const params = new URLSearchParams();
+    if (filters?.networkId) params.append('networkId', filters.networkId);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.issueDateFrom) params.append('issueDateFrom', filters.issueDateFrom);
+    if (filters?.issueDateTo) params.append('issueDateTo', filters.issueDateTo);
+    if (filters?.dueDateFrom) params.append('dueDateFrom', filters.dueDateFrom);
+    if (filters?.dueDateTo) params.append('dueDateTo', filters.dueDateTo);
+
+    const query = params.toString();
+    return fetchWithAuth(`/platform-admin/billing/invoices${query ? `?${query}` : ''}`);
+  },
+
+  // Get a specific invoice by ID
+  async getInvoice(id: string): Promise<PlatformInvoice> {
+    return fetchWithAuth(`/platform-admin/billing/invoices/${id}`);
+  },
+
+  // Get usage preview for a network
+  async getUsagePreview(networkId: string, periodStart: string, periodEnd: string): Promise<UsagePreview> {
+    return fetchWithAuth(
+      `/platform-admin/billing/networks/${networkId}/usage-preview?periodStart=${periodStart}&periodEnd=${periodEnd}`
+    );
+  },
+
+  // Create a draft invoice
+  async createInvoice(data: { networkId: string; periodStart: string; periodEnd: string }): Promise<PlatformInvoice> {
+    return fetchWithAuth('/platform-admin/billing/invoices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Issue an invoice (send to billing provider)
+  async issueInvoice(id: string): Promise<PlatformInvoice> {
+    return fetchWithAuth(`/platform-admin/billing/invoices/${id}/issue`, {
+      method: 'POST',
+    });
+  },
+
+  // Mark an invoice as paid
+  async markInvoicePaid(id: string, paidDate?: string): Promise<PlatformInvoice> {
+    return fetchWithAuth(`/platform-admin/billing/invoices/${id}/paid`, {
+      method: 'PUT',
+      body: JSON.stringify({ paidDate }),
+    });
+  },
+
+  // Cancel an invoice
+  async cancelInvoice(id: string, reason?: string): Promise<PlatformInvoice> {
+    return fetchWithAuth(`/platform-admin/billing/invoices/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  // Generate monthly invoices for all active networks
+  async generateMonthlyInvoices(year: number, month: number): Promise<{ created: number; invoices: PlatformInvoice[] }> {
+    return fetchWithAuth('/platform-admin/billing/generate-monthly', {
+      method: 'POST',
+      body: JSON.stringify({ year, month }),
+    });
+  },
+
+  // Process overdue invoices
+  async processOverdueInvoices(): Promise<{ processed: number }> {
+    return fetchWithAuth('/platform-admin/billing/process-overdue', {
+      method: 'POST',
     });
   },
 };

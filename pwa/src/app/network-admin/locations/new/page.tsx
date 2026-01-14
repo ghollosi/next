@@ -31,6 +31,7 @@ interface LocationFormData {
   phone: string;
   email: string;
   openingHours: OpeningHours;
+  operationType: 'OWN' | 'SUBCONTRACTOR';
 }
 
 const DAYS = [
@@ -73,6 +74,7 @@ export default function NewLocationPage() {
     phone: '',
     email: '',
     openingHours: defaultOpeningHours,
+    operationType: 'OWN',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,6 +150,7 @@ export default function NewLocationPage() {
         address: formData.address,
         city: formData.city,
         openingHours: formData.openingHours,
+        operationType: formData.operationType,
       };
 
       if (formData.postalCode) {
@@ -263,6 +266,36 @@ export default function NewLocationPage() {
                 placeholder="pl. 1234"
                 className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
               />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Üzemeltetés típusa *
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="operationType"
+                  value="OWN"
+                  checked={formData.operationType === 'OWN'}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, operationType: e.target.value as 'OWN' | 'SUBCONTRACTOR' }))}
+                  className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
+                />
+                <span className="text-gray-900">Saját üzemeltetés</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="operationType"
+                  value="SUBCONTRACTOR"
+                  checked={formData.operationType === 'SUBCONTRACTOR'}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, operationType: e.target.value as 'OWN' | 'SUBCONTRACTOR' }))}
+                  className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
+                />
+                <span className="text-gray-900">Alvállalkozó</span>
+              </label>
             </div>
           </div>
         </div>

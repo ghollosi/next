@@ -27,6 +27,7 @@ import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { NetworkAdminModule } from './network-admin/network-admin.module';
 import { StripeModule } from './stripe/stripe.module';
 import { BookingModule } from './modules/booking/booking.module';
+import { PlatformBillingModule } from './platform-billing/platform-billing.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { BookingModule } from './modules/booking/booking.module';
     NetworkAdminModule,
     StripeModule,
     BookingModule,
+    PlatformBillingModule,
   ],
   providers: [
     // SECURITY: Apply rate limiting globally

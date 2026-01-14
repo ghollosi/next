@@ -110,6 +110,30 @@ const DAY_NAMES = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'P�
 // Napok nevei a JS getDay() függvényhez (0 = vasárnap)
 const dayOfWeekNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
+// Nyitvatartás formázó
+const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_LABELS: Record<string, string> = {
+  monday: 'Hétfő',
+  tuesday: 'Kedd',
+  wednesday: 'Szerda',
+  thursday: 'Csütörtök',
+  friday: 'Péntek',
+  saturday: 'Szombat',
+  sunday: 'Vasárnap',
+};
+
+function formatOpeningHoursReadable(openingHoursStr: string): { day: string; hours: string }[] {
+  try {
+    const hours = JSON.parse(openingHoursStr);
+    return DAY_ORDER.map(day => ({
+      day: DAY_LABELS[day],
+      hours: hours[day]?.isOpen ? `${hours[day].openTime} - ${hours[day].closeTime}` : 'Zárva',
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // Helper: nyitvatartási órák kinyerése adott napra
 function getOpeningHoursForDate(
   date: string,
@@ -1170,8 +1194,17 @@ export default function LocationDetailPage() {
           </div>
           {location.openingHours && (
             <div className="md:col-span-2">
-              <p className="text-sm text-gray-500 mb-1">Nyitvatartás</p>
-              <p className="text-gray-900">{location.openingHours}</p>
+              <p className="text-sm text-gray-500 mb-2">Nyitvatartás</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                {formatOpeningHoursReadable(location.openingHours).map(({ day, hours }) => (
+                  <div key={day} className="bg-gray-50 rounded-lg p-2 text-center">
+                    <p className="text-xs font-medium text-gray-500">{day}</p>
+                    <p className={`text-sm font-medium ${hours === 'Zárva' ? 'text-red-500' : 'text-gray-900'}`}>
+                      {hours}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

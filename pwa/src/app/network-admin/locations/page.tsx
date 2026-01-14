@@ -34,6 +34,36 @@ interface QRCodeData {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+const DAY_NAMES: Record<string, string> = {
+  monday: 'H',
+  tuesday: 'K',
+  wednesday: 'Sze',
+  thursday: 'Cs',
+  friday: 'P',
+  saturday: 'Szo',
+  sunday: 'V',
+};
+
+const formatOpeningHours = (openingHoursStr: string): string => {
+  try {
+    const hours = JSON.parse(openingHoursStr);
+    const parts: string[] = [];
+
+    Object.entries(DAY_NAMES).forEach(([day, abbrev]) => {
+      const dayData = hours[day];
+      if (dayData?.isOpen) {
+        parts.push(`${abbrev}: ${dayData.openTime}-${dayData.closeTime}`);
+      } else if (dayData) {
+        parts.push(`${abbrev}: Zárva`);
+      }
+    });
+
+    return parts.join(' | ');
+  } catch {
+    return openingHoursStr;
+  }
+};
+
 export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
@@ -173,8 +203,8 @@ export default function LocationsPage() {
               )}
 
               {location.openingHours && (
-                <div className="mb-3 text-sm text-gray-500">
-                  <span className="font-medium">Nyitvatartás:</span> {location.openingHours}
+                <div className="mb-3 text-xs text-gray-500">
+                  {formatOpeningHours(location.openingHours)}
                 </div>
               )}
 

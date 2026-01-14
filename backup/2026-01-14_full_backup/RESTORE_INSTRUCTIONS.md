@@ -10,7 +10,7 @@
 
 Ez a backup a következő commithoz tartozik:
 ```
-git checkout [COMMIT_HASH]
+git checkout 284acfa4f5ef087afddbd59f743de6966f60b916
 ```
 
 ## Visszaállítás menete
@@ -19,10 +19,10 @@ git checkout [COMMIT_HASH]
 
 ```bash
 # A commit-ra visszaállás
-git checkout [COMMIT_HASH]
+git checkout 284acfa4f5ef087afddbd59f743de6966f60b916
 
 # VAGY ha új branch-re akarod
-git checkout -b restore-2026-01-14 [COMMIT_HASH]
+git checkout -b restore-2026-01-14 284acfa4f5ef087afddbd59f743de6966f60b916
 ```
 
 ### 2. Adatbázis visszaállítása

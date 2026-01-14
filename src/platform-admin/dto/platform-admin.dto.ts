@@ -477,6 +477,47 @@ export class UpdateNetworkDto {
   @IsOptional()
   @IsString()
   pricingNotes?: string;
+
+  // Platform billing data (számlázási adatok a Platform felé)
+  @ApiPropertyOptional({ description: 'Billing company name' })
+  @IsOptional()
+  @IsString()
+  billingCompanyName?: string;
+
+  @ApiPropertyOptional({ description: 'Billing address' })
+  @IsOptional()
+  @IsString()
+  billingAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Billing city' })
+  @IsOptional()
+  @IsString()
+  billingCity?: string;
+
+  @ApiPropertyOptional({ description: 'Billing zip code' })
+  @IsOptional()
+  @IsString()
+  billingZipCode?: string;
+
+  @ApiPropertyOptional({ description: 'Billing country (ISO 2-letter code)' })
+  @IsOptional()
+  @IsString()
+  billingCountry?: string;
+
+  @ApiPropertyOptional({ description: 'Billing tax number' })
+  @IsOptional()
+  @IsString()
+  billingTaxNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Billing EU VAT number' })
+  @IsOptional()
+  @IsString()
+  billingEuVatNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Billing email for invoices' })
+  @IsOptional()
+  @IsEmail()
+  billingEmail?: string;
 }
 
 export class NetworkListItemDto {
@@ -557,6 +598,35 @@ export class NetworkDetailDto extends NetworkListItemDto {
 
   @ApiProperty({ description: 'Effective per wash fee (custom or platform default)' })
   effectivePerWashFee: number;
+
+  // Platform billing data (számlázási adatok a Platform felé)
+  @ApiPropertyOptional({ description: 'Billing company name' })
+  billingCompanyName?: string;
+
+  @ApiPropertyOptional({ description: 'Billing address' })
+  billingAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Billing city' })
+  billingCity?: string;
+
+  @ApiPropertyOptional({ description: 'Billing zip code' })
+  billingZipCode?: string;
+
+  @ApiPropertyOptional({ description: 'Billing country' })
+  billingCountry?: string;
+
+  @ApiPropertyOptional({ description: 'Billing tax number' })
+  billingTaxNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Billing EU VAT number' })
+  billingEuVatNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Billing email' })
+  billingEmail?: string;
+
+  // Billing data completeness indicator
+  @ApiProperty({ description: 'Whether billing data is complete for invoicing' })
+  billingDataComplete: boolean;
 }
 
 // ============================================================================

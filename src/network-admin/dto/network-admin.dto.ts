@@ -9,7 +9,9 @@ import {
   IsBoolean,
   IsArray,
   Matches,
+  IsEnum,
 } from 'class-validator';
+import { OperationType } from '@prisma/client';
 
 // ============================================================================
 // AUTH DTOs
@@ -163,6 +165,27 @@ export class ResendVerificationDto {
   @ApiProperty({ description: 'Network slug' })
   @IsString()
   slug: string;
+}
+
+export class ForgotPasswordDto {
+  @ApiProperty({ description: 'Email address' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ description: 'Network slug' })
+  @IsString()
+  slug: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ description: 'Reset token' })
+  @IsString()
+  token: string;
+
+  @ApiProperty({ description: 'New password' })
+  @IsString()
+  @MinLength(8)
+  newPassword: string;
 }
 
 export class TrialStatusDto {
@@ -320,6 +343,11 @@ export class CreateLocationDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiPropertyOptional({ enum: OperationType, description: 'Operation type: OWN or SUBCONTRACTOR' })
+  @IsOptional()
+  @IsEnum(OperationType)
+  operationType?: OperationType;
 }
 
 export class UpdateLocationDto {
@@ -389,6 +417,11 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiPropertyOptional({ enum: OperationType, description: 'Operation type: OWN or SUBCONTRACTOR' })
+  @IsOptional()
+  @IsEnum(OperationType)
+  operationType?: OperationType;
 }
 
 // ============================================================================

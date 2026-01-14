@@ -44,6 +44,14 @@ services:
       NODE_ENV: production
       PORT: 3000
       LOG_LEVEL: info
+      CORS_ORIGIN: https://app.vemiax.com,https://vsys.vemiax.com,https://api.vemiax.com
+      # WebSupport SMTP Configuration
+      SMTP_HOST: smtp.websupport.hu
+      SMTP_PORT: 587
+      SMTP_USER: info@vemiax.com
+      SMTP_PASS: Vemiax2026!
+      # PWA Base URL for QR codes
+      PWA_BASE_URL: https://app.vemiax.com
     ports:
       - "3000:3000"
     depends_on:
@@ -66,8 +74,8 @@ services:
       dockerfile: Dockerfile
       args:
         - API_URL=http://api:3000
-        # Client-side API calls go to the API container directly via public IP
-        - NEXT_PUBLIC_API_URL=http://46.224.157.177:3000
+        # Client-side API calls must use HTTPS domain (not IP) to avoid mixed content errors
+        - NEXT_PUBLIC_API_URL=https://api.vemiax.com
     container_name: vsys-pwa
     environment:
       NODE_ENV: production

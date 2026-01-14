@@ -51,6 +51,8 @@ import {
   NetworkRegisterResponseDto,
   VerifyEmailDto,
   ResendVerificationDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
   TrialStatusDto,
   LocationOpeningHoursDto,
   LocationOpeningHoursResponseDto,
@@ -175,6 +177,33 @@ export class NetworkAdminController {
   })
   async resendVerification(@Body() dto: ResendVerificationDto): Promise<{ success: boolean; message: string }> {
     return this.networkAdminService.resendVerificationEmail(dto.email, dto.slug);
+  }
+
+  // =========================================================================
+  // PASSWORD RESET
+  // =========================================================================
+
+  @Post('forgot-password')
+  @SensitiveThrottle() // SECURITY: Limit password reset requests
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset email' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset email sent (if account exists)',
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ success: boolean; message: string }> {
+    return this.networkAdminService.forgotPassword(dto.email, dto.slug);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successful',
+  })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ success: boolean; message: string }> {
+    return this.networkAdminService.resetPassword(dto.token, dto.newPassword);
   }
 
   // =========================================================================

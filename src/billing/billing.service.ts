@@ -3,6 +3,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { InvoiceProvider, CreateInvoiceRequest, InvoiceLineItem } from './invoice-provider.interface';
 import { SzamlazzProvider } from './szamlazz.provider';
 import { BillingoProvider } from './billingo.provider';
+import { NavOnlineProvider } from './nav-online.provider';
 import { ViesService } from './vies.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { VehicleType, InvoiceProvider as InvoiceProviderEnum } from '@prisma/client';
@@ -17,11 +18,13 @@ export class BillingService {
     private prisma: PrismaService,
     private szamlazzProvider: SzamlazzProvider,
     private billingoProvider: BillingoProvider,
+    private navOnlineProvider: NavOnlineProvider,
     private viesService: ViesService,
   ) {
     // Register available providers
     this.providers.set('szamlazz', this.szamlazzProvider);
     this.providers.set('billingo', this.billingoProvider);
+    this.providers.set('nav_online', this.navOnlineProvider);
   }
 
   /**
@@ -53,6 +56,22 @@ export class BillingService {
         return { provider: this.billingoProvider, providerName: 'billingo' };
       }
       return { provider: null, providerName: 'billingo' };
+    }
+
+    if (settings.invoiceProvider === InvoiceProviderEnum.NAV_ONLINE) {
+      // Configure NAV Online with network-specific settings
+      if (settings.navOnlineUser && settings.navOnlineSignKey) {
+        this.navOnlineProvider.configure(
+          settings.navOnlineUser,
+          settings.navOnlinePassword || '',
+          settings.navOnlineTaxNum || '',
+          settings.navOnlineSignKey,
+          settings.navOnlineExchKey || '',
+          false, // Default to test mode - production should be explicit
+        );
+        return { provider: this.navOnlineProvider, providerName: 'nav_online' };
+      }
+      return { provider: null, providerName: 'nav_online' };
     }
 
     return { provider: null, providerName: 'none' };

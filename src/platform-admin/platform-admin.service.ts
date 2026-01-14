@@ -678,6 +678,15 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     const customMonthlyFee = network.customMonthlyFee !== null ? Number(network.customMonthlyFee) : null;
     const customPerWashFee = network.customPerWashFee !== null ? Number(network.customPerWashFee) : null;
 
+    // Billing data completeness check
+    const billingDataComplete = !!(
+      network.billingCompanyName &&
+      network.billingAddress &&
+      network.billingCity &&
+      network.billingZipCode &&
+      network.billingTaxNumber
+    );
+
     return {
       id: network.id,
       name: network.name,
@@ -704,6 +713,16 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       platformPerWashFee,
       effectiveMonthlyFee: customMonthlyFee !== null ? customMonthlyFee : platformMonthlyFee,
       effectivePerWashFee: customPerWashFee !== null ? customPerWashFee : platformPerWashFee,
+      // Platform billing data
+      billingCompanyName: network.billingCompanyName || undefined,
+      billingAddress: network.billingAddress || undefined,
+      billingCity: network.billingCity || undefined,
+      billingZipCode: network.billingZipCode || undefined,
+      billingCountry: network.billingCountry,
+      billingTaxNumber: network.billingTaxNumber || undefined,
+      billingEuVatNumber: network.billingEuVatNumber || undefined,
+      billingEmail: network.billingEmail || undefined,
+      billingDataComplete,
     };
   }
 
@@ -820,6 +839,32 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     }
     if (dto.pricingNotes !== undefined) {
       updateData.pricingNotes = dto.pricingNotes;
+    }
+
+    // Platform billing data (számlázási adatok a Platform felé)
+    if (dto.billingCompanyName !== undefined) {
+      updateData.billingCompanyName = dto.billingCompanyName;
+    }
+    if (dto.billingAddress !== undefined) {
+      updateData.billingAddress = dto.billingAddress;
+    }
+    if (dto.billingCity !== undefined) {
+      updateData.billingCity = dto.billingCity;
+    }
+    if (dto.billingZipCode !== undefined) {
+      updateData.billingZipCode = dto.billingZipCode;
+    }
+    if (dto.billingCountry !== undefined) {
+      updateData.billingCountry = dto.billingCountry;
+    }
+    if (dto.billingTaxNumber !== undefined) {
+      updateData.billingTaxNumber = dto.billingTaxNumber;
+    }
+    if (dto.billingEuVatNumber !== undefined) {
+      updateData.billingEuVatNumber = dto.billingEuVatNumber;
+    }
+    if (dto.billingEmail !== undefined) {
+      updateData.billingEmail = dto.billingEmail;
     }
 
     await this.prisma.network.update({
