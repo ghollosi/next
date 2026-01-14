@@ -553,10 +553,24 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
         platformUrl: dto.platformUrl,
         supportEmail: dto.supportEmail,
         supportPhone: dto.supportPhone,
+        // Company data
+        companyName: dto.companyName,
+        companyAddress: dto.companyAddress,
+        companyCity: dto.companyCity,
+        companyZipCode: dto.companyZipCode,
+        companyCountry: dto.companyCountry,
+        taxNumber: dto.taxNumber,
+        euVatNumber: dto.euVatNumber,
+        bankAccountNumber: dto.bankAccountNumber,
+        bankAccountIban: dto.bankAccountIban,
+        bankName: dto.bankName,
+        // Pricing
         defaultTrialDays: dto.defaultTrialDays,
         baseMonthlyFee: dto.baseMonthlyFee,
         perWashFee: dto.perWashFee,
+        // Email
         resendApiKey: dto.resendApiKey,
+        // SMS
         twilioAccountSid: dto.twilioAccountSid,
         twilioAuthToken: dto.twilioAuthToken,
         twilioPhoneNumber: dto.twilioPhoneNumber,
@@ -570,12 +584,6 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
         // Invoice provider
         invoiceProvider: dto.invoiceProvider,
         szamlazzAgentKey: dto.szamlazzAgentKey,
-        szamlazzSellerName: dto.szamlazzSellerName,
-        szamlazzSellerAddress: dto.szamlazzSellerAddress,
-        szamlazzSellerCity: dto.szamlazzSellerCity,
-        szamlazzSellerZipCode: dto.szamlazzSellerZipCode,
-        szamlazzSellerTaxNumber: dto.szamlazzSellerTaxNumber,
-        szamlazzSellerBankAccount: dto.szamlazzSellerBankAccount,
         billingoApiKey: dto.billingoApiKey,
         billingoBlockId: dto.billingoBlockId,
         billingoBankAccountId: dto.billingoBankAccountId,

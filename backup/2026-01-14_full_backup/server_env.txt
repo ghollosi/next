@@ -1,0 +1,17 @@
+# VSys Next - Production Environment
+
+# Database Configuration
+DATABASE_URL="postgresql://vsys:vsys_staging_password@postgres:5432/vsys_next?schema=public"
+
+# Application
+NODE_ENV=production
+PORT=3000
+
+# JWT Configuration
+JWT_SECRET=vsys-next-dev-secret-change-in-production
+
+# CORS - Allow app.vemiax.com and api.vemiax.com
+CORS_ORIGIN=https://app.vemiax.com,https://api.vemiax.com,http://localhost:3001
+
+# Logging
+LOG_LEVEL=info

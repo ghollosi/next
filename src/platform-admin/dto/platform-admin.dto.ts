@@ -189,6 +189,57 @@ export class UpdatePlatformSettingsDto {
   @IsString()
   supportPhone?: string;
 
+  // Company data (for invoicing)
+  @ApiPropertyOptional({ description: 'Company name' })
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @ApiPropertyOptional({ description: 'Company address' })
+  @IsOptional()
+  @IsString()
+  companyAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Company city' })
+  @IsOptional()
+  @IsString()
+  companyCity?: string;
+
+  @ApiPropertyOptional({ description: 'Company zip code' })
+  @IsOptional()
+  @IsString()
+  companyZipCode?: string;
+
+  @ApiPropertyOptional({ description: 'Company country (ISO 2-letter code)' })
+  @IsOptional()
+  @IsString()
+  companyCountry?: string;
+
+  @ApiPropertyOptional({ description: 'Tax number' })
+  @IsOptional()
+  @IsString()
+  taxNumber?: string;
+
+  @ApiPropertyOptional({ description: 'EU VAT number' })
+  @IsOptional()
+  @IsString()
+  euVatNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Bank account number' })
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Bank account IBAN' })
+  @IsOptional()
+  @IsString()
+  bankAccountIban?: string;
+
+  @ApiPropertyOptional({ description: 'Bank name' })
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
   @ApiPropertyOptional({ description: 'Default trial days for new networks' })
   @IsOptional()
   @IsNumber()
@@ -265,36 +316,6 @@ export class UpdatePlatformSettingsDto {
   @IsOptional()
   @IsString()
   szamlazzAgentKey?: string;
-
-  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Name' })
-  @IsOptional()
-  @IsString()
-  szamlazzSellerName?: string;
-
-  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Address' })
-  @IsOptional()
-  @IsString()
-  szamlazzSellerAddress?: string;
-
-  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller City' })
-  @IsOptional()
-  @IsString()
-  szamlazzSellerCity?: string;
-
-  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Zip Code' })
-  @IsOptional()
-  @IsString()
-  szamlazzSellerZipCode?: string;
-
-  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Tax Number' })
-  @IsOptional()
-  @IsString()
-  szamlazzSellerTaxNumber?: string;
-
-  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Bank Account' })
-  @IsOptional()
-  @IsString()
-  szamlazzSellerBankAccount?: string;
 
   @ApiPropertyOptional({ description: 'Billingo API Key' })
   @IsOptional()

@@ -1,0 +1,84 @@
+# VSys Next - Full Stack Docker Compose
+# Includes: API + PWA + PostgreSQL
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vsys-postgres
+    environment:
+      POSTGRES_USER: vsys
+      POSTGRES_PASSWORD: vsys_dev_password
+      POSTGRES_DB: vsys_next
+    volumes:
+      - vsys_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vsys -d vsys_next"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - vsys-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: vsys-api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://vsys:vsys_dev_password@postgres:5432/vsys_next?schema=public
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - vsys-network
+
+  pwa:
+    build:
+      context: ./pwa
+      dockerfile: Dockerfile
+      args:
+        - API_URL=http://api:3000
+        - NEXT_PUBLIC_API_URL=https://api.vemiax.com
+    container_name: vsys-pwa
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - vsys-network
+
+volumes:
+  vsys_postgres_data:
+    external: true
+
+networks:
+  vsys-network:
+    name: vsys-network

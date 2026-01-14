@@ -88,14 +88,32 @@ interface PlatformSettings {
   platformUrl?: string;
   supportEmail?: string;
   supportPhone?: string;
+  // Company data
+  companyName?: string;
+  companyAddress?: string;
+  companyCity?: string;
+  companyZipCode?: string;
+  companyCountry?: string;
+  taxNumber?: string;
+  euVatNumber?: string;
+  bankAccountNumber?: string;
+  bankAccountIban?: string;
+  bankName?: string;
+  // Pricing
   defaultTrialDays: number;
   baseMonthlyFee: number;
   perWashFee: number;
+  // Status flags
   emailConfigured: boolean;
   smsConfigured: boolean;
   stripeConfigured: boolean;
   invoiceConfigured: boolean;
   invoiceProvider: string;
+  // Invoice provider settings
+  szamlazzAgentKey?: string;
+  billingoApiKey?: string;
+  billingoBlockId?: number;
+  billingoBankAccountId?: number;
 }
 
 // Session management
