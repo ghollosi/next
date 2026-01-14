@@ -412,6 +412,16 @@ export const networkAdminApi = {
       longitude?: number;
       isActive?: boolean;
       operationType?: 'OWN' | 'SUBCONTRACTOR';
+      // Alvállalkozói cégadatok
+      subcontractorCompanyName?: string;
+      subcontractorTaxNumber?: string;
+      subcontractorAddress?: string;
+      subcontractorCity?: string;
+      subcontractorZipCode?: string;
+      subcontractorContactName?: string;
+      subcontractorContactPhone?: string;
+      subcontractorContactEmail?: string;
+      subcontractorBankAccount?: string;
     },
   ): Promise<Location> {
     return fetchWithAuth(`/network-admin/locations/${id}`, {
