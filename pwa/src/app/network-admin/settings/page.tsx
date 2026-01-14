@@ -34,6 +34,7 @@ interface Settings {
     szamlazzAgentKey: string;
     billingoApiKey: string;
     billingoBlockId: string;
+    billingoBankAccountId: string;
     navOnlineUser: string;
     navOnlineTaxNum: string;
   };
@@ -872,9 +873,12 @@ export default function SettingsPage() {
               {settings.invoicing.invoiceProvider === 'billingo' && (
                 <div className="bg-green-50 rounded-xl p-4 space-y-4">
                   <h4 className="font-semibold text-green-900">Billingo beállítások</h4>
+                  <p className="text-sm text-green-700 mb-2">
+                    A Billingo API kulcsot a <a href="https://app.billingo.hu/api-key" target="_blank" rel="noopener noreferrer" className="underline">Billingo admin</a> felületen tudod létrehozni.
+                  </p>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API kulcs
+                      API kulcs *
                     </label>
                     <input
                       type="password"
@@ -884,17 +888,37 @@ export default function SettingsPage() {
                       placeholder="Billingo API kulcs"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Számlatömb ID
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.invoicing.billingoBlockId || ''}
-                      onChange={(e) => updateSettings('invoicing', 'billingoBlockId', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      placeholder="Számlatömb azonosító"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Számlatömb ID *
+                      </label>
+                      <input
+                        type="number"
+                        value={settings.invoicing.billingoBlockId || ''}
+                        onChange={(e) => updateSettings('invoicing', 'billingoBlockId', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="pl. 12345"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Billingo → Beállítások → Számlatömbök
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bankszámla ID (opcionális)
+                      </label>
+                      <input
+                        type="number"
+                        value={settings.invoicing.billingoBankAccountId || ''}
+                        onChange={(e) => updateSettings('invoicing', 'billingoBankAccountId', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="pl. 67890"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Billingo → Beállítások → Bankszámlák
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

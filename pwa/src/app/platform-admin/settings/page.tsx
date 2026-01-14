@@ -15,6 +15,8 @@ interface Settings {
   emailConfigured: boolean;
   smsConfigured: boolean;
   stripeConfigured: boolean;
+  invoiceConfigured: boolean;
+  invoiceProvider: string;
 }
 
 export default function PlatformSettingsPage() {
@@ -48,6 +50,19 @@ export default function PlatformSettingsPage() {
   const [stripeBasePriceId, setStripeBasePriceId] = useState('');
   const [stripeUsagePriceId, setStripeUsagePriceId] = useState('');
 
+  // Invoice provider settings (for billing networks)
+  const [invoiceProvider, setInvoiceProvider] = useState('NONE');
+  const [szamlazzAgentKey, setSzamlazzAgentKey] = useState('');
+  const [szamlazzSellerName, setSzamlazzSellerName] = useState('');
+  const [szamlazzSellerAddress, setSzamlazzSellerAddress] = useState('');
+  const [szamlazzSellerCity, setSzamlazzSellerCity] = useState('');
+  const [szamlazzSellerZipCode, setSzamlazzSellerZipCode] = useState('');
+  const [szamlazzSellerTaxNumber, setSzamlazzSellerTaxNumber] = useState('');
+  const [szamlazzSellerBankAccount, setSzamlazzSellerBankAccount] = useState('');
+  const [billingoApiKey, setBillingoApiKey] = useState('');
+  const [billingoBlockId, setBillingoBlockId] = useState('');
+  const [billingoBankAccountId, setBillingoBankAccountId] = useState('');
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -63,6 +78,7 @@ export default function PlatformSettingsPage() {
       setDefaultTrialDays(data.defaultTrialDays);
       setBaseMonthlyFee(data.baseMonthlyFee);
       setPerWashFee(data.perWashFee);
+      setInvoiceProvider(data.invoiceProvider || 'NONE');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
@@ -93,6 +109,18 @@ export default function PlatformSettingsPage() {
         ...(stripeWebhookSecret ? { stripeWebhookSecret } : {}),
         ...(stripeBasePriceId ? { stripeBasePriceId } : {}),
         ...(stripeUsagePriceId ? { stripeUsagePriceId } : {}),
+        // Invoice provider settings
+        invoiceProvider,
+        ...(szamlazzAgentKey ? { szamlazzAgentKey } : {}),
+        ...(szamlazzSellerName ? { szamlazzSellerName } : {}),
+        ...(szamlazzSellerAddress ? { szamlazzSellerAddress } : {}),
+        ...(szamlazzSellerCity ? { szamlazzSellerCity } : {}),
+        ...(szamlazzSellerZipCode ? { szamlazzSellerZipCode } : {}),
+        ...(szamlazzSellerTaxNumber ? { szamlazzSellerTaxNumber } : {}),
+        ...(szamlazzSellerBankAccount ? { szamlazzSellerBankAccount } : {}),
+        ...(billingoApiKey ? { billingoApiKey } : {}),
+        ...(billingoBlockId ? { billingoBlockId: parseInt(billingoBlockId) } : {}),
+        ...(billingoBankAccountId ? { billingoBankAccountId: parseInt(billingoBankAccountId) } : {}),
       });
       setSettings(data);
       setSuccess('Beállítások mentve!');
@@ -106,6 +134,8 @@ export default function PlatformSettingsPage() {
       setStripeWebhookSecret('');
       setStripeBasePriceId('');
       setStripeUsagePriceId('');
+      setSzamlazzAgentKey('');
+      setBillingoApiKey('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
@@ -423,6 +453,184 @@ export default function PlatformSettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Invoice Provider settings - for billing networks */}
+      <div className="bg-gray-800 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Számlázó szolgáltató (Network-ök felé)</h2>
+          {settings?.invoiceConfigured ? (
+            <span className="px-2.5 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-medium">
+              Konfigurálva
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 bg-gray-500/20 text-gray-400 rounded-full text-xs font-medium">
+              Nincs konfigurálva
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-400 mb-4">
+          Ez a beállítás a Network-ök felé kiállított SaaS előfizetési számlákhoz szükséges.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Számlázó szolgáltató
+            </label>
+            <select
+              value={invoiceProvider}
+              onChange={(e) => setInvoiceProvider(e.target.value)}
+              className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="NONE">Nincs (manuális számlázás)</option>
+              <option value="SZAMLAZZ">Számlázz.hu</option>
+              <option value="BILLINGO">Billingo</option>
+            </select>
+          </div>
+
+          {invoiceProvider === 'SZAMLAZZ' && (
+            <div className="border-t border-gray-700 pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-300">Számlázz.hu beállítások</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Agent kulcs
+                </label>
+                <input
+                  type="password"
+                  value={szamlazzAgentKey}
+                  onChange={(e) => setSzamlazzAgentKey(e.target.value)}
+                  placeholder={settings?.invoiceConfigured && invoiceProvider === 'SZAMLAZZ' ? '••••••••••••' : 'Agent kulcs'}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Eladó neve (cégnév)
+                  </label>
+                  <input
+                    type="text"
+                    value={szamlazzSellerName}
+                    onChange={(e) => setSzamlazzSellerName(e.target.value)}
+                    placeholder="Vemiax Kft."
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Adószám
+                  </label>
+                  <input
+                    type="text"
+                    value={szamlazzSellerTaxNumber}
+                    onChange={(e) => setSzamlazzSellerTaxNumber(e.target.value)}
+                    placeholder="12345678-2-42"
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Irányítószám
+                  </label>
+                  <input
+                    type="text"
+                    value={szamlazzSellerZipCode}
+                    onChange={(e) => setSzamlazzSellerZipCode(e.target.value)}
+                    placeholder="1234"
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Város
+                  </label>
+                  <input
+                    type="text"
+                    value={szamlazzSellerCity}
+                    onChange={(e) => setSzamlazzSellerCity(e.target.value)}
+                    placeholder="Budapest"
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Utca, házszám
+                  </label>
+                  <input
+                    type="text"
+                    value={szamlazzSellerAddress}
+                    onChange={(e) => setSzamlazzSellerAddress(e.target.value)}
+                    placeholder="Fő utca 1."
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Bankszámlaszám
+                </label>
+                <input
+                  type="text"
+                  value={szamlazzSellerBankAccount}
+                  onChange={(e) => setSzamlazzSellerBankAccount(e.target.value)}
+                  placeholder="12345678-12345678-12345678"
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {invoiceProvider === 'BILLINGO' && (
+            <div className="border-t border-gray-700 pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-300">Billingo beállítások</h3>
+              <p className="text-xs text-gray-500">
+                A Billingo API kulcsot a <a href="https://app.billingo.hu/api-key" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">Billingo admin</a> felületen tudod létrehozni.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  API kulcs
+                </label>
+                <input
+                  type="password"
+                  value={billingoApiKey}
+                  onChange={(e) => setBillingoApiKey(e.target.value)}
+                  placeholder={settings?.invoiceConfigured && invoiceProvider === 'BILLINGO' ? '••••••••••••' : 'API kulcs'}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Számlatömb ID
+                  </label>
+                  <input
+                    type="number"
+                    value={billingoBlockId}
+                    onChange={(e) => setBillingoBlockId(e.target.value)}
+                    placeholder="12345"
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Billingo → Beállítások → Számlatömbök</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Bankszámla ID (opcionális)
+                  </label>
+                  <input
+                    type="number"
+                    value={billingoBankAccountId}
+                    onChange={(e) => setBillingoBankAccountId(e.target.value)}
+                    placeholder="67890"
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Billingo → Beállítások → Bankszámlák</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

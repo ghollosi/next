@@ -10,8 +10,9 @@ import {
   IsNumber,
   IsBoolean,
   ValidateIf,
+  IsInt,
 } from 'class-validator';
-import { PlatformRole, SubscriptionStatus } from '@prisma/client';
+import { PlatformRole, SubscriptionStatus, InvoiceProvider } from '@prisma/client';
 
 // ============================================================================
 // AUTH DTOs
@@ -253,6 +254,62 @@ export class UpdatePlatformSettingsDto {
   @IsOptional()
   @IsString()
   stripeUsagePriceId?: string;
+
+  // Invoice Provider settings (for billing networks)
+  @ApiPropertyOptional({ description: 'Invoice provider for billing networks', enum: InvoiceProvider })
+  @IsOptional()
+  @IsEnum(InvoiceProvider)
+  invoiceProvider?: InvoiceProvider;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Agent Key' })
+  @IsOptional()
+  @IsString()
+  szamlazzAgentKey?: string;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Name' })
+  @IsOptional()
+  @IsString()
+  szamlazzSellerName?: string;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Address' })
+  @IsOptional()
+  @IsString()
+  szamlazzSellerAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller City' })
+  @IsOptional()
+  @IsString()
+  szamlazzSellerCity?: string;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Zip Code' })
+  @IsOptional()
+  @IsString()
+  szamlazzSellerZipCode?: string;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Tax Number' })
+  @IsOptional()
+  @IsString()
+  szamlazzSellerTaxNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Szamlazz.hu Seller Bank Account' })
+  @IsOptional()
+  @IsString()
+  szamlazzSellerBankAccount?: string;
+
+  @ApiPropertyOptional({ description: 'Billingo API Key' })
+  @IsOptional()
+  @IsString()
+  billingoApiKey?: string;
+
+  @ApiPropertyOptional({ description: 'Billingo Block ID' })
+  @IsOptional()
+  @IsInt()
+  billingoBlockId?: number;
+
+  @ApiPropertyOptional({ description: 'Billingo Bank Account ID' })
+  @IsOptional()
+  @IsInt()
+  billingoBankAccountId?: number;
 }
 
 export class PlatformSettingsResponseDto {
@@ -288,6 +345,12 @@ export class PlatformSettingsResponseDto {
 
   @ApiProperty({ description: 'Whether Stripe is configured' })
   stripeConfigured: boolean;
+
+  @ApiProperty({ description: 'Whether invoice provider is configured' })
+  invoiceConfigured: boolean;
+
+  @ApiPropertyOptional({ description: 'Invoice provider', enum: InvoiceProvider })
+  invoiceProvider?: InvoiceProvider;
 }
 
 // ============================================================================

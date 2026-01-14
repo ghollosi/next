@@ -94,6 +94,8 @@ interface PlatformSettings {
   emailConfigured: boolean;
   smsConfigured: boolean;
   stripeConfigured: boolean;
+  invoiceConfigured: boolean;
+  invoiceProvider: string;
 }
 
 // Session management

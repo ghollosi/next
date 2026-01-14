@@ -1434,6 +1434,7 @@ Vemiax csapata`;
         szamlazzAgentKey: settings?.szamlazzAgentKey ? '***' : '',
         billingoApiKey: settings?.billingoApiKey ? '***' : '',
         billingoBlockId: settings?.billingoBlockId || null,
+        billingoBankAccountId: settings?.billingoBankAccountId || null,
         navOnlineUser: settings?.navOnlineUser || '',
         navOnlineTaxNum: settings?.navOnlineTaxNum || '',
         // Nem küldjük vissza a jelszavakat
@@ -1532,6 +1533,9 @@ Vemiax csapata`;
       }
       if (dto.invoicing.billingoBlockId !== undefined) {
         settingsData.billingoBlockId = dto.invoicing.billingoBlockId;
+      }
+      if (dto.invoicing.billingoBankAccountId !== undefined) {
+        settingsData.billingoBankAccountId = dto.invoicing.billingoBankAccountId;
       }
       if (dto.invoicing.navOnlineUser) {
         settingsData.navOnlineUser = dto.invoicing.navOnlineUser;

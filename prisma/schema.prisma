@@ -1068,13 +1068,26 @@ model PlatformSettings {
   mnbApiEnabled        Boolean       @default(true) @map("mnb_api_enabled")
   ecbApiEnabled        Boolean       @default(true) @map("ecb_api_enabled")
 
-  // Stripe Payment Gateway
+  // Stripe Payment Gateway (előfizetés kezelés)
   stripeSecretKey      String?       @map("stripe_secret_key")
   stripePublishableKey String?       @map("stripe_publishable_key")
   stripeWebhookSecret  String?       @map("stripe_webhook_secret")
   stripeProductId      String?       @map("stripe_product_id")
   stripeBasePriceId    String?       @map("stripe_base_price_id")
   stripeUsagePriceId   String?       @map("stripe_usage_price_id")
+
+  // Platform számlázó szolgáltató (Network-ök felé kiállított számlákhoz)
+  invoiceProvider           InvoiceProvider @default(NONE) @map("invoice_provider")
+  szamlazzAgentKey          String?         @map("szamlazz_agent_key")
+  szamlazzSellerName        String?         @map("szamlazz_seller_name")
+  szamlazzSellerAddress     String?         @map("szamlazz_seller_address")
+  szamlazzSellerCity        String?         @map("szamlazz_seller_city")
+  szamlazzSellerZipCode     String?         @map("szamlazz_seller_zip_code")
+  szamlazzSellerTaxNumber   String?         @map("szamlazz_seller_tax_number")
+  szamlazzSellerBankAccount String?         @map("szamlazz_seller_bank_account")
+  billingoApiKey            String?         @map("billingo_api_key")
+  billingoBlockId           Int?            @map("billingo_block_id")
+  billingoBankAccountId     Int?            @map("billingo_bank_account_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1149,15 +1162,16 @@ model NetworkSettings {
   twilioPhoneNumber String?       @map("twilio_phone_number")
 
   // Számlázó szolgáltató
-  invoiceProvider   InvoiceProvider @default(NONE) @map("invoice_provider")
-  szamlazzAgentKey  String?         @map("szamlazz_agent_key")
-  billingoApiKey    String?         @map("billingo_api_key")
-  billingoBlockId   Int?            @map("billingo_block_id")
-  navOnlineUser     String?         @map("nav_online_user")
-  navOnlinePassword String?         @map("nav_online_password")
-  navOnlineTaxNum   String?         @map("nav_online_tax_num")
-  navOnlineSignKey  String?         @map("nav_online_sign_key")
-  navOnlineExchKey  String?         @map("nav_online_exch_key")
+  invoiceProvider       InvoiceProvider @default(NONE) @map("invoice_provider")
+  szamlazzAgentKey      String?         @map("szamlazz_agent_key")
+  billingoApiKey        String?         @map("billingo_api_key")
+  billingoBlockId       Int?            @map("billingo_block_id")
+  billingoBankAccountId Int?            @map("billingo_bank_account_id")
+  navOnlineUser         String?         @map("nav_online_user")
+  navOnlinePassword     String?         @map("nav_online_password")
+  navOnlineTaxNum       String?         @map("nav_online_tax_num")
+  navOnlineSignKey      String?         @map("nav_online_sign_key")
+  navOnlineExchKey      String?         @map("nav_online_exch_key")
 
   // Üzleti szabályok
   allowCashPayment      Boolean @default(true) @map("allow_cash_payment")

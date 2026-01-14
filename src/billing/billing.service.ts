@@ -2,9 +2,10 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../common/prisma/prisma.service';
 import { InvoiceProvider, CreateInvoiceRequest, InvoiceLineItem } from './invoice-provider.interface';
 import { SzamlazzProvider } from './szamlazz.provider';
+import { BillingoProvider } from './billingo.provider';
 import { ViesService } from './vies.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { VehicleType } from '@prisma/client';
+import { VehicleType, InvoiceProvider as InvoiceProviderEnum } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 
 @Injectable()
@@ -15,10 +16,53 @@ export class BillingService {
   constructor(
     private prisma: PrismaService,
     private szamlazzProvider: SzamlazzProvider,
+    private billingoProvider: BillingoProvider,
     private viesService: ViesService,
   ) {
     // Register available providers
     this.providers.set('szamlazz', this.szamlazzProvider);
+    this.providers.set('billingo', this.billingoProvider);
+  }
+
+  /**
+   * Get the configured invoice provider for a network
+   */
+  async getProviderForNetwork(networkId: string): Promise<{ provider: InvoiceProvider | null; providerName: string }> {
+    const settings = await this.prisma.networkSettings.findUnique({
+      where: { networkId },
+    });
+
+    if (!settings || settings.invoiceProvider === InvoiceProviderEnum.NONE || settings.invoiceProvider === InvoiceProviderEnum.MANUAL) {
+      return { provider: null, providerName: 'none' };
+    }
+
+    if (settings.invoiceProvider === InvoiceProviderEnum.SZAMLAZZ) {
+      // Configure the provider with network-specific settings
+      // Note: SzamlazzProvider uses environment variables, but we could extend it
+      return { provider: this.szamlazzProvider, providerName: 'szamlazz' };
+    }
+
+    if (settings.invoiceProvider === InvoiceProviderEnum.BILLINGO) {
+      // Configure Billingo with network-specific settings
+      if (settings.billingoApiKey && settings.billingoBlockId) {
+        this.billingoProvider.configure(
+          settings.billingoApiKey,
+          settings.billingoBlockId,
+          settings.billingoBankAccountId || undefined,
+        );
+        return { provider: this.billingoProvider, providerName: 'billingo' };
+      }
+      return { provider: null, providerName: 'billingo' };
+    }
+
+    return { provider: null, providerName: 'none' };
+  }
+
+  /**
+   * Get provider by name (for explicit provider selection)
+   */
+  getProvider(providerName: string): InvoiceProvider | undefined {
+    return this.providers.get(providerName);
   }
 
   /**

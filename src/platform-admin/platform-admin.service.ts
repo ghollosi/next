@@ -514,6 +514,12 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       });
     }
 
+    // Check if invoice provider is configured
+    const invoiceConfigured = settings.invoiceProvider !== 'NONE' && (
+      (settings.invoiceProvider === 'SZAMLAZZ' && !!settings.szamlazzAgentKey) ||
+      (settings.invoiceProvider === 'BILLINGO' && !!settings.billingoApiKey && !!settings.billingoBlockId)
+    );
+
     return {
       id: settings.id,
       platformName: settings.platformName,
@@ -526,6 +532,8 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       emailConfigured: !!settings.resendApiKey,
       smsConfigured: !!settings.twilioAccountSid && !!settings.twilioAuthToken,
       stripeConfigured: !!settings.stripeSecretKey && !!settings.stripeBasePriceId,
+      invoiceConfigured,
+      invoiceProvider: settings.invoiceProvider,
     };
   }
 
@@ -559,8 +567,26 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
         stripeProductId: dto.stripeProductId,
         stripeBasePriceId: dto.stripeBasePriceId,
         stripeUsagePriceId: dto.stripeUsagePriceId,
+        // Invoice provider
+        invoiceProvider: dto.invoiceProvider,
+        szamlazzAgentKey: dto.szamlazzAgentKey,
+        szamlazzSellerName: dto.szamlazzSellerName,
+        szamlazzSellerAddress: dto.szamlazzSellerAddress,
+        szamlazzSellerCity: dto.szamlazzSellerCity,
+        szamlazzSellerZipCode: dto.szamlazzSellerZipCode,
+        szamlazzSellerTaxNumber: dto.szamlazzSellerTaxNumber,
+        szamlazzSellerBankAccount: dto.szamlazzSellerBankAccount,
+        billingoApiKey: dto.billingoApiKey,
+        billingoBlockId: dto.billingoBlockId,
+        billingoBankAccountId: dto.billingoBankAccountId,
       },
     });
+
+    // Check if invoice provider is configured
+    const invoiceConfigured = updated.invoiceProvider !== 'NONE' && (
+      (updated.invoiceProvider === 'SZAMLAZZ' && !!updated.szamlazzAgentKey) ||
+      (updated.invoiceProvider === 'BILLINGO' && !!updated.billingoApiKey && !!updated.billingoBlockId)
+    );
 
     return {
       id: updated.id,
@@ -574,6 +600,8 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       emailConfigured: !!updated.resendApiKey,
       smsConfigured: !!updated.twilioAccountSid && !!updated.twilioAuthToken,
       stripeConfigured: !!updated.stripeSecretKey && !!updated.stripeBasePriceId,
+      invoiceConfigured,
+      invoiceProvider: updated.invoiceProvider,
     };
   }
 
