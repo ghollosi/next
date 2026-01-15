@@ -980,6 +980,16 @@ Vemiax csapata`;
   }
 
   async createLocation(networkId: string, dto: CreateLocationDto): Promise<LocationListItemDto> {
+    // Get network to inherit country and timezone
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+      select: { country: true, timezone: true },
+    });
+
+    if (!network) {
+      throw new NotFoundException('Hálózat nem található');
+    }
+
     // Generate a code from the name or use provided code
     const code = dto.code || dto.name.substring(0, 8).toUpperCase().replace(/\s+/g, '');
 
@@ -991,8 +1001,9 @@ Vemiax csapata`;
         address: dto.address,
         city: dto.city,
         zipCode: dto.postalCode,
-        country: dto.country || 'HU',
-        timezone: dto.timezone || 'Europe/Budapest',
+        // Location inherits country and timezone from Network
+        country: network.country,
+        timezone: network.timezone,
         latitude: dto.latitude,
         longitude: dto.longitude,
         openingHours: dto.openingHours,
@@ -1129,8 +1140,7 @@ Vemiax csapata`;
     if (dto.address !== undefined) updateData.address = dto.address;
     if (dto.city !== undefined) updateData.city = dto.city;
     if (dto.postalCode !== undefined) updateData.zipCode = dto.postalCode;
-    if (dto.country !== undefined) updateData.country = dto.country;
-    if (dto.timezone !== undefined) updateData.timezone = dto.timezone;
+    // Note: country and timezone are inherited from Network, not editable on Location level
     if (dto.latitude !== undefined) updateData.latitude = dto.latitude;
     if (dto.longitude !== undefined) updateData.longitude = dto.longitude;
     if (dto.openingHours !== undefined) updateData.openingHours = dto.openingHours;

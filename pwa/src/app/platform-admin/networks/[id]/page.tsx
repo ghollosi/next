@@ -387,6 +387,19 @@ export default function NetworkDetailPage() {
           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(network.subscriptionStatus)}`}>
             {getStatusLabel(network.subscriptionStatus)}
           </span>
+          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            {network.country === 'HU' ? '🇭🇺 Magyarország' :
+             network.country === 'AT' ? '🇦🇹 Ausztria' :
+             network.country === 'SK' ? '🇸🇰 Szlovákia' :
+             network.country === 'RO' ? '🇷🇴 Románia' :
+             network.country === 'DE' ? '🇩🇪 Németország' :
+             network.country === 'PL' ? '🇵🇱 Lengyelország' :
+             network.country === 'CZ' ? '🇨🇿 Csehország' :
+             network.country === 'HR' ? '🇭🇷 Horvátország' :
+             network.country === 'SI' ? '🇸🇮 Szlovénia' :
+             network.country === 'RS' ? '🇷🇸 Szerbia' :
+             network.country}
+          </span>
         </div>
         <div className="flex gap-3">
           {editMode ? (
