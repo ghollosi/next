@@ -465,7 +465,7 @@ export const networkAdminApi = {
     address?: string;
     error?: string;
   }> {
-    return fetchWithAuth(`/billing/validate-vat?vatNumber=${encodeURIComponent(vatNumber)}`);
+    return fetchWithAuth(`/operator/billing/validate-vat?vatNumber=${encodeURIComponent(vatNumber)}`);
   },
 
   // Drivers
