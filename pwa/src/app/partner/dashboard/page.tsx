@@ -33,13 +33,27 @@ interface PartnerInfo {
   partnerCode: string;
 }
 
+interface PinResetRequest {
+  id: string;
+  driverId: string;
+  driverName: string;
+  driverPhone: string;
+  createdAt: string;
+}
+
 export default function PartnerDashboardPage() {
   const router = useRouter();
   const [partnerInfo, setPartnerInfo] = useState<PartnerInfo | null>(null);
   const [washEvents, setWashEvents] = useState<WashEvent[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [pinResetRequests, setPinResetRequests] = useState<PinResetRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // PIN Reset modal state
+  const [selectedPinRequest, setSelectedPinRequest] = useState<PinResetRequest | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [pinResetLoading, setPinResetLoading] = useState(false);
 
   // Filters
   const [startDate, setStartDate] = useState(() => {
@@ -80,11 +94,14 @@ export default function PartnerDashboardPage() {
       if (endDate) params.append('endDate', endDate);
       if (statusFilter) params.append('status', statusFilter);
 
-      const [eventsRes, statsRes] = await Promise.all([
+      const [eventsRes, statsRes, pinResetRes] = await Promise.all([
         fetch(`${API_URL}/partner-portal/wash-events?${params}`, {
           headers: { 'x-partner-session': sessionId },
         }),
         fetch(`${API_URL}/partner-portal/statistics?${params}`, {
+          headers: { 'x-partner-session': sessionId },
+        }),
+        fetch(`${API_URL}/partner-portal/pin-reset-requests`, {
           headers: { 'x-partner-session': sessionId },
         }),
       ]);
@@ -101,8 +118,10 @@ export default function PartnerDashboardPage() {
 
       const eventsData = await eventsRes.json();
       const statsData = await statsRes.json();
+      const pinResetData = pinResetRes.ok ? await pinResetRes.json() : [];
 
       setWashEvents(eventsData.data || []);
+      setPinResetRequests(pinResetData || []);
       setStatistics(statsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
@@ -158,6 +177,68 @@ export default function PartnerDashboardPage() {
     localStorage.removeItem('partner_session');
     localStorage.removeItem('partner_info');
     router.replace('/partner/login');
+  };
+
+  const handlePinResetComplete = async () => {
+    if (!selectedPinRequest || !newPin) return;
+
+    const sessionId = localStorage.getItem('partner_session');
+    if (!sessionId) return;
+
+    setPinResetLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/partner-portal/pin-reset-requests/${selectedPinRequest.id}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-partner-session': sessionId,
+        },
+        body: JSON.stringify({ newPin }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Hiba tortent');
+      }
+
+      // Remove from list and close modal
+      setPinResetRequests((prev) => prev.filter((r) => r.id !== selectedPinRequest.id));
+      setSelectedPinRequest(null);
+      setNewPin('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba tortent');
+    } finally {
+      setPinResetLoading(false);
+    }
+  };
+
+  const handlePinResetReject = async (requestId: string) => {
+    const sessionId = localStorage.getItem('partner_session');
+    if (!sessionId) return;
+
+    if (!confirm('Biztosan elutasitod a kerest?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/partner-portal/pin-reset-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-partner-session': sessionId,
+        },
+        body: JSON.stringify({ reason: 'Elutasitva a partner admin altal' }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Hiba tortent');
+      }
+
+      // Remove from list
+      setPinResetRequests((prev) => prev.filter((r) => r.id !== requestId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba tortent');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -246,6 +327,91 @@ export default function PartnerDashboardPage() {
                 {statistics.byStatus['LOCKED'] || 0}
               </div>
               <div className="text-sm text-gray-500">Lezárt</div>
+            </div>
+          </div>
+        )}
+
+        {/* PIN Reset Requests Alert */}
+        {pinResetRequests.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              <h3 className="text-lg font-semibold text-orange-800">
+                PIN visszaallitasi keresek ({pinResetRequests.length})
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {pinResetRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-orange-100">
+                  <div>
+                    <p className="font-medium text-gray-900">{request.driverName}</p>
+                    <p className="text-sm text-gray-500">{request.driverPhone}</p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(request.createdAt).toLocaleString('hu-HU')}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedPinRequest(request)}
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Uj PIN beallitasa
+                    </button>
+                    <button
+                      onClick={() => handlePinResetReject(request.id)}
+                      className="px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors"
+                    >
+                      Elutasitas
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PIN Reset Modal */}
+        {selectedPinRequest && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-xl font-semibold mb-4">PIN visszaallitasa</h3>
+              <p className="text-gray-600 mb-4">
+                <span className="font-medium">{selectedPinRequest.driverName}</span> sofornek allitod be az uj PIN kodot.
+              </p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Uj PIN kod
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="4 szamjegy"
+                  className="w-full px-4 py-3 text-2xl text-center tracking-widest font-mono border-2 border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  maxLength={4}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setSelectedPinRequest(null);
+                    setNewPin('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Megse
+                </button>
+                <button
+                  onClick={handlePinResetComplete}
+                  disabled={newPin.length < 4 || pinResetLoading}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {pinResetLoading ? 'Mentes...' : 'PIN mentes'}
+                </button>
+              </div>
             </div>
           </div>
         )}

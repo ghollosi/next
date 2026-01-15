@@ -14,7 +14,9 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { LoginThrottle } from '../common/throttler/login-throttle.decorator';
+import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
+import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { AuditAction } from '@prisma/client';
@@ -32,6 +34,8 @@ import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } f
 
 @Controller('operator-portal')
 export class OperatorPortalController {
+  private readonly logger = new Logger(OperatorPortalController.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly washEventService: WashEventService,
@@ -40,6 +44,7 @@ export class OperatorPortalController {
     private readonly bookingService: BookingService,
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
+    private readonly configService: ConfigService,
   ) {}
 
   // SECURITY: Get session from cookie (httpOnly) or header (backwards compatibility)
@@ -179,6 +184,162 @@ export class OperatorPortalController {
       networkName: location.network.name,
       operatorName: authenticatedOperator.name,
     };
+  }
+
+  // ==================== PIN Reset ====================
+
+  @Post('request-pin-reset')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  async requestPinReset(
+    @Body() body: { locationCode: string; operatorName: string },
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
+    if (!body.locationCode || !body.operatorName) {
+      throw new BadRequestException('Helyszín kód és operátor név megadása kötelező');
+    }
+
+    // Find location by code
+    const location = await this.prisma.location.findFirst({
+      where: {
+        code: body.locationCode.toUpperCase(),
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!location) {
+      // Biztonsági okokból ne áruljuk el, hogy nem létezik
+      return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
+    }
+
+    // Check if location has email
+    if (!location.email) {
+      this.logger.warn(`PIN reset requested for location ${location.code} but no email configured`);
+      return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
+    }
+
+    // Find operator by name at this location
+    const operator = await this.prisma.locationOperator.findFirst({
+      where: {
+        locationId: location.id,
+        name: { equals: body.operatorName, mode: 'insensitive' },
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!operator) {
+      // Biztonsági okokból ne áruljuk el, hogy nem létezik
+      return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
+
+    await this.prisma.locationOperator.update({
+      where: { id: operator.id },
+      data: {
+        pinResetToken: resetToken,
+        pinResetExpires: resetExpires,
+      },
+    });
+
+    // Send email
+    const platformUrl = this.configService.get('PLATFORM_URL') || 'http://localhost:3001';
+    const resetLink = `${platformUrl}/operator-portal/reset-pin?token=${resetToken}`;
+
+    this.logger.log(`PIN reset link for operator ${operator.name} at ${location.code}: ${resetLink}`);
+
+    // TODO: Email küldés implementálása
+    // Egyelőre logoljuk a linket
+
+    // AUDIT: Log PIN reset request
+    await this.auditLogService.log({
+      networkId: location.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'OPERATOR',
+      metadata: {
+        type: 'PIN_RESET_REQUESTED',
+        locationCode: location.code,
+        operatorName: operator.name,
+        operatorId: operator.id,
+        email: location.email,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
+  }
+
+  @Post('reset-pin')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  async resetPin(
+    @Body() body: { token: string; newPin: string },
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
+    if (!body.token || !body.newPin) {
+      throw new BadRequestException('Token és új PIN megadása kötelező');
+    }
+
+    if (body.newPin.length < 4 || body.newPin.length > 8) {
+      throw new BadRequestException('A PIN kódnak 4-8 karakter hosszúnak kell lennie');
+    }
+
+    // Find operator by reset token
+    const operator = await this.prisma.locationOperator.findFirst({
+      where: {
+        pinResetToken: body.token,
+        pinResetExpires: { gt: new Date() },
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        location: true,
+      },
+    });
+
+    if (!operator) {
+      throw new UnauthorizedException('Érvénytelen vagy lejárt token');
+    }
+
+    // Hash new PIN and update
+    const pinHash = await bcrypt.hash(body.newPin, 10);
+
+    await this.prisma.locationOperator.update({
+      where: { id: operator.id },
+      data: {
+        pinHash,
+        pinResetToken: null,
+        pinResetExpires: null,
+      },
+    });
+
+    // AUDIT: Log PIN reset success
+    await this.auditLogService.log({
+      networkId: operator.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'OPERATOR',
+      actorId: operator.id,
+      metadata: {
+        type: 'PIN_RESET_SUCCESS',
+        locationCode: operator.location.code,
+        operatorName: operator.name,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'PIN kód sikeresen megváltoztatva' };
   }
 
   @Get('profile')

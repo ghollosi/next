@@ -249,10 +249,15 @@ function LoginContent() {
         </form>
 
         {/* Help Text */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Nincs még fiókod? Kérd a diszpécsereddel!
-          </p>
+        <div className="mt-8 text-center space-y-3">
+          <a href="/forgot-pin" className="text-sm text-primary-600 hover:underline block">
+            Elfelejtetted a PIN kódod?
+          </a>
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-sm text-gray-500 pt-3">
+              Nincs még fiókod? Kérd a diszpécsereddel!
+            </p>
+          </div>
         </div>
       </div>
     </div>

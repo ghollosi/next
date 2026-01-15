@@ -138,11 +138,14 @@ export default function PartnerLoginPage() {
         </form>
 
         {/* Help Text */}
-        <div className="mt-8 text-center space-y-2">
-          <p className="text-sm text-gray-500">
+        <div className="mt-8 text-center space-y-3">
+          <a href="/partner/forgot-pin" className="text-sm text-blue-600 hover:underline block">
+            Elfelejtetted a PIN kódod?
+          </a>
+          <p className="text-xs text-gray-400">
             Nincs hozzáférésed? Keresd az üzemeltetőt!
           </p>
-          <a href="/login" className="text-sm text-blue-600 hover:underline">
+          <a href="/login" className="text-sm text-gray-500 hover:underline">
             Sofőr bejelentkezés →
           </a>
         </div>

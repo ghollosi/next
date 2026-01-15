@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   Query,
+  Param,
   Req,
   Res,
   HttpCode,
@@ -11,13 +12,17 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { LoginThrottle } from '../common/throttler/login-throttle.decorator';
+import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
+import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBody,
   ApiQuery,
+  ApiParam,
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { PartnerCompanyService } from '../modules/partner-company/partner-company.service';
@@ -40,12 +45,15 @@ const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
 @ApiTags('partner-portal')
 @Controller('partner-portal')
 export class PartnerPortalController {
+  private readonly logger = new Logger(PartnerPortalController.name);
+
   constructor(
     private readonly partnerCompanyService: PartnerCompanyService,
     private readonly washEventService: WashEventService,
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
+    private readonly configService: ConfigService,
   ) {}
 
   private async getPartnerSession(req: Request): Promise<PartnerSessionData> {
@@ -174,6 +182,348 @@ export class PartnerPortalController {
       });
       throw new UnauthorizedException('Hibás partner kód vagy PIN');
     }
+  }
+
+  // ==================== PIN Reset ====================
+
+  @Post('request-pin-reset')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request PIN reset (sends email to partner)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'Partner company code' },
+        email: { type: 'string', description: 'Partner email for verification' },
+      },
+      required: ['code', 'email'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Reset email sent if account exists' })
+  async requestPinReset(
+    @Body() body: { code: string; email: string },
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
+    if (!body.code || !body.email) {
+      throw new BadRequestException('Partner kód és email megadása kötelező');
+    }
+
+    // Find partner by code and verify email
+    const partner = await this.prisma.partnerCompany.findFirst({
+      where: {
+        code: body.code.toUpperCase(),
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!partner) {
+      // Biztonsági okokból ne áruljuk el, hogy nem létezik
+      return { message: 'Ha a partner kód és email helyes, a PIN visszaállító linket elküldtük' };
+    }
+
+    // Verify email matches
+    if (!partner.email || partner.email.toLowerCase() !== body.email.toLowerCase()) {
+      // Biztonsági okokból ne áruljuk el
+      return { message: 'Ha a partner kód és email helyes, a PIN visszaállító linket elküldtük' };
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
+
+    await this.prisma.partnerCompany.update({
+      where: { id: partner.id },
+      data: {
+        pinResetToken: resetToken,
+        pinResetExpires: resetExpires,
+      },
+    });
+
+    // Send email
+    const platformUrl = this.configService.get('PLATFORM_URL') || 'http://localhost:3001';
+    const resetLink = `${platformUrl}/partner/reset-pin?token=${resetToken}`;
+
+    this.logger.log(`PIN reset link for partner ${partner.code}: ${resetLink}`);
+
+    // TODO: Email küldés implementálása
+    // Egyelőre logoljuk a linket
+
+    // AUDIT: Log PIN reset request
+    await this.auditLogService.log({
+      networkId: partner.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'PARTNER',
+      metadata: {
+        type: 'PIN_RESET_REQUESTED',
+        partnerCode: partner.code,
+        partnerId: partner.id,
+        email: partner.email,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'Ha a partner kód és email helyes, a PIN visszaállító linket elküldtük' };
+  }
+
+  @Post('reset-pin')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset PIN with token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'Reset token from email' },
+        newPin: { type: 'string', description: 'New 4-digit PIN' },
+      },
+      required: ['token', 'newPin'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'PIN reset successful' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  async resetPin(
+    @Body() body: { token: string; newPin: string },
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
+    if (!body.token || !body.newPin) {
+      throw new BadRequestException('Token és új PIN megadása kötelező');
+    }
+
+    if (body.newPin.length < 4 || body.newPin.length > 8) {
+      throw new BadRequestException('A PIN kódnak 4-8 karakter hosszúnak kell lennie');
+    }
+
+    // Find partner by reset token
+    const partner = await this.prisma.partnerCompany.findFirst({
+      where: {
+        pinResetToken: body.token,
+        pinResetExpires: { gt: new Date() },
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!partner) {
+      throw new UnauthorizedException('Érvénytelen vagy lejárt token');
+    }
+
+    // Hash new PIN and update
+    const pinHash = await bcrypt.hash(body.newPin, 10);
+
+    await this.prisma.partnerCompany.update({
+      where: { id: partner.id },
+      data: {
+        pinHash,
+        pinResetToken: null,
+        pinResetExpires: null,
+      },
+    });
+
+    // AUDIT: Log PIN reset success
+    await this.auditLogService.log({
+      networkId: partner.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'PARTNER',
+      actorId: partner.id,
+      metadata: {
+        type: 'PIN_RESET_SUCCESS',
+        partnerCode: partner.code,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'PIN kód sikeresen megváltoztatva' };
+  }
+
+  // ==================== Driver PIN Reset Requests ====================
+
+  @Get('pin-reset-requests')
+  @ApiOperation({ summary: 'Get pending driver PIN reset requests for this partner' })
+  @ApiResponse({ status: 200, description: 'List of pending PIN reset requests' })
+  async getPinResetRequests(@Req() req: Request) {
+    const session = await this.getPartnerSession(req);
+
+    const requests = await this.prisma.driverPinResetRequest.findMany({
+      where: {
+        partnerCompanyId: session.partnerId,
+        status: 'PENDING',
+      },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return requests.map((r) => ({
+      id: r.id,
+      driverId: r.driverId,
+      driverName: `${r.driver.firstName} ${r.driver.lastName}`,
+      driverPhone: r.driver.phone,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  @Post('pin-reset-requests/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete a driver PIN reset request with new PIN' })
+  @ApiParam({ name: 'id', description: 'Request ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        newPin: { type: 'string', description: 'New 4-digit PIN for the driver' },
+      },
+      required: ['newPin'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'PIN reset completed' })
+  async completePinResetRequest(
+    @Param('id') id: string,
+    @Body() body: { newPin: string },
+    @Req() req: Request,
+  ) {
+    const session = await this.getPartnerSession(req);
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
+    if (!body.newPin || body.newPin.length < 4) {
+      throw new BadRequestException('A PIN kódnak legalább 4 karakter hosszúnak kell lennie');
+    }
+
+    // Find the request and verify it belongs to this partner
+    const request = await this.prisma.driverPinResetRequest.findFirst({
+      where: {
+        id,
+        partnerCompanyId: session.partnerId,
+        status: 'PENDING',
+      },
+      include: {
+        driver: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new BadRequestException('Kérés nem található vagy már feldolgozva');
+    }
+
+    // Update driver's PIN
+    const pinHash = await bcrypt.hash(body.newPin, 10);
+    await this.prisma.driver.update({
+      where: { id: request.driverId },
+      data: { pinHash },
+    });
+
+    // Mark request as completed
+    await this.prisma.driverPinResetRequest.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        reviewedBy: `partner:${session.partnerId}`,
+        reviewedAt: new Date(),
+      },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId: session.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'PARTNER',
+      actorId: session.partnerId,
+      metadata: {
+        type: 'DRIVER_PIN_RESET_COMPLETED',
+        requestId: id,
+        driverId: request.driverId,
+        driverName: `${request.driver.firstName} ${request.driver.lastName}`,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'Sofőr PIN kódja sikeresen visszaállítva' };
+  }
+
+  @Post('pin-reset-requests/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reject a driver PIN reset request' })
+  @ApiParam({ name: 'id', description: 'Request ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Rejection reason' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Request rejected' })
+  async rejectPinResetRequest(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Req() req: Request,
+  ) {
+    const session = await this.getPartnerSession(req);
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+
+    // Find and verify request
+    const request = await this.prisma.driverPinResetRequest.findFirst({
+      where: {
+        id,
+        partnerCompanyId: session.partnerId,
+        status: 'PENDING',
+      },
+    });
+
+    if (!request) {
+      throw new BadRequestException('Kérés nem található vagy már feldolgozva');
+    }
+
+    // Mark request as rejected
+    await this.prisma.driverPinResetRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy: `partner:${session.partnerId}`,
+        reviewedAt: new Date(),
+        reviewNote: body.reason,
+      },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId: session.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'PARTNER',
+      actorId: session.partnerId,
+      metadata: {
+        type: 'DRIVER_PIN_RESET_REJECTED',
+        requestId: id,
+        driverId: request.driverId,
+        reason: body.reason,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'Kérés elutasítva' };
   }
 
   @Get('profile')

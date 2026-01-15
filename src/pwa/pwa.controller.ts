@@ -16,7 +16,8 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { LoginThrottle } from '../common/throttler/login-throttle.decorator';
+import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
+import { Logger } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -67,6 +68,8 @@ const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
 @ApiTags('pwa')
 @Controller('pwa')
 export class PwaController {
+  private readonly logger = new Logger(PwaController.name);
+
   constructor(
     private readonly driverService: DriverService,
     private readonly washEventService: WashEventService,
@@ -470,6 +473,108 @@ export class PwaController {
       });
       throw error;
     }
+  }
+
+  // =========================================================================
+  // PIN RESET REQUEST ENDPOINT
+  // =========================================================================
+
+  @Post('request-pin-reset')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request PIN reset - creates a request for Partner/Platform Admin' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['phone'],
+      properties: {
+        phone: { type: 'string', description: 'Phone number associated with the driver account' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Request submitted (same response regardless of phone existence)' })
+  async requestPinReset(
+    @Body() body: { phone: string },
+    @Req() req: Request,
+  ) {
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
+
+    if (!body.phone) {
+      throw new BadRequestException('Telefonszám megadása kötelező');
+    }
+
+    // Normalize phone number
+    const phone = body.phone.replace(/\s+/g, '');
+
+    // Find driver by phone (across all networks)
+    const driver = await this.prisma.driver.findFirst({
+      where: {
+        phone,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        partnerCompany: {
+          select: {
+            id: true,
+            name: true,
+            networkId: true,
+          },
+        },
+      },
+    });
+
+    // Always return success message for security (don't reveal if phone exists)
+    const successMessage = 'Ha a telefonszám regisztrálva van, a PIN visszaállítási kérelmet továbbítottuk az adminisztrátornak.';
+
+    if (!driver) {
+      this.logger.warn(`PIN reset request for unknown phone: ${phone.slice(-4).padStart(phone.length, '*')}`);
+      return { message: successMessage };
+    }
+
+    // Check if there's already a pending request
+    const existingRequest = await this.prisma.driverPinResetRequest.findFirst({
+      where: {
+        driverId: driver.id,
+        status: 'PENDING',
+      },
+    });
+
+    if (existingRequest) {
+      return { message: successMessage };
+    }
+
+    // Create PIN reset request
+    // If driver has a partner company, send to Partner Admin
+    // If not, send to Platform Admin (partnerCompanyId will be null)
+    await this.prisma.driverPinResetRequest.create({
+      data: {
+        networkId: driver.partnerCompany.networkId,
+        driverId: driver.id,
+        partnerCompanyId: driver.partnerCompany.id,
+        status: 'PENDING',
+      },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId: driver.partnerCompany.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'DRIVER',
+      actorId: driver.id,
+      metadata: {
+        type: 'PIN_RESET_REQUESTED',
+        phone: phone.slice(-4).padStart(phone.length, '*'),
+        driverName: `${driver.firstName} ${driver.lastName}`,
+        partnerCompanyName: driver.partnerCompany.name,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    this.logger.log(`PIN reset request created for driver ${driver.id} (${driver.firstName} ${driver.lastName})`);
+
+    return { message: successMessage };
   }
 
   @Get('me')

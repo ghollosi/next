@@ -363,6 +363,7 @@ model Network {
   usageLogs                   UsageLog[]
   locationOperators           LocationOperator[]
   washDeleteRequests          WashDeleteRequest[]
+  driverPinResetRequests      DriverPinResetRequest[]
   // Booking system
   blockedTimeSlots            BlockedTimeSlot[]
   bookingSettings             BookingSettings?
@@ -463,6 +464,10 @@ model PartnerCompany {
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
 
+  // PIN reset mezők
+  pinResetToken   String?   @map("pin_reset_token")
+  pinResetExpires DateTime? @map("pin_reset_expires")
+
   // Számlázási adatok
   billingType    BillingType   @default(CONTRACT) @map("billing_type")
   billingCycle   BillingCycle? @map("billing_cycle")  // Csak CONTRACT esetén releváns
@@ -509,6 +514,7 @@ model PartnerCompany {
   customPrices         PartnerCustomPrice[]
   driversMovedFrom     DriverPartnerHistory[] @relation("FromCompany")
   driversMovedTo       DriverPartnerHistory[] @relation("ToCompany")
+  driverPinResetRequests DriverPinResetRequest[]
 
   @@unique([networkId, code])
   @@index([networkId])
@@ -564,6 +570,7 @@ model Driver {
   verificationTokens VerificationToken[]
   partnerHistory     DriverPartnerHistory[]
   bookings           Booking[]              // Ügyfél foglalásai
+  pinResetRequests   DriverPinResetRequest[]
 
   @@index([networkId])
   @@index([partnerCompanyId])
@@ -1521,6 +1528,10 @@ model LocationOperator {
   updatedAt  DateTime @updatedAt @map("updated_at")
   deletedAt  DateTime? @map("deleted_at")
 
+  // PIN reset mezők
+  pinResetToken   String?   @map("pin_reset_token")
+  pinResetExpires DateTime? @map("pin_reset_expires")
+
   // Kapcsolatok
   network  Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)
   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
@@ -1528,6 +1539,33 @@ model LocationOperator {
   @@index([networkId])
   @@index([locationId])
   @@map("location_operators")
+}
+
+// =============================================================================
+// DRIVER PIN RESET REQUEST (Sofőr PIN visszaállítási kérelem)
+// =============================================================================
+
+model DriverPinResetRequest {
+  id              String    @id @default(uuid())
+  networkId       String    @map("network_id")
+  driverId        String    @map("driver_id")
+  partnerCompanyId String?  @map("partner_company_id")  // Ha van partnere, ide megy a kérés
+  status          String    @default("PENDING")         // PENDING, COMPLETED, REJECTED
+  reviewedBy      String?   @map("reviewed_by")         // Admin ID aki kezelte
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNote      String?   @map("review_note")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Kapcsolatok
+  network        Network         @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  driver         Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  partnerCompany PartnerCompany? @relation(fields: [partnerCompanyId], references: [id], onDelete: SetNull)
+
+  @@index([networkId])
+  @@index([driverId])
+  @@index([partnerCompanyId])
+  @@index([status])
+  @@map("driver_pin_reset_requests")
 }
 
 // =============================================================================

@@ -140,13 +140,15 @@ export default function OperatorLoginPage() {
         </form>
 
         {/* Help Text */}
-        <div className="mt-8 text-center space-y-2">
-          <p className="text-sm text-gray-500">
-            Operátori hozzáféréshez fordulj az adminisztrátorhoz!
-          </p>
-          <a href="/login" className="text-sm text-green-600 hover:underline">
-            Sofőr bejelentkezés
+        <div className="mt-8 text-center space-y-3">
+          <a href="/operator-portal/forgot-pin" className="text-sm text-green-600 hover:underline">
+            Elfelejtetted a PIN kódod?
           </a>
+          <div className="pt-2">
+            <a href="/login" className="text-sm text-gray-500 hover:underline">
+              Sofőr bejelentkezés
+            </a>
+          </div>
         </div>
       </div>
     </div>
