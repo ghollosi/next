@@ -1682,6 +1682,12 @@ Vemiax csapata`;
 
     const settings = network.settings;
 
+    // Get platform settings to check if platform service is available
+    const platformSettings = await this.prisma.platformSettings.findFirst();
+    const platformHasService =
+      platformSettings?.companyDataProvider !== 'NONE' &&
+      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey);
+
     return {
       // Network alapadatok
       network: {
@@ -1745,6 +1751,13 @@ Vemiax csapata`;
         optenApiSecret: settings?.optenApiSecret ? '***' : '',
         bisnodeApiKey: settings?.bisnodeApiKey ? '***' : '',
         bisnodeApiSecret: settings?.bisnodeApiSecret ? '***' : '',
+        // Platform service info (for UI to know what to show)
+        allowCustomCompanyDataProvider: settings?.allowCustomCompanyDataProvider ?? false,
+        platformHasService: !!platformHasService,
+        platformServiceProvider: platformSettings?.companyDataProvider || 'NONE',
+        platformServiceMonthlyFee: platformSettings?.companyDataMonthlyFee
+          ? Number(platformSettings.companyDataMonthlyFee)
+          : null,
       },
       // Üzleti szabályok
       business: {

@@ -1126,6 +1126,15 @@ model PlatformSettings {
   stripeBasePriceId    String?       @map("stripe_base_price_id")
   stripeUsagePriceId   String?       @map("stripe_usage_price_id")
 
+  // Platform szintű cégadatbázis szolgáltatás (központi integráció Network-ök számára)
+  companyDataProvider      CompanyDataProvider @default(NONE) @map("company_data_provider")
+  optenApiKey              String?       @map("opten_api_key")
+  optenApiSecret           String?       @map("opten_api_secret")
+  bisnodeApiKey            String?       @map("bisnode_api_key")
+  bisnodeApiSecret         String?       @map("bisnode_api_secret")
+  // Havi díjak Network-ök felé (ha a Platform szolgáltatást használják)
+  companyDataMonthlyFee    Decimal?      @db.Decimal(10, 2) @map("company_data_monthly_fee")
+
   // Platform számlázó szolgáltató (Network-ök felé kiállított számlákhoz)
   invoiceProvider       InvoiceProvider @default(NONE) @map("invoice_provider")
   szamlazzAgentKey      String?         @map("szamlazz_agent_key")
@@ -1218,6 +1227,9 @@ model NetworkSettings {
   navOnlineExchKey      String?         @map("nav_online_exch_key")
 
   // Cégadatbázis szolgáltató
+  // Ha allowCustomCompanyDataProvider = false → Platform szolgáltatását használja (ha van)
+  // Ha allowCustomCompanyDataProvider = true → Network saját szolgáltatót állíthat be
+  allowCustomCompanyDataProvider Boolean @default(false) @map("allow_custom_company_data_provider")
   companyDataProvider   CompanyDataProvider @default(NONE) @map("company_data_provider")
   optenApiKey           String?         @map("opten_api_key")
   optenApiSecret        String?         @map("opten_api_secret")

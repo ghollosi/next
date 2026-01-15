@@ -569,4 +569,90 @@ export const platformApi = {
       method: 'POST',
     });
   },
+
+  // ========== Platform Company Data Settings (Central service) ==========
+
+  // Get platform company data settings
+  async getPlatformCompanyDataSettings(): Promise<{
+    companyDataProvider: string;
+    optenApiKey: string;
+    optenApiSecret: string;
+    bisnodeApiKey: string;
+    bisnodeApiSecret: string;
+    companyDataMonthlyFee: number | null;
+  }> {
+    return fetchWithAuth('/platform-admin/company-data/settings');
+  },
+
+  // Update platform company data settings
+  async updatePlatformCompanyDataSettings(data: {
+    companyDataProvider: string;
+    optenApiKey?: string;
+    optenApiSecret?: string;
+    bisnodeApiKey?: string;
+    bisnodeApiSecret?: string;
+    companyDataMonthlyFee?: number | null;
+  }): Promise<any> {
+    return fetchWithAuth('/platform-admin/company-data/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ========== Network Company Data Settings ==========
+
+  // Get network company data settings
+  async getNetworkCompanyDataSettings(networkId: string): Promise<{
+    allowCustomCompanyDataProvider: boolean;
+    companyDataProvider: string;
+    optenApiKey: string;
+    optenApiSecret: string;
+    bisnodeApiKey: string;
+    bisnodeApiSecret: string;
+    platformHasService: boolean;
+    platformServiceProvider: string;
+    platformServiceMonthlyFee: number | null;
+  }> {
+    return fetchWithAuth(`/platform-admin/networks/${networkId}/company-data/settings`);
+  },
+
+  // Update network company data settings
+  async updateNetworkCompanyDataSettings(networkId: string, data: {
+    allowCustomCompanyDataProvider?: boolean;
+    companyDataProvider?: string;
+    optenApiKey?: string;
+    optenApiSecret?: string;
+    bisnodeApiKey?: string;
+    bisnodeApiSecret?: string;
+  }): Promise<any> {
+    return fetchWithAuth(`/platform-admin/networks/${networkId}/company-data/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Test company data provider connection
+  async testNetworkCompanyDataConnection(networkId: string): Promise<{
+    success: boolean;
+    providerName: string;
+    source: 'network' | 'platform' | 'none';
+    error?: string;
+  }> {
+    return fetchWithAuth(`/platform-admin/networks/${networkId}/company-data/connection-test`);
+  },
+
+  // Search companies via network provider
+  async searchCompaniesForNetwork(networkId: string, params: {
+    taxNumber?: string;
+    name?: string;
+    query?: string;
+    limit?: number;
+  }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params.taxNumber) searchParams.append('taxNumber', params.taxNumber);
+    if (params.name) searchParams.append('name', params.name);
+    if (params.query) searchParams.append('query', params.query);
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+    return fetchWithAuth(`/platform-admin/networks/${networkId}/company-data/search?${searchParams}`);
+  },
 };

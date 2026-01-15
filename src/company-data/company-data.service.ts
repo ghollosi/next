@@ -27,42 +27,143 @@ export class CompanyDataService {
 
   /**
    * Get the configured company data provider for a network
+   *
+   * Logic:
+   * 1. If network has allowCustomCompanyDataProvider = true and has own config → use network's own
+   * 2. Otherwise, use Platform's central company data service (if configured)
    */
-  async getProviderForNetwork(networkId: string): Promise<{ provider: CompanyDataProvider | null; providerName: string }> {
-    const settings = await this.prisma.networkSettings.findUnique({
+  async getProviderForNetwork(networkId: string): Promise<{
+    provider: CompanyDataProvider | null;
+    providerName: string;
+    source: 'network' | 'platform' | 'none';
+  }> {
+    const networkSettings = await this.prisma.networkSettings.findUnique({
       where: { networkId },
     });
 
-    if (!settings || settings.companyDataProvider === CompanyDataProviderEnum.NONE) {
-      return { provider: null, providerName: 'none' };
+    // Check if network is allowed to use custom provider AND has one configured
+    if (networkSettings?.allowCustomCompanyDataProvider &&
+        networkSettings.companyDataProvider !== CompanyDataProviderEnum.NONE) {
+      return this.configureProviderFromSettings(
+        networkSettings.companyDataProvider,
+        networkSettings.optenApiKey,
+        networkSettings.optenApiSecret,
+        networkSettings.bisnodeApiKey,
+        networkSettings.bisnodeApiSecret,
+        'network',
+      );
     }
 
-    if (settings.companyDataProvider === CompanyDataProviderEnum.OPTEN) {
-      if (settings.optenApiKey) {
+    // Fall back to Platform's central company data service
+    const platformSettings = await this.prisma.platformSettings.findFirst();
+
+    if (platformSettings && platformSettings.companyDataProvider !== CompanyDataProviderEnum.NONE) {
+      return this.configureProviderFromSettings(
+        platformSettings.companyDataProvider,
+        platformSettings.optenApiKey,
+        platformSettings.optenApiSecret,
+        platformSettings.bisnodeApiKey,
+        platformSettings.bisnodeApiSecret,
+        'platform',
+      );
+    }
+
+    return { provider: null, providerName: 'none', source: 'none' };
+  }
+
+  /**
+   * Configure provider from settings (used by both network and platform level)
+   */
+  private configureProviderFromSettings(
+    providerType: CompanyDataProviderEnum,
+    optenApiKey: string | null,
+    optenApiSecret: string | null,
+    bisnodeApiKey: string | null,
+    bisnodeApiSecret: string | null,
+    source: 'network' | 'platform',
+  ): { provider: CompanyDataProvider | null; providerName: string; source: 'network' | 'platform' | 'none' } {
+    if (providerType === CompanyDataProviderEnum.OPTEN) {
+      if (optenApiKey) {
         this.optenProvider.configure(
-          settings.optenApiKey,
-          settings.optenApiSecret || undefined,
+          optenApiKey,
+          optenApiSecret || undefined,
         );
-        return { provider: this.optenProvider, providerName: 'opten' };
+        return { provider: this.optenProvider, providerName: 'opten', source };
       }
-      return { provider: null, providerName: 'opten' };
+      return { provider: null, providerName: 'opten', source: 'none' };
     }
 
     // Bisnode support (for future)
-    if (settings.companyDataProvider === CompanyDataProviderEnum.BISNODE) {
+    if (providerType === CompanyDataProviderEnum.BISNODE) {
       // TODO: Implement Bisnode provider
       this.logger.warn('Bisnode provider not yet implemented');
-      return { provider: null, providerName: 'bisnode' };
+      return { provider: null, providerName: 'bisnode', source: 'none' };
     }
 
     // e-Cégjegyzék support (for future)
-    if (settings.companyDataProvider === CompanyDataProviderEnum.E_CEGJEGYZEK) {
+    if (providerType === CompanyDataProviderEnum.E_CEGJEGYZEK) {
       // TODO: Implement e-Cégjegyzék provider
       this.logger.warn('e-Cégjegyzék provider not yet implemented');
-      return { provider: null, providerName: 'e_cegjegyzek' };
+      return { provider: null, providerName: 'e_cegjegyzek', source: 'none' };
     }
 
-    return { provider: null, providerName: 'none' };
+    return { provider: null, providerName: 'none', source: 'none' };
+  }
+
+  /**
+   * Check if network can configure custom provider (used by UI)
+   */
+  async canNetworkConfigureCustomProvider(networkId: string): Promise<boolean> {
+    const settings = await this.prisma.networkSettings.findUnique({
+      where: { networkId },
+    });
+    return settings?.allowCustomCompanyDataProvider ?? false;
+  }
+
+  /**
+   * Get company data service info for a network (used by Network Admin UI)
+   */
+  async getNetworkCompanyDataInfo(networkId: string): Promise<{
+    hasAccess: boolean;
+    source: 'network' | 'platform' | 'none';
+    providerName: string;
+    canConfigureCustom: boolean;
+    platformServiceName?: string;
+  }> {
+    const networkSettings = await this.prisma.networkSettings.findUnique({
+      where: { networkId },
+    });
+
+    const canConfigureCustom = networkSettings?.allowCustomCompanyDataProvider ?? false;
+
+    // If network can configure custom and has one
+    if (canConfigureCustom && networkSettings?.companyDataProvider !== CompanyDataProviderEnum.NONE) {
+      return {
+        hasAccess: true,
+        source: 'network',
+        providerName: networkSettings!.companyDataProvider,
+        canConfigureCustom: true,
+      };
+    }
+
+    // Check platform service
+    const platformSettings = await this.prisma.platformSettings.findFirst();
+    if (platformSettings && platformSettings.companyDataProvider !== CompanyDataProviderEnum.NONE) {
+      return {
+        hasAccess: true,
+        source: 'platform',
+        providerName: platformSettings.companyDataProvider,
+        canConfigureCustom,
+        platformServiceName: 'Vemiax Platform',
+      };
+    }
+
+    return {
+      hasAccess: false,
+      source: 'none',
+      providerName: 'none',
+      canConfigureCustom,
+    };
   }
 
   /**
@@ -76,19 +177,19 @@ export class CompanyDataService {
    * Search for companies using the network's configured provider
    */
   async searchCompanies(networkId: string, request: CompanySearchRequest): Promise<CompanySearchResponse> {
-    const { provider, providerName } = await this.getProviderForNetwork(networkId);
+    const { provider, providerName, source } = await this.getProviderForNetwork(networkId);
 
     if (!provider) {
       return {
         success: false,
         results: [],
-        error: providerName === 'none'
+        error: source === 'none'
           ? 'Nincs cégadatbázis szolgáltató konfigurálva'
           : `${providerName} szolgáltató nincs megfelelően konfigurálva`,
       };
     }
 
-    this.logger.log(`Searching companies via ${providerName} for network ${networkId}`);
+    this.logger.log(`Searching companies via ${providerName} (source: ${source}) for network ${networkId}`);
     return provider.searchCompanies(request);
   }
 
@@ -96,18 +197,18 @@ export class CompanyDataService {
    * Get detailed company information using the network's configured provider
    */
   async getCompanyDetails(networkId: string, request: CompanyDetailRequest): Promise<CompanyDetailResponse> {
-    const { provider, providerName } = await this.getProviderForNetwork(networkId);
+    const { provider, providerName, source } = await this.getProviderForNetwork(networkId);
 
     if (!provider) {
       return {
         success: false,
-        error: providerName === 'none'
+        error: source === 'none'
           ? 'Nincs cégadatbázis szolgáltató konfigurálva'
           : `${providerName} szolgáltató nincs megfelelően konfigurálva`,
       };
     }
 
-    this.logger.log(`Getting company details via ${providerName} for network ${networkId}`);
+    this.logger.log(`Getting company details via ${providerName} (source: ${source}) for network ${networkId}`);
     return provider.getCompanyDetails(request);
   }
 
@@ -115,7 +216,7 @@ export class CompanyDataService {
    * Validate a Hungarian tax number using the network's configured provider
    */
   async validateTaxNumber(networkId: string, request: ValidateTaxNumberRequest): Promise<ValidateTaxNumberResponse> {
-    const { provider, providerName } = await this.getProviderForNetwork(networkId);
+    const { provider, providerName, source } = await this.getProviderForNetwork(networkId);
 
     if (!provider) {
       // Fall back to format validation only
@@ -127,21 +228,27 @@ export class CompanyDataService {
       };
     }
 
-    this.logger.log(`Validating tax number via ${providerName} for network ${networkId}`);
+    this.logger.log(`Validating tax number via ${providerName} (source: ${source}) for network ${networkId}`);
     return provider.validateTaxNumber(request);
   }
 
   /**
    * Validate provider connection/credentials
    */
-  async validateProviderConnection(networkId: string): Promise<{ success: boolean; providerName: string; error?: string }> {
-    const { provider, providerName } = await this.getProviderForNetwork(networkId);
+  async validateProviderConnection(networkId: string): Promise<{
+    success: boolean;
+    providerName: string;
+    source: 'network' | 'platform' | 'none';
+    error?: string;
+  }> {
+    const { provider, providerName, source } = await this.getProviderForNetwork(networkId);
 
     if (!provider) {
       return {
         success: false,
         providerName,
-        error: providerName === 'none'
+        source,
+        error: source === 'none'
           ? 'Nincs cégadatbázis szolgáltató konfigurálva'
           : `${providerName} szolgáltató nincs megfelelően konfigurálva`,
       };
@@ -152,12 +259,14 @@ export class CompanyDataService {
       return {
         success: isConnected,
         providerName,
+        source,
         error: isConnected ? undefined : 'Sikertelen kapcsolat teszt',
       };
     } catch (error: any) {
       return {
         success: false,
         providerName,
+        source,
         error: error.message || 'Ismeretlen hiba a kapcsolat teszt során',
       };
     }

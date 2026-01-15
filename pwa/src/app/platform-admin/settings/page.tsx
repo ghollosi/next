@@ -69,8 +69,17 @@ export default function PlatformSettingsPage() {
   const [billingoBlockId, setBillingoBlockId] = useState('');
   const [billingoBankAccountId, setBillingoBankAccountId] = useState('');
 
+  // Company data provider (central service for networks)
+  const [companyDataProvider, setCompanyDataProvider] = useState('NONE');
+  const [optenApiKey, setOptenApiKey] = useState('');
+  const [optenApiSecret, setOptenApiSecret] = useState('');
+  const [companyDataMonthlyFee, setCompanyDataMonthlyFee] = useState<number | null>(null);
+  const [companyDataLoading, setCompanyDataLoading] = useState(false);
+  const [companyDataConfigured, setCompanyDataConfigured] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    loadCompanyDataSettings();
   }, []);
 
   const loadSettings = async () => {
@@ -89,6 +98,43 @@ export default function PlatformSettingsPage() {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCompanyDataSettings = async () => {
+    try {
+      setCompanyDataLoading(true);
+      const data = await platformApi.getPlatformCompanyDataSettings();
+      setCompanyDataProvider(data.companyDataProvider || 'NONE');
+      setCompanyDataMonthlyFee(data.companyDataMonthlyFee);
+      setCompanyDataConfigured(data.optenApiKey !== '' || data.bisnodeApiKey !== '');
+    } catch (err) {
+      console.error('Error loading company data settings:', err);
+    } finally {
+      setCompanyDataLoading(false);
+    }
+  };
+
+  const handleSaveCompanyData = async () => {
+    setCompanyDataLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await platformApi.updatePlatformCompanyDataSettings({
+        companyDataProvider,
+        ...(optenApiKey ? { optenApiKey } : {}),
+        ...(optenApiSecret ? { optenApiSecret } : {}),
+        companyDataMonthlyFee,
+      });
+      setSuccess('Cégadatbázis beállítások mentve!');
+      setOptenApiKey('');
+      setOptenApiSecret('');
+      await loadCompanyDataSettings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt');
+    } finally {
+      setCompanyDataLoading(false);
     }
   };
 
@@ -715,6 +761,108 @@ export default function PlatformSettingsPage() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Company Data Provider - Central service for Networks */}
+      <div className="bg-gray-800 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Cégadatbázis szolgáltatás (Network-öknek)</h2>
+          {companyDataConfigured ? (
+            <span className="px-2.5 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-medium">
+              Konfigurálva
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 bg-gray-500/20 text-gray-400 rounded-full text-xs font-medium">
+              Nincs konfigurálva
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-400 mb-4">
+          A Platform központi cégadatbázis szolgáltatást biztosít a Network-ök számára. Az itt beállított API kulcsok minden Network számára elérhetővé teszik a céglekérdezést - hacsak nem engedélyezed egy Network-nek, hogy saját szolgáltatót használjon.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Szolgáltató
+            </label>
+            <select
+              value={companyDataProvider}
+              onChange={(e) => setCompanyDataProvider(e.target.value)}
+              className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="NONE">Nincs (nem szolgáltatunk)</option>
+              <option value="OPTEN">Opten</option>
+              <option value="BISNODE">Bisnode (hamarosan)</option>
+            </select>
+          </div>
+
+          {companyDataProvider === 'OPTEN' && (
+            <div className="border-t border-gray-700 pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-300">Opten beállítások</h3>
+              <p className="text-xs text-gray-500">
+                Az Opten API kulcsokat a <a href="https://www.opten.hu" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">Opten weboldalán</a> tudod igényelni.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    API kulcs (felhasználónév)
+                  </label>
+                  <input
+                    type="password"
+                    value={optenApiKey}
+                    onChange={(e) => setOptenApiKey(e.target.value)}
+                    placeholder={companyDataConfigured ? '••••••••••••' : 'API kulcs'}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    API titkos kulcs (jelszó)
+                  </label>
+                  <input
+                    type="password"
+                    value={optenApiSecret}
+                    onChange={(e) => setOptenApiSecret(e.target.value)}
+                    placeholder={companyDataConfigured ? '••••••••••••' : 'API titkos kulcs'}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="border-t border-gray-700 pt-4 mt-4">
+            <h3 className="text-sm font-medium text-gray-300 mb-3">Havi szolgáltatási díj</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Ez az összeg a Network-ök felé történő havi számlázáskor felszámításra kerül, ha használják a Platform cégadatbázis szolgáltatását.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Havi díj (Ft)
+              </label>
+              <input
+                type="number"
+                value={companyDataMonthlyFee ?? ''}
+                onChange={(e) => setCompanyDataMonthlyFee(e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="0"
+                min={0}
+                step={100}
+                className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Hagyd üresen vagy 0, ha ingyenes</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={handleSaveCompanyData}
+              disabled={companyDataLoading}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+            >
+              {companyDataLoading ? 'Mentés...' : 'Cégadatbázis mentése'}
+            </button>
+          </div>
         </div>
       </div>
 

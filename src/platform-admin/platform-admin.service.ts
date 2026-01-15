@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
-import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction } from '@prisma/client';
+import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction, CompanyDataProvider } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   CreatePlatformAdminDto,
@@ -1455,5 +1455,232 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       subcontractorContactEmail: loc.subcontractorContactEmail,
       subcontractorBankAccount: loc.subcontractorBankAccount,
     }));
+  }
+
+  // =========================================================================
+  // PLATFORM COMPANY DATA SETTINGS (Central service for Networks)
+  // =========================================================================
+
+  async getPlatformCompanyDataSettings(): Promise<any> {
+    const settings = await this.prisma.platformSettings.findFirst();
+
+    return {
+      companyDataProvider: settings?.companyDataProvider || 'NONE',
+      optenApiKey: settings?.optenApiKey ? '***' : '',
+      optenApiSecret: settings?.optenApiSecret ? '***' : '',
+      bisnodeApiKey: settings?.bisnodeApiKey ? '***' : '',
+      bisnodeApiSecret: settings?.bisnodeApiSecret ? '***' : '',
+      companyDataMonthlyFee: settings?.companyDataMonthlyFee ? Number(settings.companyDataMonthlyFee) : null,
+    };
+  }
+
+  async updatePlatformCompanyDataSettings(dto: {
+    companyDataProvider: string;
+    optenApiKey?: string;
+    optenApiSecret?: string;
+    bisnodeApiKey?: string;
+    bisnodeApiSecret?: string;
+    companyDataMonthlyFee?: number | null;
+  }): Promise<any> {
+    let settings = await this.prisma.platformSettings.findFirst();
+
+    if (!settings) {
+      settings = await this.prisma.platformSettings.create({
+        data: { platformName: 'VSys Wash' },
+      });
+    }
+
+    // Build update data - handle masked values (don't overwrite with '***')
+    const updateData: any = {
+      companyDataProvider: dto.companyDataProvider as CompanyDataProvider,
+    };
+
+    // Handle monthly fee
+    if (dto.companyDataMonthlyFee !== undefined) {
+      updateData.companyDataMonthlyFee = dto.companyDataMonthlyFee;
+    }
+
+    // Only update API keys if they're not masked
+    if (dto.optenApiKey && dto.optenApiKey !== '***') {
+      updateData.optenApiKey = dto.optenApiKey;
+    }
+    if (dto.optenApiSecret && dto.optenApiSecret !== '***') {
+      updateData.optenApiSecret = dto.optenApiSecret;
+    }
+    if (dto.bisnodeApiKey && dto.bisnodeApiKey !== '***') {
+      updateData.bisnodeApiKey = dto.bisnodeApiKey;
+    }
+    if (dto.bisnodeApiSecret && dto.bisnodeApiSecret !== '***') {
+      updateData.bisnodeApiSecret = dto.bisnodeApiSecret;
+    }
+
+    // Clear keys if provider is NONE
+    if (dto.companyDataProvider === 'NONE') {
+      updateData.optenApiKey = null;
+      updateData.optenApiSecret = null;
+      updateData.bisnodeApiKey = null;
+      updateData.bisnodeApiSecret = null;
+    }
+
+    // Clear non-relevant provider keys
+    if (dto.companyDataProvider === 'OPTEN') {
+      updateData.bisnodeApiKey = null;
+      updateData.bisnodeApiSecret = null;
+    } else if (dto.companyDataProvider === 'BISNODE') {
+      updateData.optenApiKey = null;
+      updateData.optenApiSecret = null;
+    }
+
+    const updated = await this.prisma.platformSettings.update({
+      where: { id: settings.id },
+      data: updateData,
+    });
+
+    return {
+      companyDataProvider: updated.companyDataProvider,
+      optenApiKey: updated.optenApiKey ? '***' : '',
+      optenApiSecret: updated.optenApiSecret ? '***' : '',
+      bisnodeApiKey: updated.bisnodeApiKey ? '***' : '',
+      bisnodeApiSecret: updated.bisnodeApiSecret ? '***' : '',
+      companyDataMonthlyFee: updated.companyDataMonthlyFee ? Number(updated.companyDataMonthlyFee) : null,
+    };
+  }
+
+  // =========================================================================
+  // NETWORK COMPANY DATA SETTINGS (Per-network overrides)
+  // =========================================================================
+
+  async getNetworkCompanyDataSettings(networkId: string): Promise<any> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+    });
+
+    if (!network || network.deletedAt) {
+      throw new NotFoundException('Network nem található');
+    }
+
+    const settings = await this.prisma.networkSettings.findUnique({
+      where: { networkId },
+    });
+
+    // Get platform settings to check if platform service is available
+    const platformSettings = await this.prisma.platformSettings.findFirst();
+    const platformHasService = platformSettings?.companyDataProvider !== 'NONE' &&
+      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey);
+
+    return {
+      // Network-level settings
+      allowCustomCompanyDataProvider: settings?.allowCustomCompanyDataProvider ?? false,
+      companyDataProvider: settings?.companyDataProvider || 'NONE',
+      optenApiKey: settings?.optenApiKey ? '***' : '',
+      optenApiSecret: settings?.optenApiSecret ? '***' : '',
+      bisnodeApiKey: settings?.bisnodeApiKey ? '***' : '',
+      bisnodeApiSecret: settings?.bisnodeApiSecret ? '***' : '',
+      // Platform service info
+      platformHasService: !!platformHasService,
+      platformServiceProvider: platformSettings?.companyDataProvider || 'NONE',
+      platformServiceMonthlyFee: platformSettings?.companyDataMonthlyFee
+        ? Number(platformSettings.companyDataMonthlyFee)
+        : null,
+    };
+  }
+
+  async updateNetworkCompanyDataSettings(
+    networkId: string,
+    dto: {
+      allowCustomCompanyDataProvider?: boolean;
+      companyDataProvider?: string;
+      optenApiKey?: string;
+      optenApiSecret?: string;
+      bisnodeApiKey?: string;
+      bisnodeApiSecret?: string;
+    },
+  ): Promise<any> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+    });
+
+    if (!network || network.deletedAt) {
+      throw new NotFoundException('Network nem található');
+    }
+
+    // Ensure settings exist
+    let settings = await this.prisma.networkSettings.findUnique({
+      where: { networkId },
+    });
+
+    if (!settings) {
+      settings = await this.prisma.networkSettings.create({
+        data: { networkId },
+      });
+    }
+
+    // Build update data
+    const updateData: any = {};
+
+    // Handle allowCustomCompanyDataProvider flag
+    if (dto.allowCustomCompanyDataProvider !== undefined) {
+      updateData.allowCustomCompanyDataProvider = dto.allowCustomCompanyDataProvider;
+    }
+
+    // Handle provider and keys (only if custom provider is allowed)
+    if (dto.companyDataProvider !== undefined) {
+      updateData.companyDataProvider = dto.companyDataProvider as CompanyDataProvider;
+    }
+
+    // Only update API keys if they're not masked
+    if (dto.optenApiKey && dto.optenApiKey !== '***') {
+      updateData.optenApiKey = dto.optenApiKey;
+    }
+    if (dto.optenApiSecret && dto.optenApiSecret !== '***') {
+      updateData.optenApiSecret = dto.optenApiSecret;
+    }
+    if (dto.bisnodeApiKey && dto.bisnodeApiKey !== '***') {
+      updateData.bisnodeApiKey = dto.bisnodeApiKey;
+    }
+    if (dto.bisnodeApiSecret && dto.bisnodeApiSecret !== '***') {
+      updateData.bisnodeApiSecret = dto.bisnodeApiSecret;
+    }
+
+    // Clear keys if provider is NONE
+    if (dto.companyDataProvider === 'NONE') {
+      updateData.optenApiKey = null;
+      updateData.optenApiSecret = null;
+      updateData.bisnodeApiKey = null;
+      updateData.bisnodeApiSecret = null;
+    }
+
+    // Clear non-relevant provider keys
+    if (dto.companyDataProvider === 'OPTEN') {
+      updateData.bisnodeApiKey = null;
+      updateData.bisnodeApiSecret = null;
+    } else if (dto.companyDataProvider === 'BISNODE') {
+      updateData.optenApiKey = null;
+      updateData.optenApiSecret = null;
+    }
+
+    const updated = await this.prisma.networkSettings.update({
+      where: { networkId },
+      data: updateData,
+    });
+
+    // Get platform settings for response
+    const platformSettings = await this.prisma.platformSettings.findFirst();
+    const platformHasService = platformSettings?.companyDataProvider !== 'NONE' &&
+      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey);
+
+    return {
+      allowCustomCompanyDataProvider: updated.allowCustomCompanyDataProvider,
+      companyDataProvider: updated.companyDataProvider,
+      optenApiKey: updated.optenApiKey ? '***' : '',
+      optenApiSecret: updated.optenApiSecret ? '***' : '',
+      bisnodeApiKey: updated.bisnodeApiKey ? '***' : '',
+      bisnodeApiSecret: updated.bisnodeApiSecret ? '***' : '',
+      platformHasService: !!platformHasService,
+      platformServiceProvider: platformSettings?.companyDataProvider || 'NONE',
+      platformServiceMonthlyFee: platformSettings?.companyDataMonthlyFee
+        ? Number(platformSettings.companyDataMonthlyFee)
+        : null,
+    };
   }
 }

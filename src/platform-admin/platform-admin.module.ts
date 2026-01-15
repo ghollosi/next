@@ -6,6 +6,7 @@ import { PlatformAdminService } from './platform-admin.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { EmailModule } from '../modules/email/email.module';
+import { CompanyDataModule } from '../company-data/company-data.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { EmailModule } from '../modules/email/email.module';
     ConfigModule,
     AuditLogModule,
     EmailModule,
+    CompanyDataModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

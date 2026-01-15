@@ -46,11 +46,15 @@ import {
   EmergencyLoginDto,
 } from './dto/platform-admin.dto';
 import { PlatformRole } from '@prisma/client';
+import { CompanyDataService } from '../company-data/company-data.service';
 
 @ApiTags('Platform Admin')
 @Controller('platform-admin')
 export class PlatformAdminController {
-  constructor(private readonly platformAdminService: PlatformAdminService) {}
+  constructor(
+    private readonly platformAdminService: PlatformAdminService,
+    private readonly companyDataService: CompanyDataService,
+  ) {}
 
   private async validateAuth(authHeader: string | undefined): Promise<{
     adminId: string;
@@ -561,5 +565,131 @@ export class PlatformAdminController {
   ): Promise<{ results: Array<{ from: string; success: boolean; message: string }> }> {
     await this.validateOwner(auth);
     return this.platformAdminService.sendTestEmailsFromAll(dto.to);
+  }
+
+  // =========================================================================
+  // PLATFORM COMPANY DATA SETTINGS (Central service for Networks)
+  // =========================================================================
+
+  @Get('company-data/providers')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get available company data providers' })
+  @ApiResponse({ status: 200, description: 'List of available providers' })
+  async getCompanyDataProvidersForPlatform(
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.companyDataService.getSupportedProviders();
+  }
+
+  @Get('company-data/settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get platform company data settings' })
+  @ApiResponse({ status: 200, description: 'Platform company data settings' })
+  async getPlatformCompanyDataSettings(
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.platformAdminService.getPlatformCompanyDataSettings();
+  }
+
+  @Put('company-data/settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update platform company data settings (Owner only)' })
+  @ApiResponse({ status: 200, description: 'Settings updated' })
+  async updatePlatformCompanyDataSettings(
+    @Body() dto: {
+      companyDataProvider: string;
+      optenApiKey?: string;
+      optenApiSecret?: string;
+      bisnodeApiKey?: string;
+      bisnodeApiSecret?: string;
+      companyDataMonthlyFee?: number | null;
+    },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.updatePlatformCompanyDataSettings(dto);
+  }
+
+  // =========================================================================
+  // NETWORK COMPANY DATA SETTINGS
+  // =========================================================================
+
+  @Get('networks/:networkId/company-data/providers')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get available company data providers' })
+  @ApiResponse({ status: 200, description: 'List of available providers' })
+  async getCompanyDataProviders(
+    @Param('networkId') networkId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.companyDataService.getSupportedProviders();
+  }
+
+  @Get('networks/:networkId/company-data/settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get network company data settings' })
+  @ApiResponse({ status: 200, description: 'Network company data settings' })
+  async getNetworkCompanyDataSettings(
+    @Param('networkId') networkId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.platformAdminService.getNetworkCompanyDataSettings(networkId);
+  }
+
+  @Put('networks/:networkId/company-data/settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update network company data settings (allowCustom flag)' })
+  @ApiResponse({ status: 200, description: 'Settings updated' })
+  async updateNetworkCompanyDataSettings(
+    @Param('networkId') networkId: string,
+    @Body() dto: {
+      allowCustomCompanyDataProvider?: boolean;
+      companyDataProvider?: string;
+      optenApiKey?: string;
+      optenApiSecret?: string;
+      bisnodeApiKey?: string;
+      bisnodeApiSecret?: string;
+    },
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.platformAdminService.updateNetworkCompanyDataSettings(networkId, dto);
+  }
+
+  @Get('networks/:networkId/company-data/connection-test')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Test company data provider connection for network' })
+  @ApiResponse({ status: 200, description: 'Connection test result' })
+  async testNetworkCompanyDataConnection(
+    @Param('networkId') networkId: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.companyDataService.validateProviderConnection(networkId);
+  }
+
+  @Get('networks/:networkId/company-data/search')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Search companies via network provider' })
+  @ApiResponse({ status: 200, description: 'Search results' })
+  async searchCompaniesForNetwork(
+    @Param('networkId') networkId: string,
+    @Query('taxNumber') taxNumber?: string,
+    @Query('name') name?: string,
+    @Query('query') query?: string,
+    @Query('limit') limit?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.companyDataService.searchCompanies(networkId, {
+      taxNumber,
+      name,
+      query,
+      limit: limit ? parseInt(limit, 10) : 10,
+    });
   }
 }

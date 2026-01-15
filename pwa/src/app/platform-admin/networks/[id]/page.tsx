@@ -91,7 +91,7 @@ export default function NetworkDetailPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'pricing' | 'billing' | 'admins' | 'locations'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'pricing' | 'billing' | 'companyData' | 'admins' | 'locations'>('details');
   const [selectedLocation, setSelectedLocation] = useState<NetworkLocation | null>(null);
 
   // Edit form state
@@ -128,6 +128,13 @@ export default function NetworkDetailPage() {
   const [adminPasswordConfirm, setAdminPasswordConfirm] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminRole, setAdminRole] = useState('NETWORK_ADMIN');
+
+  // Company data state
+  const [allowCustomCompanyDataProvider, setAllowCustomCompanyDataProvider] = useState(false);
+  const [platformHasService, setPlatformHasService] = useState(false);
+  const [platformServiceProvider, setPlatformServiceProvider] = useState('NONE');
+  const [platformServiceMonthlyFee, setPlatformServiceMonthlyFee] = useState<number | null>(null);
+  const [companyDataLoading, setCompanyDataLoading] = useState(false);
 
   useEffect(() => {
     loadNetwork();
@@ -170,6 +177,17 @@ export default function NetworkDetailPage() {
       setBillingTaxNumber(networkData.billingTaxNumber || '');
       setBillingEuVatNumber(networkData.billingEuVatNumber || '');
       setBillingEmail(networkData.billingEmail || '');
+
+      // Load company data settings
+      try {
+        const companyDataSettings = await platformApi.getNetworkCompanyDataSettings(networkId);
+        setAllowCustomCompanyDataProvider(companyDataSettings.allowCustomCompanyDataProvider || false);
+        setPlatformHasService(companyDataSettings.platformHasService || false);
+        setPlatformServiceProvider(companyDataSettings.platformServiceProvider || 'NONE');
+        setPlatformServiceMonthlyFee(companyDataSettings.platformServiceMonthlyFee);
+      } catch (companyDataErr) {
+        console.warn('Could not load company data settings:', companyDataErr);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
@@ -257,6 +275,23 @@ export default function NetworkDetailPage() {
       setError(err instanceof Error ? err.message : 'Hiba történt');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveCompanyData = async () => {
+    setCompanyDataLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await platformApi.updateNetworkCompanyDataSettings(networkId, {
+        allowCustomCompanyDataProvider,
+      });
+      setSuccess('Cégadatbázis beállítások mentve!');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt');
+    } finally {
+      setCompanyDataLoading(false);
     }
   };
 
@@ -518,6 +553,16 @@ export default function NetworkDetailPage() {
                 <span className="w-2 h-2 bg-orange-400 rounded-full" title="Hiányos adatok" />
               )}
             </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('companyData')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'companyData'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            Cégadatbázis
           </button>
           <button
             onClick={() => setActiveTab('admins')}
@@ -973,6 +1018,93 @@ export default function NetworkDetailPage() {
               <li>Ez a Network cégadatai a Platform felé, nem a Network saját ügyfelei felé</li>
               <li>A kötelező mezők (*) kitöltése nélkül nem lehet számlát kiállítani</li>
               <li>A számlákat a megadott email címre küldjük</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Company Data tab */}
+      {activeTab === 'companyData' && (
+        <div className="space-y-6">
+          {/* Platform service status */}
+          <div className="bg-gray-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Platform cégadatbázis szolgáltatás</h2>
+
+            {platformHasService ? (
+              <div className="bg-green-900/30 border border-green-700 rounded-lg p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <div>
+                    <p className="text-green-300 font-medium">
+                      {platformServiceProvider === 'OPTEN' ? 'Opten' : platformServiceProvider} - Vemiax Platform szolgáltatás
+                    </p>
+                    <p className="text-green-200 text-sm">
+                      Ez a Network a Platform központi cégadatbázis szolgáltatását használja.
+                      {platformServiceMonthlyFee && platformServiceMonthlyFee > 0 && (
+                        <> Havi díj: {formatCurrency(platformServiceMonthlyFee)}</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  </svg>
+                  <div>
+                    <p className="text-gray-300 font-medium">Nincs Platform szolgáltatás</p>
+                    <p className="text-gray-400 text-sm">
+                      A Platform nem biztosít központi cégadatbázis szolgáltatást. Állítsd be a Platform Settings oldalon.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Allow custom provider checkbox */}
+            <div className="border-t border-gray-700 pt-6">
+              <h3 className="text-md font-semibold text-white mb-4">Saját szolgáltató engedélyezése</h3>
+              <label className="flex items-start gap-4 p-4 rounded-lg border border-gray-700 hover:border-gray-600 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={allowCustomCompanyDataProvider}
+                  onChange={(e) => setAllowCustomCompanyDataProvider(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div>
+                  <span className="text-white font-medium">Saját cégadatbázis szolgáltató engedélyezése</span>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Ha bekapcsolod, ez a Network saját Opten/Bisnode fiókot állíthat be a Network Admin felületen.
+                    Ebben az esetben nem a Platform központi szolgáltatását fogják használni.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Save button */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleSaveCompanyData}
+              disabled={companyDataLoading}
+              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
+            >
+              {companyDataLoading ? 'Mentés...' : 'Beállítások mentése'}
+            </button>
+          </div>
+
+          {/* Info box */}
+          <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-blue-300 mb-1">Hogyan működik?</h3>
+            <ul className="text-sm text-blue-200 list-disc list-inside space-y-1">
+              <li><strong>Alapértelmezetten:</strong> A Network a Platform központi szolgáltatását használja (ha be van állítva)</li>
+              <li><strong>Saját szolgáltató engedélyezve:</strong> A Network Admin saját API kulcsokat állíthat be</li>
+              <li>A Platform szolgáltatás havi díja automatikusan hozzáadódik a Network számlájához</li>
+              <li>A Network Admin felületen megjelenik az aktív szolgáltatás neve és forrása</li>
             </ul>
           </div>
         </div>
