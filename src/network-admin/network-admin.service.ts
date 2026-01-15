@@ -1738,6 +1738,14 @@ Vemiax csapata`;
         twilioPhoneNumber: settings?.twilioPhoneNumber || '',
         twilioAccountSid: settings?.twilioAccountSid ? '***' : '',
       },
+      // Cégadatbázis szolgáltató
+      companyData: {
+        companyDataProvider: settings?.companyDataProvider || 'NONE',
+        optenApiKey: settings?.optenApiKey ? '***' : '',
+        optenApiSecret: settings?.optenApiSecret ? '***' : '',
+        bisnodeApiKey: settings?.bisnodeApiKey ? '***' : '',
+        bisnodeApiSecret: settings?.bisnodeApiSecret ? '***' : '',
+      },
       // Üzleti szabályok
       business: {
         allowCashPayment: settings?.allowCashPayment ?? true,
@@ -1866,6 +1874,26 @@ Vemiax csapata`;
       }
       if (dto.sms.twilioAuthToken && dto.sms.twilioAuthToken !== '***') {
         settingsData.twilioAuthToken = dto.sms.twilioAuthToken;
+      }
+    }
+
+    // Cégadatbázis szolgáltató
+    if (dto.companyData) {
+      Object.assign(settingsData, {
+        companyDataProvider: dto.companyData.companyDataProvider,
+      });
+      // Csak nem maszkolt értékeket frissítünk
+      if (dto.companyData.optenApiKey && dto.companyData.optenApiKey !== '***') {
+        settingsData.optenApiKey = dto.companyData.optenApiKey;
+      }
+      if (dto.companyData.optenApiSecret && dto.companyData.optenApiSecret !== '***') {
+        settingsData.optenApiSecret = dto.companyData.optenApiSecret;
+      }
+      if (dto.companyData.bisnodeApiKey && dto.companyData.bisnodeApiKey !== '***') {
+        settingsData.bisnodeApiKey = dto.companyData.bisnodeApiKey;
+      }
+      if (dto.companyData.bisnodeApiSecret && dto.companyData.bisnodeApiSecret !== '***') {
+        settingsData.bisnodeApiSecret = dto.companyData.bisnodeApiSecret;
       }
     }
 

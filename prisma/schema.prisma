@@ -166,6 +166,13 @@ enum InvoiceProvider {
   MANUAL      // Manuális export
 }
 
+enum CompanyDataProvider {
+  NONE        // Nincs integráció
+  OPTEN       // Opten cégadatbázis (magyar)
+  BISNODE     // Bisnode/Dun & Bradstreet
+  E_CEGJEGYZEK // e-Cégjegyzék (ingyenes, korlátozott)
+}
+
 enum ExchangeRateSource {
   FIXED       // Fix árfolyam beállítás
   MNB         // Magyar Nemzeti Bank
@@ -1209,6 +1216,13 @@ model NetworkSettings {
   navOnlineTaxNum       String?         @map("nav_online_tax_num")
   navOnlineSignKey      String?         @map("nav_online_sign_key")
   navOnlineExchKey      String?         @map("nav_online_exch_key")
+
+  // Cégadatbázis szolgáltató
+  companyDataProvider   CompanyDataProvider @default(NONE) @map("company_data_provider")
+  optenApiKey           String?         @map("opten_api_key")
+  optenApiSecret        String?         @map("opten_api_secret")
+  bisnodeApiKey         String?         @map("bisnode_api_key")
+  bisnodeApiSecret      String?         @map("bisnode_api_secret")
 
   // Üzleti szabályok
   allowCashPayment      Boolean @default(true) @map("allow_cash_payment")

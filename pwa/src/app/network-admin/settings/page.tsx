@@ -38,6 +38,13 @@ interface Settings {
     navOnlineUser: string;
     navOnlineTaxNum: string;
   };
+  companyData: {
+    companyDataProvider: string;
+    optenApiKey: string;
+    optenApiSecret: string;
+    bisnodeApiKey: string;
+    bisnodeApiSecret: string;
+  };
   email: {
     emailProvider: string;
     smtpHost: string;
@@ -82,7 +89,7 @@ interface Currency {
   isActive: boolean;
 }
 
-type TabType = 'company' | 'regional' | 'invoicing' | 'notifications' | 'business';
+type TabType = 'company' | 'regional' | 'invoicing' | 'companyData' | 'notifications' | 'business';
 
 const COUNTRIES = [
   { code: 'HU', name: 'Magyarország' },
@@ -124,6 +131,13 @@ const INVOICE_PROVIDERS = [
   { code: 'none', name: 'Nincs (manuális számlázás)' },
   { code: 'szamlazz', name: 'Számlázz.hu' },
   { code: 'billingo', name: 'Billingo' },
+];
+
+const COMPANY_DATA_PROVIDERS = [
+  { code: 'NONE', name: 'Nincs (manuális adatbevitel)' },
+  { code: 'OPTEN', name: 'Opten', description: 'Magyar cégadatbázis, kockázati értékelés' },
+  { code: 'BISNODE', name: 'Bisnode / D&B', description: 'Nemzetközi cégadatbázis (jövőbeli)' },
+  { code: 'E_CEGJEGYZEK', name: 'e-Cégjegyzék', description: 'Ingyenes, korlátozott (jövőbeli)' },
 ];
 
 // Test Email Button Component
@@ -334,6 +348,7 @@ export default function SettingsPage() {
     { id: 'company' as TabType, label: 'Cégadatok', icon: '🏢' },
     { id: 'regional' as TabType, label: 'Regionális', icon: '🌍' },
     { id: 'invoicing' as TabType, label: 'Számlázás', icon: '📄' },
+    { id: 'companyData' as TabType, label: 'Cégadatbázis', icon: '🔍' },
     { id: 'notifications' as TabType, label: 'Értesítések', icon: '📧' },
     { id: 'business' as TabType, label: 'Üzleti szabályok', icon: '⚙️' },
   ];
@@ -956,6 +971,155 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Company Data Tab */}
+          {activeTab === 'companyData' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Cégadatbázis szolgáltató</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Integráld a cégadatbázis szolgáltatót az automatikus partner adatok lekéréséhez,
+                  adószám ellenőrzéshez és kockázati értékeléshez.
+                </p>
+
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Szolgáltató kiválasztása
+                </label>
+                <select
+                  value={settings.companyData?.companyDataProvider || 'NONE'}
+                  onChange={(e) => updateSettings('companyData', 'companyDataProvider', e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  {COMPANY_DATA_PROVIDERS.map((p) => (
+                    <option key={p.code} value={p.code}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {settings.companyData?.companyDataProvider === 'OPTEN' && (
+                <div className="bg-blue-50 rounded-xl p-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+                      O
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-blue-900">Opten beállítások</h4>
+                      <p className="text-sm text-blue-700">
+                        Az Opten Magyarország vezető cégadatbázis szolgáltatója.
+                        API hozzáférést az <a href="https://www.opten.hu" target="_blank" rel="noopener noreferrer" className="underline">opten.hu</a> oldalon igényelhetsz.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      API kulcs *
+                    </label>
+                    <input
+                      type="password"
+                      value={settings.companyData?.optenApiKey || ''}
+                      onChange={(e) => updateSettings('companyData', 'optenApiKey', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Opten API kulcs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      API secret (opcionális)
+                    </label>
+                    <input
+                      type="password"
+                      value={settings.companyData?.optenApiSecret || ''}
+                      onChange={(e) => updateSettings('companyData', 'optenApiSecret', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Opten API secret (ha van)"
+                    />
+                  </div>
+
+                  <div className="bg-blue-100 rounded-lg p-3">
+                    <h5 className="font-medium text-blue-900 mb-1">Elérhető funkciók</h5>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• Cégnév és adószám alapú keresés</li>
+                      <li>• Automatikus cégadatok kitöltése (cím, adószám)</li>
+                      <li>• Magyar adószám validálása</li>
+                      <li>• Kockázati értékelés és fizetési morál</li>
+                      <li>• Tulajdonosi és vezetői adatok</li>
+                      <li>• Pénzügyi adatok (árbevétel, eredmény)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {settings.companyData?.companyDataProvider === 'BISNODE' && (
+                <div className="bg-purple-50 rounded-xl p-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold">
+                      B
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-purple-900">Bisnode / Dun & Bradstreet</h4>
+                      <p className="text-sm text-purple-700">
+                        Nemzetközi cégadatbázis szolgáltató. A támogatás hamarosan elérhető lesz.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-100 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800 font-medium">
+                      Hamarosan elérhető! A Bisnode integráció jelenleg fejlesztés alatt áll.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      API kulcs
+                    </label>
+                    <input
+                      type="password"
+                      value={settings.companyData?.bisnodeApiKey || ''}
+                      onChange={(e) => updateSettings('companyData', 'bisnodeApiKey', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Bisnode API kulcs"
+                      disabled
+                    />
+                  </div>
+                </div>
+              )}
+
+              {settings.companyData?.companyDataProvider === 'E_CEGJEGYZEK' && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center text-white font-bold">
+                      e
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">e-Cégjegyzék</h4>
+                      <p className="text-sm text-gray-600">
+                        Ingyenes magyar cégadatbázis korlátozott funkcionalitással.
+                        A támogatás hamarosan elérhető lesz.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-yellow-100 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800 font-medium">
+                      Hamarosan elérhető! Az e-Cégjegyzék integráció jelenleg fejlesztés alatt áll.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {settings.companyData?.companyDataProvider !== 'NONE' && settings.companyData?.companyDataProvider && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h4 className="font-semibold text-gray-900 mb-2">Kapcsolat teszt</h4>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Mentés után teszteld a kapcsolatot a Cégadatok oldalon a &quot;Kapcsolat teszt&quot; gombbal.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

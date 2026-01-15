@@ -26,6 +26,7 @@ import {
 import { NetworkAdminService } from './network-admin.service';
 import { StripeService } from '../stripe/stripe.service';
 import { BookingService } from '../modules/booking/booking.service';
+import { CompanyDataService } from '../company-data/company-data.service';
 import {
   CreateBookingDto,
   UpdateBookingDto,
@@ -73,6 +74,7 @@ export class NetworkAdminController {
     private readonly stripeService: StripeService,
     private readonly configService: ConfigService,
     private readonly bookingService: BookingService,
+    private readonly companyDataService: CompanyDataService,
   ) {}
 
   private async validateAuth(authHeader: string | undefined): Promise<{
@@ -1629,5 +1631,104 @@ export class NetworkAdminController {
   ): Promise<void> {
     const { networkId } = await this.validateAuth(auth);
     await this.bookingService.deleteBlockedTimeSlot(networkId, id);
+  }
+
+  // =========================================================================
+  // COMPANY DATA (Cégadatbázis - Opten, Bisnode, stb.)
+  // =========================================================================
+
+  @Get('company-data/providers')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get supported company data providers' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of supported company data providers',
+  })
+  async getCompanyDataProviders(
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateAuth(auth);
+    return this.companyDataService.getSupportedProviders();
+  }
+
+  @Get('company-data/search')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Search for companies by name, tax number, or query' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company search results',
+  })
+  async searchCompanies(
+    @Query('q') query?: string,
+    @Query('name') name?: string,
+    @Query('taxNumber') taxNumber?: string,
+    @Query('registrationNumber') registrationNumber?: string,
+    @Query('limit') limit?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.companyDataService.searchCompanies(networkId, {
+      query,
+      name,
+      taxNumber,
+      registrationNumber,
+      limit: limit ? parseInt(limit, 10) : 10,
+    });
+  }
+
+  @Get('company-data/details/:taxNumber')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get detailed company information by tax number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company detailed information',
+  })
+  async getCompanyDetails(
+    @Param('taxNumber') taxNumber: string,
+    @Query('includeFinancials') includeFinancials?: string,
+    @Query('includeRiskInfo') includeRiskInfo?: string,
+    @Query('includeOwners') includeOwners?: string,
+    @Query('includeExecutives') includeExecutives?: string,
+    @Query('includeActivities') includeActivities?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.companyDataService.getCompanyDetails(networkId, {
+      taxNumber,
+      includeFinancials: includeFinancials === 'true',
+      includeRiskInfo: includeRiskInfo === 'true',
+      includeOwners: includeOwners === 'true',
+      includeExecutives: includeExecutives === 'true',
+      includeActivities: includeActivities === 'true',
+    });
+  }
+
+  @Get('company-data/validate/:taxNumber')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Validate a Hungarian tax number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tax number validation result',
+  })
+  async validateTaxNumber(
+    @Param('taxNumber') taxNumber: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.companyDataService.validateTaxNumber(networkId, { taxNumber });
+  }
+
+  @Get('company-data/connection-test')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Test company data provider connection' })
+  @ApiResponse({
+    status: 200,
+    description: 'Connection test result',
+  })
+  async testCompanyDataConnection(
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    const { networkId } = await this.validateAuth(auth);
+    return this.companyDataService.validateProviderConnection(networkId);
   }
 }

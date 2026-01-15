@@ -6,6 +6,7 @@ import { StripeModule } from '../stripe/stripe.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { EmailModule } from '../modules/email/email.module';
 import { BookingModule } from '../modules/booking/booking.module';
+import { CompanyDataModule } from '../company-data/company-data.module';
 import { NetworkAdminController } from './network-admin.controller';
 import { NetworkAdminService } from './network-admin.service';
 
@@ -17,6 +18,7 @@ import { NetworkAdminService } from './network-admin.service';
     AuditLogModule,
     EmailModule,
     BookingModule,
+    CompanyDataModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
