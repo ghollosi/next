@@ -366,6 +366,7 @@ export class BillingService {
       include: {
         items: true,
         partnerCompany: true,
+        network: true,
       },
     });
 
@@ -380,6 +381,26 @@ export class BillingService {
     const provider = this.providers.get(providerName);
     if (!provider) {
       throw new BadRequestException(`Invoice provider "${providerName}" not found`);
+    }
+
+    // VIES validation for EU cross-border invoices
+    // If partner is in a different EU country and requests VAT-free invoice
+    const networkCountry = invoice.network?.country || 'HU';
+    const partnerCountry = invoice.billingCountry || 'HU';
+
+    if (networkCountry !== partnerCountry && invoice.euVatNumber) {
+      this.logger.log(`Cross-border EU invoice detected. Network: ${networkCountry}, Partner: ${partnerCountry}. Validating EU VAT: ${invoice.euVatNumber}`);
+
+      const viesResult = await this.viesService.validateVatNumber(invoice.euVatNumber);
+
+      if (!viesResult.valid) {
+        throw new BadRequestException(
+          `EU adoszam VIES ellenorzese sikertelen: ${viesResult.error || 'Ervenytelen adoszam'}. ` +
+          `Az afamentes szamla kiallitasahoz ervenyes EU kozossegi adoszam szukseges.`
+        );
+      }
+
+      this.logger.log(`VIES validation successful for ${invoice.euVatNumber}: ${viesResult.name}`);
     }
 
     // Prepare line items

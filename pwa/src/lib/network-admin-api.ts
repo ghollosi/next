@@ -447,11 +447,25 @@ export const networkAdminApi = {
     billingAddress?: string;
     contactEmail?: string;
     contactPhone?: string;
+    billingCountry?: string;
+    euVatNumber?: string;
   }): Promise<PartnerCompany> {
     return fetchWithAuth('/network-admin/partner-companies', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+
+  // VIES VAT validation
+  async validateVatNumber(vatNumber: string): Promise<{
+    valid: boolean;
+    countryCode?: string;
+    vatNumber?: string;
+    name?: string;
+    address?: string;
+    error?: string;
+  }> {
+    return fetchWithAuth(`/billing/validate-vat?vatNumber=${encodeURIComponent(vatNumber)}`);
   },
 
   // Drivers

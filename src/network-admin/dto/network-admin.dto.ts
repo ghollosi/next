@@ -519,6 +519,17 @@ export class CreatePartnerCompanyDto {
   @IsOptional()
   @IsString()
   contactPhone?: string;
+
+  @ApiPropertyOptional({ description: 'Számlázási ország (ISO 3166-1 alpha-2)', example: 'HU' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
+  billingCountry?: string;
+
+  @ApiPropertyOptional({ description: 'EU közösségi adószám', example: 'HU12345678' })
+  @IsOptional()
+  @IsString()
+  euVatNumber?: string;
 }
 
 // ============================================================================

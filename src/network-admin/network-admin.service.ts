@@ -1257,6 +1257,8 @@ Vemiax csapata`;
         code,
         taxNumber: dto.taxNumber,
         billingAddress: dto.billingAddress,
+        billingCountry: dto.billingCountry || 'HU',
+        euVatNumber: dto.euVatNumber,
         email: dto.contactEmail,
         phone: dto.contactPhone,
       },

@@ -3,10 +3,28 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { fetchOperatorApi, networkAdminApi } from '@/lib/network-admin-api';
 
 type BillingType = 'CONTRACT' | 'CASH';
 type BillingCycle = 'MONTHLY' | 'WEEKLY';
+
+const COUNTRIES = [
+  { code: 'HU', name: 'Magyarorszag', flag: '🇭🇺' },
+  { code: 'AT', name: 'Ausztria', flag: '🇦🇹' },
+  { code: 'SK', name: 'Szlovakia', flag: '🇸🇰' },
+  { code: 'RO', name: 'Romania', flag: '🇷🇴' },
+  { code: 'DE', name: 'Nemetorszag', flag: '🇩🇪' },
+  { code: 'PL', name: 'Lengyelorszag', flag: '🇵🇱' },
+  { code: 'CZ', name: 'Csehorszag', flag: '🇨🇿' },
+  { code: 'HR', name: 'Horvatorszag', flag: '🇭🇷' },
+  { code: 'SI', name: 'Szlovenia', flag: '🇸🇮' },
+  { code: 'RS', name: 'Szerbia', flag: '🇷🇸' },
+  { code: 'BG', name: 'Bulgaria', flag: '🇧🇬' },
+  { code: 'IT', name: 'Olaszorszag', flag: '🇮🇹' },
+  { code: 'FR', name: 'Franciaorszag', flag: '🇫🇷' },
+  { code: 'NL', name: 'Hollandia', flag: '🇳🇱' },
+  { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
+];
 
 export default function NetworkAdminEditPartnerPage() {
   const params = useParams();
@@ -27,11 +45,21 @@ export default function NetworkAdminEditPartnerPage() {
   const [billingAddress, setBillingAddress] = useState('');
   const [billingCity, setBillingCity] = useState('');
   const [billingZipCode, setBillingZipCode] = useState('');
+  const [billingCountry, setBillingCountry] = useState('HU');
   const [taxNumber, setTaxNumber] = useState('');
   const [euVatNumber, setEuVatNumber] = useState('');
   const [paymentDueDays, setPaymentDueDays] = useState<number>(8);
   const [pin, setPin] = useState('');
   const [hasPin, setHasPin] = useState(false);
+
+  // VIES validation state
+  const [viesValidating, setViesValidating] = useState(false);
+  const [viesResult, setViesResult] = useState<{
+    valid: boolean;
+    name?: string;
+    address?: string;
+    error?: string;
+  } | null>(null);
 
   useEffect(() => {
     loadPartner();
@@ -51,14 +79,34 @@ export default function NetworkAdminEditPartnerPage() {
       setBillingAddress(data.billingAddress || '');
       setBillingCity(data.billingCity || '');
       setBillingZipCode(data.billingZipCode || '');
+      setBillingCountry(data.billingCountry || 'HU');
       setTaxNumber(data.taxNumber || '');
       setEuVatNumber(data.euVatNumber || '');
       setPaymentDueDays(data.paymentDueDays ?? 8);
       setHasPin(!!data.pinHash);
     } catch (err: any) {
-      setError(err.message || 'Hiba történt');
+      setError(err.message || 'Hiba tortent');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleViesValidation = async () => {
+    if (!euVatNumber) return;
+
+    setViesValidating(true);
+    setViesResult(null);
+
+    try {
+      const result = await networkAdminApi.validateVatNumber(euVatNumber);
+      setViesResult(result);
+    } catch (err: any) {
+      setViesResult({
+        valid: false,
+        error: err.message || 'VIES validacio sikertelen',
+      });
+    } finally {
+      setViesValidating(false);
     }
   };
 
@@ -78,6 +126,7 @@ export default function NetworkAdminEditPartnerPage() {
         billingAddress: billingAddress || undefined,
         billingCity: billingCity || undefined,
         billingZipCode: billingZipCode || undefined,
+        billingCountry,
         taxNumber: taxNumber || undefined,
         euVatNumber: euVatNumber || undefined,
         paymentDueDays,
@@ -102,7 +151,7 @@ export default function NetworkAdminEditPartnerPage() {
 
       router.push(`/network-admin/partners/${params.id}`);
     } catch (err: any) {
-      setError(err.message || 'Hiba történt');
+      setError(err.message || 'Hiba tortent');
     } finally {
       setSubmitting(false);
     }
@@ -111,7 +160,7 @@ export default function NetworkAdminEditPartnerPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-gray-500">Betöltés...</p>
+        <p className="text-gray-500">Betoltes...</p>
       </div>
     );
   }
@@ -126,7 +175,7 @@ export default function NetworkAdminEditPartnerPage() {
         >
           &larr; Vissza a partnerhez
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-2">Partner szerkesztése</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-2">Partner szerkesztese</h1>
         <p className="text-gray-500 font-mono">{code}</p>
       </div>
 
@@ -141,7 +190,7 @@ export default function NetworkAdminEditPartnerPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cég neve *
+                Ceg neve *
               </label>
               <input
                 type="text"
@@ -154,7 +203,7 @@ export default function NetworkAdminEditPartnerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Rövid kód
+                Rovid kod
               </label>
               <input
                 type="text"
@@ -162,12 +211,12 @@ export default function NetworkAdminEditPartnerPage() {
                 disabled
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 font-mono"
               />
-              <p className="mt-1 text-xs text-gray-500">A kód nem módosítható</p>
+              <p className="mt-1 text-xs text-gray-500">A kod nem modosithato</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Kapcsolattartó
+                Kapcsolattarto
               </label>
               <input
                 type="text"
@@ -206,23 +255,23 @@ export default function NetworkAdminEditPartnerPage() {
         {/* Partner Portal PIN */}
         <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
-            Partner Portal hozzáférés
+            Partner Portal hozzaferes
           </h2>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              PIN kód {hasPin ? '(már van beállítva)' : '(nincs beállítva)'}
+              PIN kod {hasPin ? '(mar van beallitva)' : '(nincs beallitva)'}
             </label>
             <input
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              placeholder={hasPin ? 'Új PIN beállítása (üresen hagyva marad a régi)' : 'Adj meg egy 4+ karakteres PIN-t'}
+              placeholder={hasPin ? 'Uj PIN beallitasa (uresen hagyva marad a regi)' : 'Adj meg egy 4+ karakteres PIN-t'}
               minLength={4}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
             <p className="mt-1 text-xs text-gray-500">
-              A partner ezzel a PIN kóddal és a partner kóddal ({code}) tud bejelentkezni a Partner Portalba.
+              A partner ezzel a PIN koddal es a partner koddal ({code}) tud bejelentkezni a Partner Portalba.
             </p>
           </div>
         </div>
@@ -230,7 +279,7 @@ export default function NetworkAdminEditPartnerPage() {
         {/* Billing Type */}
         <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
-            Számlázási típus
+            Szamlazasi tipus
           </h2>
 
           <div className="flex gap-4">
@@ -251,8 +300,8 @@ export default function NetworkAdminEditPartnerPage() {
               />
               <div className="text-center">
                 <div className="text-2xl mb-1">📄</div>
-                <p className="font-semibold text-gray-900">Szerződéses</p>
-                <p className="text-sm text-gray-500">Gyűjtőszámlázás</p>
+                <p className="font-semibold text-gray-900">Szerzodeses</p>
+                <p className="text-sm text-gray-500">Gyujtoszamlazas</p>
               </div>
             </label>
 
@@ -273,8 +322,8 @@ export default function NetworkAdminEditPartnerPage() {
               />
               <div className="text-center">
                 <div className="text-2xl mb-1">💵</div>
-                <p className="font-semibold text-gray-900">Készpénzes</p>
-                <p className="text-sm text-gray-500">Helyben számlázás</p>
+                <p className="font-semibold text-gray-900">Keszpenzes</p>
+                <p className="text-sm text-gray-500">Helyben szamlazas</p>
               </div>
             </label>
           </div>
@@ -282,7 +331,7 @@ export default function NetworkAdminEditPartnerPage() {
           {billingType === 'CONTRACT' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Számlázási ciklus
+                Szamlazasi ciklus
               </label>
               <div className="flex gap-4">
                 <label
@@ -327,26 +376,43 @@ export default function NetworkAdminEditPartnerPage() {
         {/* Billing Info */}
         <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
-            Számlázási adatok
+            Szamlazasi adatok
           </h2>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Számlázási név
+                Szamlazasi nev
               </label>
               <input
                 type="text"
                 value={billingName}
                 onChange={(e) => setBillingName(e.target.value)}
-                placeholder="Ha eltér a cégnévtől"
+                placeholder="Ha elter a cegnevtol"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
 
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Számlázási cím
+                Orszag
+              </label>
+              <select
+                value={billingCountry}
+                onChange={(e) => setBillingCountry(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                {COUNTRIES.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Szamlazasi cim
               </label>
               <input
                 type="text"
@@ -358,7 +424,7 @@ export default function NetworkAdminEditPartnerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Irányítószám
+                Iranyitoszam
               </label>
               <input
                 type="text"
@@ -370,7 +436,7 @@ export default function NetworkAdminEditPartnerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Város
+                Varos
               </label>
               <input
                 type="text"
@@ -382,7 +448,7 @@ export default function NetworkAdminEditPartnerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Adószám
+                Adoszam
               </label>
               <input
                 type="text"
@@ -395,20 +461,7 @@ export default function NetworkAdminEditPartnerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                EU adószám
-              </label>
-              <input
-                type="text"
-                value={euVatNumber}
-                onChange={(e) => setEuVatNumber(e.target.value)}
-                placeholder="HU12345678"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fizetési határidő (nap)
+                Fizetesi hatarido (nap)
               </label>
               <input
                 type="number"
@@ -418,6 +471,67 @@ export default function NetworkAdminEditPartnerPage() {
                 max={90}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                EU kozossegi adoszam
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={euVatNumber}
+                  onChange={(e) => {
+                    setEuVatNumber(e.target.value.toUpperCase());
+                    setViesResult(null);
+                  }}
+                  placeholder="HU12345678"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleViesValidation}
+                  disabled={!euVatNumber || viesValidating}
+                  className="px-4 py-3 bg-blue-600 text-white font-medium rounded-xl
+                             hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
+                             transition-colors whitespace-nowrap"
+                >
+                  {viesValidating ? 'Ellenorzes...' : 'VIES ellenorzes'}
+                </button>
+              </div>
+
+              {/* VIES Result */}
+              {viesResult && (
+                <div className={`mt-2 p-3 rounded-lg text-sm ${
+                  viesResult.valid
+                    ? 'bg-green-50 border border-green-200 text-green-700'
+                    : 'bg-red-50 border border-red-200 text-red-700'
+                }`}>
+                  {viesResult.valid ? (
+                    <div>
+                      <div className="font-semibold flex items-center gap-2">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Ervenyes EU adoszam
+                      </div>
+                      {viesResult.name && <div className="mt-1">Cegnev: {viesResult.name}</div>}
+                      {viesResult.address && <div>Cim: {viesResult.address}</div>}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      {viesResult.error || 'Ervenytelen EU adoszam'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <p className="mt-1 text-xs text-gray-500">
+                Kulfoldi EU-s partnerek esetén kotelezo megadni a kozossegi adoszamot az afamentes szamlazashoz.
+              </p>
             </div>
           </div>
         </div>
@@ -435,7 +549,7 @@ export default function NetworkAdminEditPartnerPage() {
             href={`/network-admin/partners/${params.id}`}
             className="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl text-center hover:bg-gray-200 transition-colors"
           >
-            Mégse
+            Megse
           </Link>
           <button
             type="submit"
@@ -444,7 +558,7 @@ export default function NetworkAdminEditPartnerPage() {
                        hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed
                        transition-colors"
           >
-            {submitting ? 'Mentés...' : 'Változtatások mentése'}
+            {submitting ? 'Mentes...' : 'Valtoztatasok mentese'}
           </button>
         </div>
       </form>
