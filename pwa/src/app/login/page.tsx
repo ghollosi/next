@@ -53,10 +53,17 @@ function LoginContent() {
       saveSession(response.sessionId, {
         driverId: response.driverId,
         networkId: response.networkId,
-        partnerCompanyId: response.partnerCompanyId,
+        partnerCompanyId: response.partnerCompanyId || null,
         firstName: response.firstName,
         lastName: response.lastName,
-        partnerCompanyName: response.partnerCompanyName,
+        partnerCompanyName: response.partnerCompanyName || null,
+        isPrivateCustomer: response.isPrivateCustomer || !response.partnerCompanyId,
+        billingName: response.billingName,
+        billingAddress: response.billingAddress,
+        billingCity: response.billingCity,
+        billingZipCode: response.billingZipCode,
+        billingCountry: response.billingCountry,
+        billingTaxNumber: response.billingTaxNumber,
       });
 
       // QR kód flow: ha van pending location, oda irányítunk

@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi, fetchOperatorApi } from '@/lib/network-admin-api';
 
+type LocationVisibility = 'PUBLIC' | 'NETWORK_ONLY' | 'DEDICATED';
+
 interface Location {
   id: string;
   code: string;
@@ -24,6 +26,9 @@ interface Location {
   email?: string;
   isActive: boolean;
   createdAt: string;
+  // Láthatóság
+  visibility?: LocationVisibility;
+  dedicatedPartnerIds?: string[];
   // Alvállalkozói cégadatok
   subcontractorCompanyName?: string;
   subcontractorTaxNumber?: string;
@@ -34,6 +39,13 @@ interface Location {
   subcontractorContactPhone?: string;
   subcontractorContactEmail?: string;
   subcontractorBankAccount?: string;
+}
+
+interface PartnerCompany {
+  id: string;
+  name: string;
+  code?: string;
+  isActive: boolean;
 }
 
 interface LocationService {
@@ -93,6 +105,9 @@ export default function LocationEditPage() {
     phone: '',
     email: '',
     isActive: true,
+    // Láthatóság
+    visibility: 'NETWORK_ONLY' as LocationVisibility,
+    dedicatedPartnerIds: [] as string[],
     // Alvállalkozói cégadatok
     subcontractorCompanyName: '',
     subcontractorTaxNumber: '',
@@ -104,6 +119,9 @@ export default function LocationEditPage() {
     subcontractorContactEmail: '',
     subcontractorBankAccount: '',
   });
+
+  // Partner companies for DEDICATED visibility
+  const [partnerCompanies, setPartnerCompanies] = useState<PartnerCompany[]>([]);
 
   // Opening hours state
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>(
@@ -150,6 +168,9 @@ export default function LocationEditPage() {
         phone: loc.phone || '',
         email: loc.email || '',
         isActive: loc.isActive,
+        // Láthatóság
+        visibility: loc.visibility || 'NETWORK_ONLY',
+        dedicatedPartnerIds: loc.dedicatedPartnerIds || [],
         // Alvállalkozói cégadatok
         subcontractorCompanyName: loc.subcontractorCompanyName || '',
         subcontractorTaxNumber: loc.subcontractorTaxNumber || '',
@@ -162,13 +183,15 @@ export default function LocationEditPage() {
         subcontractorBankAccount: loc.subcontractorBankAccount || '',
       });
 
-      // Load services and opening hours
-      const [services, packages] = await Promise.all([
+      // Load services, opening hours, and partner companies
+      const [services, packages, partners] = await Promise.all([
         networkAdminApi.listLocationServices(locationId),
         networkAdminApi.listServicePackages(),
+        networkAdminApi.listPartnerCompanies(),
       ]);
       setLocationServices(services);
       setAllServicePackages(packages);
+      setPartnerCompanies(partners.filter((p: PartnerCompany) => p.isActive));
 
       // Try to load opening hours
       try {
@@ -203,6 +226,9 @@ export default function LocationEditPage() {
         isActive: form.isActive,
         operationType: form.operationType,
         locationType: form.locationType,
+        // Láthatóság
+        visibility: form.visibility,
+        dedicatedPartnerIds: form.visibility === 'DEDICATED' ? form.dedicatedPartnerIds : [],
         // Alvállalkozói cégadatok
         subcontractorCompanyName: form.subcontractorCompanyName || undefined,
         subcontractorTaxNumber: form.subcontractorTaxNumber || undefined,
@@ -537,6 +563,94 @@ export default function LocationEditPage() {
             <p className="text-sm text-gray-500 mt-1 ml-8">
               Inaktiv helyszinen nem lehet mosast inditani.
             </p>
+          </div>
+        </div>
+
+        {/* Láthatóság szekció */}
+        <div className="pt-6 border-t border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Helyszin lathatosaga</h3>
+          <div className="space-y-4">
+            {/* Visibility dropdown */}
+            <div className="max-w-md">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ki lathassa ezt a helyszint?
+              </label>
+              <select
+                value={form.visibility}
+                onChange={(e) => setForm({ ...form, visibility: e.target.value as LocationVisibility, dedicatedPartnerIds: [] })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+              >
+                <option value="PUBLIC">Publikus - Mindenki lathassa (privat ugyfelek is)</option>
+                <option value="NETWORK_ONLY">Network Only - Csak a halozat soforfei</option>
+                <option value="DEDICATED">Dedikalt - Csak kivalasztott partnerek</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                {form.visibility === 'PUBLIC' && (
+                  <>A helyszin megjelenik minden privat ugyfelenek es mas halozatok soforjeinek is.</>
+                )}
+                {form.visibility === 'NETWORK_ONLY' && (
+                  <>A helyszin csak a sajat halozat flotta soforjeinek jelenik meg.</>
+                )}
+                {form.visibility === 'DEDICATED' && (
+                  <>A helyszin csak a kivalasztott partnerek soforjeinek jelenik meg.</>
+                )}
+              </p>
+            </div>
+
+            {/* Dedicated partner selector - csak DEDICATED módnál */}
+            {form.visibility === 'DEDICATED' && (
+              <div className="max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kivalasztott partnerek *
+                </label>
+                {partnerCompanies.length === 0 ? (
+                  <p className="text-gray-500 text-sm">Nincsenek aktiv partnerek a halozatban.</p>
+                ) : (
+                  <div className="border-2 border-gray-200 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                    {partnerCompanies.map((partner) => (
+                      <label key={partner.id} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded-lg">
+                        <input
+                          type="checkbox"
+                          checked={form.dedicatedPartnerIds.includes(partner.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({ ...form, dedicatedPartnerIds: [...form.dedicatedPartnerIds, partner.id] });
+                            } else {
+                              setForm({ ...form, dedicatedPartnerIds: form.dedicatedPartnerIds.filter(id => id !== partner.id) });
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-gray-700">{partner.name}</span>
+                        {partner.code && <span className="text-xs text-gray-400">({partner.code})</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {form.dedicatedPartnerIds.length > 0 && (
+                  <p className="text-xs text-green-600 mt-2">
+                    {form.dedicatedPartnerIds.length} partner kivalasztva
+                  </p>
+                )}
+                {form.visibility === 'DEDICATED' && form.dedicatedPartnerIds.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    Legalabb egy partnert ki kell valasztani a Dedikalt lathatosaghoz.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Info box */}
+            <div className="bg-blue-50 rounded-xl p-4 max-w-2xl">
+              <p className="text-sm text-blue-700">
+                <strong>Lathatosag magyarazat:</strong>
+              </p>
+              <ul className="text-sm text-blue-600 mt-2 space-y-1">
+                <li><strong>Publikus:</strong> Privat ugyfelek es minden halozat soferfei latjak.</li>
+                <li><strong>Network Only:</strong> Csak a sajat halozat soferfei latjak (nem jelenik meg privat ugyfeleknek).</li>
+                <li><strong>Dedikalt:</strong> Csak a kivalasztott partnerek soferfei latjak.</li>
+              </ul>
+            </div>
           </div>
         </div>
 

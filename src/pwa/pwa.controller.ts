@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Delete,
   Body,
   Param,
@@ -137,7 +138,7 @@ export class PwaController {
   }
 
   @Post('register')
-  @ApiOperation({ summary: 'Self-register as a new driver' })
+  @ApiOperation({ summary: 'Self-register as a new driver or private customer' })
   @ApiHeader({
     name: 'x-network-id',
     required: false,
@@ -146,7 +147,7 @@ export class PwaController {
   @ApiBody({ type: SelfRegisterDto })
   @ApiResponse({
     status: 201,
-    description: 'Driver registered, pending approval',
+    description: 'Driver/customer registered',
     type: SelfRegisterResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid registration data' })
@@ -161,8 +162,26 @@ export class PwaController {
       throw new BadRequestException('Email vagy telefonszám megadása kötelező');
     }
 
-    // Verify partner company exists
-    const partnerCompany = await this.partnerCompanyService.findById(nid, dto.partnerCompanyId);
+    const isPrivateCustomer = !dto.partnerCompanyId;
+    let partnerCompany: { name: string; email: string | null; contactName: string | null } | null = null;
+
+    // Privát ügyfél vs Flottás sofőr validáció
+    if (isPrivateCustomer) {
+      // Privát ügyfélnek kötelező a számlázási adatok
+      if (!dto.billingName || !dto.billingAddress || !dto.billingCity || !dto.billingZipCode) {
+        throw new BadRequestException(
+          'Privát ügyfél regisztrációhoz kötelező a számlázási adatok megadása (név, cím, város, irányítószám)',
+        );
+      }
+    } else {
+      // Flottás sofőrnél ellenőrizzük, hogy a partner létezik
+      const company = await this.partnerCompanyService.findById(nid, dto.partnerCompanyId!);
+      partnerCompany = {
+        name: company.name,
+        email: company.email || null,
+        contactName: company.contactName || null,
+      };
+    }
 
     // Create driver with pending status
     const driver = await this.driverService.selfRegister(nid, {
@@ -172,13 +191,20 @@ export class PwaController {
       phone: dto.phone,
       email: dto.email,
       pin: dto.pin,
+      // Privát ügyfél számlázási adatok
+      billingName: dto.billingName,
+      billingAddress: dto.billingAddress,
+      billingCity: dto.billingCity,
+      billingZipCode: dto.billingZipCode,
+      billingCountry: dto.billingCountry,
+      billingTaxNumber: dto.billingTaxNumber,
     });
 
-    // Create vehicles if provided
+    // Create vehicles if provided (csak flottás sofőrnél van partner)
     if (dto.vehicles && dto.vehicles.length > 0) {
       for (const vehicle of dto.vehicles) {
         await this.vehicleService.create(nid, {
-          partnerCompanyId: dto.partnerCompanyId,
+          partnerCompanyId: dto.partnerCompanyId || null,
           driverId: driver.id,
           category: vehicle.category || 'SOLO',
           plateNumber: vehicle.plateNumber,
@@ -216,29 +242,34 @@ export class PwaController {
       verificationRequired = dto.email ? 'BOTH' : 'PHONE';
     }
 
-    // Notify driver, partner company and network admin about new registration
-    await this.notificationService.notifyNewRegistration(
-      {
-        id: driver.id,
-        firstName: driver.firstName,
-        lastName: driver.lastName,
-        phone: driver.phone,
-        email: driver.email,
-      },
-      {
-        name: partnerCompany.name,
-        email: partnerCompany.email,
-        contactName: partnerCompany.contactName,
-      },
-      nid, // networkId
-    );
+    // Notify about new registration (csak ha van partner)
+    if (partnerCompany) {
+      await this.notificationService.notifyNewRegistration(
+        {
+          id: driver.id,
+          firstName: driver.firstName,
+          lastName: driver.lastName,
+          phone: driver.phone,
+          email: driver.email,
+        },
+        {
+          name: partnerCompany.name,
+          email: partnerCompany.email || null,
+          contactName: partnerCompany.contactName || null,
+        },
+        nid,
+      );
+    }
 
     const baseMessage = 'Regisztráció sikeres! ';
     const verificationMessage = verificationMessages.length > 0
       ? verificationMessages.join(' ') + ' '
       : '';
-    // Driver is auto-approved, show the invite code
-    const approvalMessage = 'A fiókod aktiválva lett. Használd a meghívó kódodat a bejelentkezéshez, vagy jelentkezz be telefonszámmal és PIN kóddal.';
+
+    // Különböző üzenet privát ügyfélnek és flottás sofőrnek
+    const approvalMessage = isPrivateCustomer
+      ? 'A fiókod aktiválva lett. Privát ügyfélként használhatod az összes publikus mosót.'
+      : 'A fiókod aktiválva lett. Használd a meghívó kódodat a bejelentkezéshez, vagy jelentkezz be telefonszámmal és PIN kóddal.';
 
     return {
       driverId: driver.id,
@@ -248,6 +279,7 @@ export class PwaController {
       inviteCode: driver.invite?.inviteCode,
       verificationRequired,
       message: baseMessage + verificationMessage + approvalMessage,
+      isPrivateCustomer,
     };
   }
 
@@ -347,15 +379,15 @@ export class PwaController {
       // Create session and store in database
       const sessionData: DriverSessionData = {
         driverId: driver.id,
-        networkId: driver.partnerCompany.networkId,
-        partnerCompanyId: driver.partnerCompany.id,
+        networkId: driver.networkId,
+        partnerCompanyId: driver.partnerCompanyId || undefined,
       };
 
       const sessionId = await this.sessionService.createSession(
         SessionType.DRIVER,
         sessionData,
         {
-          networkId: driver.partnerCompany.networkId,
+          networkId: driver.networkId,
           userId: driver.id,
         },
       );
@@ -365,7 +397,7 @@ export class PwaController {
 
       // AUDIT: Log successful login
       await this.auditLogService.log({
-        networkId: driver.partnerCompany.networkId,
+        networkId: driver.networkId,
         action: AuditAction.LOGIN_SUCCESS,
         actorType: 'DRIVER',
         actorId: driver.id,
@@ -377,11 +409,18 @@ export class PwaController {
       return {
         sessionId,
         driverId: driver.id,
-        networkId: driver.partnerCompany.networkId,
-        partnerCompanyId: driver.partnerCompany.id,
+        networkId: driver.networkId,
+        partnerCompanyId: driver.partnerCompanyId,
         firstName: driver.firstName,
         lastName: driver.lastName,
-        partnerCompanyName: driver.partnerCompany.name,
+        partnerCompanyName: driver.partnerCompany?.name || null,
+        isPrivateCustomer: driver.isPrivateCustomer,
+        billingName: driver.billingName,
+        billingAddress: driver.billingAddress,
+        billingCity: driver.billingCity,
+        billingZipCode: driver.billingZipCode,
+        billingCountry: driver.billingCountry,
+        billingTaxNumber: driver.billingTaxNumber,
       };
     } catch (error) {
       // AUDIT: Log failed login attempt
@@ -426,15 +465,15 @@ export class PwaController {
       // Create session and store in database
       const sessionData: DriverSessionData = {
         driverId: driver.id,
-        networkId: driver.partnerCompany.networkId,
-        partnerCompanyId: driver.partnerCompany.id,
+        networkId: driver.networkId,
+        partnerCompanyId: driver.partnerCompanyId || undefined,
       };
 
       const sessionId = await this.sessionService.createSession(
         SessionType.DRIVER,
         sessionData,
         {
-          networkId: driver.partnerCompany.networkId,
+          networkId: driver.networkId,
           userId: driver.id,
         },
       );
@@ -444,7 +483,7 @@ export class PwaController {
 
       // AUDIT: Log successful login
       await this.auditLogService.log({
-        networkId: driver.partnerCompany.networkId,
+        networkId: driver.networkId,
         action: AuditAction.LOGIN_SUCCESS,
         actorType: 'DRIVER',
         actorId: driver.id,
@@ -456,11 +495,18 @@ export class PwaController {
       return {
         sessionId,
         driverId: driver.id,
-        networkId: driver.partnerCompany.networkId,
-        partnerCompanyId: driver.partnerCompany.id,
+        networkId: driver.networkId,
+        partnerCompanyId: driver.partnerCompanyId,
         firstName: driver.firstName,
         lastName: driver.lastName,
-        partnerCompanyName: driver.partnerCompany.name,
+        partnerCompanyName: driver.partnerCompany?.name || null,
+        isPrivateCustomer: driver.isPrivateCustomer,
+        billingName: driver.billingName,
+        billingAddress: driver.billingAddress,
+        billingCity: driver.billingCity,
+        billingZipCode: driver.billingZipCode,
+        billingCountry: driver.billingCountry,
+        billingTaxNumber: driver.billingTaxNumber,
       };
     } catch (error) {
       // AUDIT: Log failed login attempt
@@ -547,18 +593,19 @@ export class PwaController {
     // Create PIN reset request
     // If driver has a partner company, send to Partner Admin
     // If not, send to Platform Admin (partnerCompanyId will be null)
+    const networkId = driver.partnerCompany?.networkId || driver.networkId;
     await this.prisma.driverPinResetRequest.create({
       data: {
-        networkId: driver.partnerCompany.networkId,
+        networkId,
         driverId: driver.id,
-        partnerCompanyId: driver.partnerCompany.id,
+        partnerCompanyId: driver.partnerCompany?.id,
         status: 'PENDING',
       },
     });
 
     // Audit log
     await this.auditLogService.log({
-      networkId: driver.partnerCompany.networkId,
+      networkId,
       action: AuditAction.UPDATE,
       actorType: 'DRIVER',
       actorId: driver.id,
@@ -566,7 +613,7 @@ export class PwaController {
         type: 'PIN_RESET_REQUESTED',
         phone: phone.slice(-4).padStart(phone.length, '*'),
         driverName: `${driver.firstName} ${driver.lastName}`,
-        partnerCompanyName: driver.partnerCompany.name,
+        partnerCompanyName: driver.partnerCompany?.name || 'Privat ugyfel',
       },
       ipAddress,
       userAgent,
@@ -593,6 +640,128 @@ export class PwaController {
       firstName: driver.firstName,
       lastName: driver.lastName,
       partnerCompanyId: session.partnerCompanyId,
+      isPrivateCustomer: driver.isPrivateCustomer,
+      // Számlázási adatok (privát ügyféleknél)
+      billingName: driver.billingName,
+      billingAddress: driver.billingAddress,
+      billingCity: driver.billingCity,
+      billingZipCode: driver.billingZipCode,
+      billingCountry: driver.billingCountry,
+      billingTaxNumber: driver.billingTaxNumber,
+    };
+  }
+
+  @Post('detach-from-partner')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Detach driver from partner company and become independent/private customer' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['billingName', 'billingAddress', 'billingCity', 'billingZipCode'],
+      properties: {
+        billingName: { type: 'string', description: 'Billing name' },
+        billingAddress: { type: 'string', description: 'Billing address' },
+        billingCity: { type: 'string', description: 'Billing city' },
+        billingZipCode: { type: 'string', description: 'Billing zip code' },
+        billingCountry: { type: 'string', description: 'Billing country', default: 'HU' },
+        billingTaxNumber: { type: 'string', description: 'Tax number (optional)' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Successfully detached from partner' })
+  @ApiResponse({ status: 400, description: 'Invalid data or already private customer' })
+  async detachFromPartner(
+    @Body() body: {
+      billingName: string;
+      billingAddress: string;
+      billingCity: string;
+      billingZipCode: string;
+      billingCountry?: string;
+      billingTaxNumber?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
+
+    const updatedDriver = await this.driverService.detachFromPartner(session.driverId, {
+      billingName: body.billingName,
+      billingAddress: body.billingAddress,
+      billingCity: body.billingCity,
+      billingZipCode: body.billingZipCode,
+      billingCountry: body.billingCountry,
+      billingTaxNumber: body.billingTaxNumber,
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId: session.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'DRIVER',
+      actorId: session.driverId,
+      metadata: {
+        type: 'DETACHED_FROM_PARTNER',
+        previousPartnerCompanyId: session.partnerCompanyId,
+        isNowPrivateCustomer: true,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      success: true,
+      message: 'Sikeresen függetlenné váltál. Mostantól privát ügyfélként használhatod az összes publikus mosót.',
+      isPrivateCustomer: true,
+      driver: {
+        id: updatedDriver.id,
+        firstName: updatedDriver.firstName,
+        lastName: updatedDriver.lastName,
+        billingName: updatedDriver.billingName,
+      },
+    };
+  }
+
+  @Put('billing-info')
+  @ApiOperation({ summary: 'Update billing information for private customers' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        billingName: { type: 'string', description: 'Billing name' },
+        billingAddress: { type: 'string', description: 'Billing address' },
+        billingCity: { type: 'string', description: 'Billing city' },
+        billingZipCode: { type: 'string', description: 'Billing zip code' },
+        billingCountry: { type: 'string', description: 'Billing country' },
+        billingTaxNumber: { type: 'string', description: 'Tax number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Billing info updated' })
+  @ApiResponse({ status: 400, description: 'Not a private customer' })
+  async updateBillingInfo(
+    @Body() body: {
+      billingName?: string;
+      billingAddress?: string;
+      billingCity?: string;
+      billingZipCode?: string;
+      billingCountry?: string;
+      billingTaxNumber?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+
+    const updatedDriver = await this.driverService.updateBillingInfo(session.driverId, body);
+
+    return {
+      success: true,
+      message: 'Számlázási adatok frissítve.',
+      billingName: updatedDriver.billingName,
+      billingAddress: updatedDriver.billingAddress,
+      billingCity: updatedDriver.billingCity,
+      billingZipCode: updatedDriver.billingZipCode,
+      billingCountry: updatedDriver.billingCountry,
+      billingTaxNumber: updatedDriver.billingTaxNumber,
     };
   }
 
@@ -700,14 +869,22 @@ export class PwaController {
   }
 
   @Get('locations')
-  @ApiOperation({ summary: 'Get all available locations for the driver network' })
-  @ApiResponse({ status: 200, description: 'List of locations' })
+  @ApiOperation({ summary: 'Get all available locations for the driver (based on visibility rules)' })
+  @ApiResponse({ status: 200, description: 'List of visible locations' })
   async getLocations(@Req() req: Request) {
     const session = await this.getDriverSession(req);
 
-    const locations = await this.locationService.findAll(session.networkId);
+    // Sofőr adatok lekérése a láthatósági szabályokhoz
+    const driver = await this.driverService.findById(session.networkId, session.driverId);
 
-    return locations.map((loc) => ({
+    // Látható helyszínek lekérése (privát ügyfélnek cross-network, flottásnak saját network)
+    const locations = await this.locationService.getVisibleLocations({
+      networkId: driver.networkId,
+      partnerCompanyId: driver.partnerCompanyId,
+      isPrivateCustomer: driver.isPrivateCustomer,
+    });
+
+    return locations.map((loc: any) => ({
       id: loc.id,
       code: loc.code,
       name: loc.name,
@@ -715,6 +892,10 @@ export class PwaController {
       state: loc.state,
       washMode: loc.washMode,
       locationType: loc.locationType || 'TRUCK_WASH',
+      visibility: loc.visibility,
+      // Privát ügyfélnek megmutatjuk a network nevét is (cross-network)
+      networkId: loc.networkId,
+      networkName: loc.network?.name,
     }));
   }
 
@@ -1060,7 +1241,7 @@ export class PwaController {
       data: {
         networkId: session.networkId,
         driverId: driver.id,
-        fromCompanyId: oldPartnerCompany.id,
+        fromCompanyId: oldPartnerCompany?.id,
         toCompanyId: newPartnerCompany.id,
         reason: dto.reason,
       },
@@ -1079,19 +1260,21 @@ export class PwaController {
     });
 
     // Notify both companies
-    await this.notificationService.notifyPartnerChange(
-      { firstName: driver.firstName, lastName: driver.lastName },
-      {
-        name: oldPartnerCompany.name,
-        email: oldPartnerCompany.email,
-        contactName: oldPartnerCompany.contactName,
-      },
-      {
-        name: newPartnerCompany.name,
-        email: newPartnerCompany.email,
-        contactName: newPartnerCompany.contactName,
-      },
-    );
+    if (oldPartnerCompany) {
+      await this.notificationService.notifyPartnerChange(
+        { firstName: driver.firstName, lastName: driver.lastName },
+        {
+          name: oldPartnerCompany.name,
+          email: oldPartnerCompany.email || null,
+          contactName: oldPartnerCompany.contactName || null,
+        },
+        {
+          name: newPartnerCompany.name,
+          email: newPartnerCompany.email || null,
+          contactName: newPartnerCompany.contactName || null,
+        },
+      );
+    }
 
     return {
       success: true,
@@ -1305,6 +1488,7 @@ export class PwaController {
       inviteCode: driver.invite?.inviteCode,
       verificationRequired,
       message: baseMessage + verificationMessage + approvalMessage,
+      isPrivateCustomer: true, // QR registration is always for private customers
     };
   }
 

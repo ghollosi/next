@@ -37,9 +37,10 @@ export class VehicleRegistrationDto {
 }
 
 export class SelfRegisterDto {
-  @ApiProperty({ description: 'Partner company ID' })
+  @ApiPropertyOptional({ description: 'Partner company ID (optional for private customers)' })
+  @IsOptional()
   @IsUUID()
-  partnerCompanyId: string;
+  partnerCompanyId?: string;
 
   @ApiProperty({ description: 'Driver first name' })
   @IsString()
@@ -77,6 +78,43 @@ export class SelfRegisterDto {
   @ValidateNested({ each: true })
   @Type(() => VehicleRegistrationDto)
   vehicles?: VehicleRegistrationDto[];
+
+  // Privát ügyfél számlázási adatai (kötelező ha nincs partner)
+  @ApiPropertyOptional({ description: 'Billing name (required for private customers)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  billingName?: string;
+
+  @ApiPropertyOptional({ description: 'Billing address (required for private customers)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  billingAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Billing city (required for private customers)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  billingCity?: string;
+
+  @ApiPropertyOptional({ description: 'Billing zip code (required for private customers)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  billingZipCode?: string;
+
+  @ApiPropertyOptional({ description: 'Billing country', default: 'HU' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
+  billingCountry?: string;
+
+  @ApiPropertyOptional({ description: 'Tax number (optional, for company billing)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  billingTaxNumber?: string;
 }
 
 export class SelfRegisterResponseDto {
@@ -103,6 +141,9 @@ export class SelfRegisterResponseDto {
 
   @ApiProperty({ description: 'Message for the user' })
   message: string;
+
+  @ApiProperty({ description: 'Is this a private customer (no partner company)' })
+  isPrivateCustomer: boolean;
 }
 
 export class CheckApprovalDto {

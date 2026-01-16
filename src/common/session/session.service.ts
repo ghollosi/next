@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 export interface DriverSessionData {
   driverId: string;
   networkId: string;
-  partnerCompanyId: string;
+  partnerCompanyId?: string;  // Optional for private customers
 }
 
 export interface OperatorSessionData {

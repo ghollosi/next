@@ -42,6 +42,8 @@ interface NetworkDashboard {
   }>;
 }
 
+type LocationVisibility = 'PUBLIC' | 'NETWORK_ONLY' | 'DEDICATED';
+
 interface Location {
   id: string;
   name: string;
@@ -52,6 +54,8 @@ interface Location {
   operatorCount: number;
   washEventCount: number;
   locationType?: 'CAR_WASH' | 'TRUCK_WASH';
+  visibility?: LocationVisibility;
+  dedicatedPartnerIds?: string[];
 }
 
 interface PartnerCompany {
@@ -493,6 +497,9 @@ export const networkAdminApi = {
       isActive?: boolean;
       operationType?: 'OWN' | 'SUBCONTRACTOR';
       locationType?: 'CAR_WASH' | 'TRUCK_WASH';
+      // Láthatóság
+      visibility?: LocationVisibility;
+      dedicatedPartnerIds?: string[];
       // Alvállalkozói cégadatok
       subcontractorCompanyName?: string;
       subcontractorTaxNumber?: string;

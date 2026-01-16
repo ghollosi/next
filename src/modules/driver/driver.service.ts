@@ -213,7 +213,7 @@ export class DriverService {
   async activateByPhone(
     phone: string,
     pin: string,
-  ): Promise<Driver & { partnerCompany: { id: string; name: string; networkId: string } }> {
+  ): Promise<Driver & { partnerCompany: { id: string; name: string; networkId: string } | null }> {
     // Normalize phone number (remove spaces, dashes, etc.)
     const normalizedPhone = phone.replace(/[\s\-\(\)+]/g, '');
     const lastNineDigits = normalizedPhone.slice(-9);
@@ -266,7 +266,7 @@ export class DriverService {
   async activateByInviteCode(
     inviteCode: string,
     pin: string,
-  ): Promise<Driver & { partnerCompany: { id: string; name: string; networkId: string } }> {
+  ): Promise<Driver & { partnerCompany: { id: string; name: string; networkId: string } | null }> {
     // Find the invite
     const invite = await this.prisma.driverInvite.findUnique({
       where: { inviteCode },
@@ -398,20 +398,37 @@ export class DriverService {
   async selfRegister(
     networkId: string,
     data: {
-      partnerCompanyId: string;
+      partnerCompanyId?: string;  // Opcionális: privát ügyfélnek nincs partnere
       firstName: string;
       lastName: string;
       phone?: string;
       email?: string;
       pin: string;
+      // Privát ügyfél számlázási adatai (kötelező ha nincs partner)
+      billingName?: string;
+      billingAddress?: string;
+      billingCity?: string;
+      billingZipCode?: string;
+      billingCountry?: string;
+      billingTaxNumber?: string;
     },
   ): Promise<Driver & { invite: DriverInvite }> {
+    // Privát ügyfél esetén ellenőrizzük a számlázási adatokat
+    const isPrivateCustomer = !data.partnerCompanyId;
+
+    if (isPrivateCustomer) {
+      // Privát ügyfélnél kötelező a számlázási adatok megadása
+      if (!data.billingName || !data.billingAddress || !data.billingCity || !data.billingZipCode) {
+        throw new BadRequestException('Privát ügyfélnek kötelező a számlázási adatok megadása');
+      }
+    }
+
     // Create driver with AUTO-APPROVED status (bcrypt hash)
     const pinHash = await this.hashPin(data.pin);
     const driver = await this.prisma.driver.create({
       data: {
         networkId,
-        partnerCompanyId: data.partnerCompanyId,
+        partnerCompanyId: data.partnerCompanyId || null,  // NULL ha privát ügyfél
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone,
@@ -420,6 +437,14 @@ export class DriverService {
         approvalStatus: DriverApprovalStatus.APPROVED,
         approvedAt: new Date(),
         isActive: true, // Auto-approved, immediately active
+        // Privát ügyfél mezők
+        isPrivateCustomer,
+        billingName: data.billingName,
+        billingAddress: data.billingAddress,
+        billingCity: data.billingCity,
+        billingZipCode: data.billingZipCode,
+        billingCountry: data.billingCountry || 'HU',
+        billingTaxNumber: data.billingTaxNumber,
       },
       include: {
         partnerCompany: true,
@@ -685,5 +710,119 @@ A sofőr azonnal használhatja az alkalmazást.
       status: driver.approvalStatus,
       rejectionReason: driver.rejectionReason || undefined,
     };
+  }
+
+  /**
+   * Függetlenné válás - sofőr leválik a partnertől és privát ügyfél lesz
+   * A sofőr többé nem használhatja a partner dedikált helyszíneit,
+   * és ő fizeti ezentúl a mosásait (nem a partner)
+   */
+  async detachFromPartner(
+    driverId: string,
+    billingData: {
+      billingName: string;
+      billingAddress: string;
+      billingCity: string;
+      billingZipCode: string;
+      billingCountry?: string;
+      billingTaxNumber?: string;
+    },
+  ): Promise<Driver> {
+    // Keresés network nélkül - a sofőr azonosítója egyedi
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      include: { partnerCompany: true },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Sofőr nem található');
+    }
+
+    if (!driver.partnerCompanyId) {
+      throw new BadRequestException('A sofőr már privát ügyfél (nincs partnere)');
+    }
+
+    // Validáció: kötelező számlázási adatok
+    if (!billingData.billingName || !billingData.billingAddress ||
+        !billingData.billingCity || !billingData.billingZipCode) {
+      throw new BadRequestException('Kötelező a számlázási adatok megadása a függetlenné váláshoz');
+    }
+
+    const previousPartnerCompanyId = driver.partnerCompanyId;
+    const previousPartnerName = driver.partnerCompany?.name;
+
+    // Partner history bejegyzés
+    await this.prisma.driverPartnerHistory.create({
+      data: {
+        networkId: driver.networkId,
+        driverId: driver.id,
+        fromCompanyId: previousPartnerCompanyId,
+        toCompanyId: null,  // NULL = privát ügyfél lett
+        reason: 'SELF_DETACH',  // Önkéntes leválás (maga a sofőr kezdeményezte)
+      },
+    });
+
+    // Sofőr frissítése - privát ügyfél lesz
+    const updatedDriver = await this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        partnerCompanyId: null,
+        isPrivateCustomer: true,
+        billingName: billingData.billingName,
+        billingAddress: billingData.billingAddress,
+        billingCity: billingData.billingCity,
+        billingZipCode: billingData.billingZipCode,
+        billingCountry: billingData.billingCountry || 'HU',
+        billingTaxNumber: billingData.billingTaxNumber,
+      },
+      include: {
+        partnerCompany: true,
+      },
+    });
+
+    this.logger.log(
+      `Driver ${driverId} detached from partner ${previousPartnerName} (${previousPartnerCompanyId}) - now private customer`,
+    );
+
+    return updatedDriver;
+  }
+
+  /**
+   * Privát ügyfél számlázási adatainak frissítése
+   */
+  async updateBillingInfo(
+    driverId: string,
+    billingData: {
+      billingName?: string;
+      billingAddress?: string;
+      billingCity?: string;
+      billingZipCode?: string;
+      billingCountry?: string;
+      billingTaxNumber?: string;
+    },
+  ): Promise<Driver> {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Sofőr nem található');
+    }
+
+    if (!driver.isPrivateCustomer) {
+      throw new BadRequestException('Csak privát ügyfél frissítheti a számlázási adatait');
+    }
+
+    return this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        billingName: billingData.billingName,
+        billingAddress: billingData.billingAddress,
+        billingCity: billingData.billingCity,
+        billingZipCode: billingData.billingZipCode,
+        billingCountry: billingData.billingCountry,
+        billingTaxNumber: billingData.billingTaxNumber,
+      },
+    });
   }
 }

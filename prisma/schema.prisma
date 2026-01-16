@@ -184,6 +184,12 @@ enum LocationType {
   TRUCK_WASH  // Kamionmosó - vontató + pótkocsi lehetséges
 }
 
+enum LocationVisibility {
+  PUBLIC        // Mindenki látja (privát ügyfelek + összes network sofőr/partner)
+  NETWORK_ONLY  // Csak az adott Network sofőrjei és partnerei
+  DEDICATED     // Csak a megjelölt partner(ek) és azok sofőrjei
+}
+
 // =============================================================================
 // BOOKING SYSTEM ENUMS
 // =============================================================================
@@ -417,6 +423,10 @@ model Location {
   // Mosó típusa - CAR_WASH: csak 1 rendszám, TRUCK_WASH: vontató + pótkocsi
   locationType  LocationType  @default(TRUCK_WASH) @map("location_type")
 
+  // Láthatóság - ki láthatja ezt a helyszínt
+  visibility           LocationVisibility @default(NETWORK_ONLY) @map("visibility")
+  dedicatedPartnerIds  String[]           @default([]) @map("dedicated_partner_ids")  // DEDICATED módnál: ezek a partnerek látják
+
   // Koordináták
   latitude      Float?
   longitude     Float?
@@ -544,7 +554,7 @@ model PartnerCompany {
 model Driver {
   id               String   @id @default(uuid())
   networkId        String   @map("network_id")
-  partnerCompanyId String   @map("partner_company_id")
+  partnerCompanyId String?  @map("partner_company_id")  // Nullable: privát ügyfélnek nincs partnere
   firstName        String   @map("first_name")
   lastName         String   @map("last_name")
   phone            String?
@@ -578,7 +588,7 @@ model Driver {
 
   // Relations
   network            Network                @relation(fields: [networkId], references: [id])
-  partnerCompany     PartnerCompany         @relation(fields: [partnerCompanyId], references: [id])
+  partnerCompany     PartnerCompany?        @relation(fields: [partnerCompanyId], references: [id])  // Opcionális: privát ügyfélnek nincs
   invite             DriverInvite?
   washEvents         WashEvent[]
   vehicles           Vehicle[]              // Sofőr járművei
@@ -586,6 +596,7 @@ model Driver {
   partnerHistory     DriverPartnerHistory[]
   bookings           Booking[]              // Ügyfél foglalásai
   pinResetRequests   DriverPinResetRequest[]
+  invoices           Invoice[]              // Privát ügyfél számlái
 
   @@index([networkId])
   @@index([partnerCompanyId])
@@ -624,7 +635,7 @@ model DriverInvite {
 model Vehicle {
   id               String           @id @default(uuid())
   networkId        String           @map("network_id")
-  partnerCompanyId String           @map("partner_company_id")
+  partnerCompanyId String?          @map("partner_company_id") // Nullable for private customers
   driverId         String?          @map("driver_id")  // Melyik sofőr vitte fel
   category         VehicleCategory  @default(SOLO)     // Szóló, Vontató, Vontatmány
   plateNumber      String           @map("plate_number")
@@ -640,7 +651,7 @@ model Vehicle {
 
   // Relations
   network              Network        @relation(fields: [networkId], references: [id])
-  partnerCompany       PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  partnerCompany       PartnerCompany? @relation(fields: [partnerCompanyId], references: [id])
   driver               Driver?        @relation(fields: [driverId], references: [id])
   washEventsAsTractor  WashEvent[]    @relation("TractorVehicle")
   washEventsAsTrailer  WashEvent[]    @relation("TrailerVehicle")
@@ -715,7 +726,7 @@ model WashEvent {
   id                   String          @id @default(uuid())
   networkId            String          @map("network_id")
   locationId           String          @map("location_id")
-  partnerCompanyId     String          @map("partner_company_id")
+  partnerCompanyId     String?         @map("partner_company_id")  // Nullable: privát ügyfélnek/walk-in-nek nincs partnere
   servicePackageId     String?         @map("service_package_id") // DEPRECATED - használd a services relációt
 
   // Entry mode and status
@@ -758,6 +769,16 @@ model WashEvent {
   paidAt               DateTime?       @map("paid_at")
   invoiceId            String?         @map("invoice_id")
 
+  // Walk-in ügyfél számlázási adatai (egyszeri, nem mentjük a driverhez)
+  walkInInvoiceRequested  Boolean   @default(false) @map("walk_in_invoice_requested")  // Kért-e számlát
+  walkInBillingName       String?   @map("walk_in_billing_name")       // Számlázási név
+  walkInBillingAddress    String?   @map("walk_in_billing_address")    // Számlázási cím
+  walkInBillingCity       String?   @map("walk_in_billing_city")       // Város
+  walkInBillingZipCode    String?   @map("walk_in_billing_zip_code")   // Irányítószám
+  walkInBillingCountry    String?   @map("walk_in_billing_country")    // Ország
+  walkInBillingTaxNumber  String?   @map("walk_in_billing_tax_number") // Adószám
+  walkInBillingEmail      String?   @map("walk_in_billing_email")      // Email (számla küldéshez)
+
   // Audit timestamps
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
@@ -765,7 +786,7 @@ model WashEvent {
   // Relations
   network        Network        @relation(fields: [networkId], references: [id])
   location       Location       @relation(fields: [locationId], references: [id])
-  partnerCompany PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  partnerCompany PartnerCompany? @relation(fields: [partnerCompanyId], references: [id])  // Opcionális: walk-in/privát ügyfélnek nincs
   servicePackage ServicePackage? @relation(fields: [servicePackageId], references: [id])
   driver         Driver?        @relation(fields: [driverId], references: [id])
   tractorVehicle Vehicle?       @relation("TractorVehicle", fields: [tractorVehicleId], references: [id])
@@ -879,7 +900,8 @@ model PartnerCustomPrice {
 model Invoice {
   id                 String        @id @default(uuid())
   networkId          String        @map("network_id")
-  partnerCompanyId   String        @map("partner_company_id")
+  partnerCompanyId   String?       @map("partner_company_id")  // Nullable: privát ügyfél/walk-in számlánál nincs partner
+  driverId           String?       @map("driver_id")           // Privát ügyfél számlához
 
   // Számla azonosítók
   invoiceNumber      String?       @unique @map("invoice_number") // szamlazz.hu-tól kapott számlaszám
@@ -927,13 +949,15 @@ model Invoice {
   updatedAt          DateTime      @updatedAt
 
   // Relations
-  network        Network        @relation(fields: [networkId], references: [id])
-  partnerCompany PartnerCompany @relation(fields: [partnerCompanyId], references: [id])
+  network        Network         @relation(fields: [networkId], references: [id])
+  partnerCompany PartnerCompany? @relation(fields: [partnerCompanyId], references: [id])  // Opcionális: privát ügyfél/walk-in számlánál nincs
+  driver         Driver?         @relation(fields: [driverId], references: [id])          // Privát ügyfél számláihoz
   items          InvoiceItem[]
   washEvents     WashEvent[]
 
   @@index([networkId])
   @@index([partnerCompanyId])
+  @@index([driverId])
   @@index([status])
   @@index([issueDate])
   @@index([dueDate])
@@ -1061,7 +1085,7 @@ model DriverPartnerHistory {
   networkId     String   @map("network_id")
   driverId      String   @map("driver_id")
   fromCompanyId String?  @map("from_company_id")
-  toCompanyId   String   @map("to_company_id")
+  toCompanyId   String?  @map("to_company_id")  // Nullable - NULL means became private customer
   reason        String?
   changedAt     DateTime @default(now()) @map("changed_at")
 
@@ -1069,7 +1093,7 @@ model DriverPartnerHistory {
   network     Network         @relation(fields: [networkId], references: [id])
   driver      Driver          @relation(fields: [driverId], references: [id])
   fromCompany PartnerCompany? @relation("FromCompany", fields: [fromCompanyId], references: [id])
-  toCompany   PartnerCompany  @relation("ToCompany", fields: [toCompanyId], references: [id])
+  toCompany   PartnerCompany? @relation("ToCompany", fields: [toCompanyId], references: [id])
 
   @@index([networkId])
   @@index([driverId])

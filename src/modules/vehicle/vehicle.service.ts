@@ -129,7 +129,7 @@ export class VehicleService {
   async create(
     networkId: string,
     data: {
-      partnerCompanyId: string;
+      partnerCompanyId: string | null;
       category: VehicleCategory | string;
       plateNumber: string;
       plateState?: string;
@@ -173,7 +173,7 @@ export class VehicleService {
   async createOrUpdateByDriver(
     networkId: string,
     driverId: string,
-    partnerCompanyId: string,
+    partnerCompanyId: string | null | undefined,  // Null/undefined for private customers
     data: {
       category: VehicleCategory | string;
       plateNumber: string;
@@ -210,7 +210,7 @@ export class VehicleService {
     return this.prisma.vehicle.create({
       data: {
         networkId,
-        partnerCompanyId,
+        partnerCompanyId: partnerCompanyId || null,  // Null for private customers
         driverId,
         category: data.category as VehicleCategory,
         plateNumber: normalizedPlate,

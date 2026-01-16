@@ -53,8 +53,8 @@ export class ActivateResponseDto {
   @ApiProperty()
   networkId: string;
 
-  @ApiProperty()
-  partnerCompanyId: string;
+  @ApiProperty({ nullable: true, description: 'Null for private customers' })
+  partnerCompanyId: string | null;
 
   @ApiProperty()
   firstName: string;
@@ -62,6 +62,27 @@ export class ActivateResponseDto {
   @ApiProperty()
   lastName: string;
 
-  @ApiProperty()
-  partnerCompanyName: string;
+  @ApiProperty({ nullable: true, description: 'Null for private customers' })
+  partnerCompanyName: string | null;
+
+  @ApiProperty({ description: 'True if driver is a private customer (no partner company)' })
+  isPrivateCustomer?: boolean;
+
+  @ApiProperty({ nullable: true, description: 'Billing name for private customers' })
+  billingName?: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Billing address for private customers' })
+  billingAddress?: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Billing city for private customers' })
+  billingCity?: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Billing zip code for private customers' })
+  billingZipCode?: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Billing country for private customers' })
+  billingCountry?: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Tax number for private customers' })
+  billingTaxNumber?: string | null;
 }

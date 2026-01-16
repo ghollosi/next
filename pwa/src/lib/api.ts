@@ -5,10 +5,18 @@ export interface ActivateResponse {
   sessionId: string;
   driverId: string;
   networkId: string;
-  partnerCompanyId: string;
+  partnerCompanyId: string | null;
   firstName: string;
   lastName: string;
-  partnerCompanyName: string;
+  partnerCompanyName: string | null;
+  isPrivateCustomer?: boolean;
+  // Billing info for private customers
+  billingName?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingZipCode?: string;
+  billingCountry?: string;
+  billingTaxNumber?: string;
 }
 
 export interface WashEvent {

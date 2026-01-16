@@ -97,7 +97,14 @@ export default function NewWashPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState<{ totalPrice: number; invoiceNumber?: string; servicesCount: number } | null>(null);
+  const [success, setSuccess] = useState<{
+    totalPrice: number;
+    invoiceNumber?: string;
+    servicesCount: number;
+    invoicePdfUrl?: string;
+    walkInInvoiceRequested?: boolean;
+    invoiceSentToEmail?: string;
+  } | null>(null);
 
   // Data from API
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -127,6 +134,9 @@ export default function NewWashPage() {
   const [billingZipCode, setBillingZipCode] = useState('');
   const [email, setEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+
+  // Walk-in invoice request (for AD_HOC customers)
+  const [wantsInvoice, setWantsInvoice] = useState(false);
 
   // 4. Jarmutipus
   const [vehicleType, setVehicleType] = useState('SEMI_TRUCK');
@@ -394,8 +404,8 @@ export default function NewWashPage() {
       return;
     }
 
-    if (customerType === 'AD_HOC' && (!companyName || !taxNumber || !email)) {
-      setError('Cegnev, adoszam es email megadasa kotelezo!');
+    if (customerType === 'AD_HOC' && wantsInvoice && (!companyName || !taxNumber || !email)) {
+      setError('Szamlakereshez cegnev, adoszam es email megadasa kotelezo!');
       return;
     }
 
@@ -440,14 +450,18 @@ export default function NewWashPage() {
         body.partnerCompanyId = selectedPartnerId;
       } else {
         body.isAdHoc = true;
-        body.companyName = companyName;
-        body.taxNumber = taxNumber;
-        body.billingAddress = billingAddress;
-        body.billingCity = billingCity;
-        body.billingZipCode = billingZipCode;
-        body.billingCountry = 'HU';
-        body.email = email;
         body.paymentMethod = paymentMethod;
+        body.walkInInvoiceRequested = wantsInvoice;
+        // Only include billing data if invoice is requested
+        if (wantsInvoice) {
+          body.walkInBillingName = companyName;
+          body.walkInBillingTaxNumber = taxNumber;
+          body.walkInBillingAddress = billingAddress;
+          body.walkInBillingCity = billingCity;
+          body.walkInBillingZipCode = billingZipCode;
+          body.walkInBillingCountry = 'HU';
+          body.walkInBillingEmail = email;
+        }
       }
 
       const response = await fetch(`${API_URL}/operator-portal/wash-events/create`, {
@@ -469,6 +483,9 @@ export default function NewWashPage() {
         totalPrice: data.totalPrice,
         invoiceNumber: data.invoice?.invoiceNumber,
         servicesCount: data.servicesCount || selectedServices.length,
+        invoicePdfUrl: data.invoice?.pdfUrl,
+        walkInInvoiceRequested: wantsInvoice,
+        invoiceSentToEmail: wantsInvoice ? email : undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba tortent');
@@ -502,10 +519,46 @@ export default function NewWashPage() {
             Osszeg: <span className="font-bold">{success.totalPrice.toLocaleString('hu-HU')} Ft</span>
           </p>
           {success.invoiceNumber && (
-            <p className="text-sm text-gray-500 mb-6">
-              Szamlaszam: {success.invoiceNumber}
-            </p>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Szamlaszam: {success.invoiceNumber}
+              </p>
+              {success.invoiceSentToEmail && (
+                <p className="text-sm text-green-600 mt-1">
+                  Szamla elkuldve: {success.invoiceSentToEmail}
+                </p>
+              )}
+            </div>
           )}
+
+          {/* Walk-in invoice actions */}
+          {success.walkInInvoiceRequested && success.invoicePdfUrl && (
+            <div className="mb-6 space-y-3">
+              <a
+                href={success.invoicePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Szamla nyomtatasa
+              </a>
+              <p className="text-xs text-gray-500 text-center">
+                A szamla automatikusan el lett kuldve emailben is.
+              </p>
+            </div>
+          )}
+
+          {success.walkInInvoiceRequested && !success.invoicePdfUrl && (
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-700">
+                A szamla keszitese folyamatban, hamarosan elerheto lesz.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-3">
             <button
               onClick={() => {
@@ -525,6 +578,7 @@ export default function NewWashPage() {
                 setPaymentMethod('CASH');
                 setCustomerType('CONTRACT');
                 setSuggestion(null);
+                setWantsInvoice(false);
               }}
               className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
             >
@@ -712,76 +766,12 @@ export default function NewWashPage() {
             </div>
           )}
 
-          {/* 3. CEGADATOK (nem szerzodeses) */}
+          {/* 3. WALK-IN UGYFEL ADATOK (nem szerzodeses) */}
           {customerType === 'AD_HOC' && (
             <div className="bg-white rounded-xl shadow-sm p-4">
-              <h2 className="font-semibold text-gray-800 mb-4">3. Cegadatok</h2>
+              <h2 className="font-semibold text-gray-800 mb-4">3. Walk-in ugyfel</h2>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cegnev *</label>
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    placeholder="Pelda Kft."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Adoszam *</label>
-                  <input
-                    type="text"
-                    value={taxNumber}
-                    onChange={(e) => setTaxNumber(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    placeholder="12345678-1-23"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    placeholder="szamla@ceg.hu"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Szamlazasi cim</label>
-                  <input
-                    type="text"
-                    value={billingAddress}
-                    onChange={(e) => setBillingAddress(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    placeholder="Pelda utca 1."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Iranyitoszam</label>
-                    <input
-                      type="text"
-                      value={billingZipCode}
-                      onChange={(e) => setBillingZipCode(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      placeholder="1234"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Varos</label>
-                    <input
-                      type="text"
-                      value={billingCity}
-                      onChange={(e) => setBillingCity(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      placeholder="Budapest"
-                    />
-                  </div>
-                </div>
+                {/* Payment method first */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fizetesi mod</label>
                   <select
@@ -796,6 +786,108 @@ export default function NewWashPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Invoice request toggle */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={wantsInvoice}
+                      onChange={(e) => setWantsInvoice(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <div>
+                      <span className="font-medium text-gray-800">Szamlat ker az ugyfel</span>
+                      <p className="text-sm text-gray-500">Helyszinen kinyomtatjuk + emailben elkuldjuk</p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Invoice billing data - only if wants invoice */}
+                {wantsInvoice && (
+                  <div className="border-t border-gray-200 pt-4 space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                      <p className="text-sm text-blue-700">
+                        <strong>Szamlazasi adatok:</strong> A szamlat helyben kinyomtatjuk es emailben is elkuldjuk.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Szamlazasi nev *</label>
+                      <input
+                        type="text"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        required={wantsInvoice}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Pelda Kft. vagy Kovacs Janos"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Adoszam *</label>
+                      <input
+                        type="text"
+                        value={taxNumber}
+                        onChange={(e) => setTaxNumber(e.target.value)}
+                        required={wantsInvoice}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="12345678-1-23"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email * (ide kuldjuk a szamlat)</label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required={wantsInvoice}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="szamla@ceg.hu"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Szamlazasi cim</label>
+                      <input
+                        type="text"
+                        value={billingAddress}
+                        onChange={(e) => setBillingAddress(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Pelda utca 1."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Iranyitoszam</label>
+                        <input
+                          type="text"
+                          value={billingZipCode}
+                          onChange={(e) => setBillingZipCode(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          placeholder="1234"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Varos</label>
+                        <input
+                          type="text"
+                          value={billingCity}
+                          onChange={(e) => setBillingCity(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          placeholder="Budapest"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* No invoice info */}
+                {!wantsInvoice && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-sm text-gray-600">
+                      Ha az ugyfel nem ker szamlat, a mosas rogzitve lesz, de szamla nem keszul.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

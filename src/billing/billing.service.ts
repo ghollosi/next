@@ -439,7 +439,7 @@ export class BillingService {
       paymentMethod: invoice.paymentMethod
         ? paymentMethodMap[invoice.paymentMethod] || 'transfer'
         : 'transfer',
-      paymentDueDays: invoice.partnerCompany.paymentDueDays,
+      paymentDueDays: invoice.partnerCompany?.paymentDueDays ?? 0,  // Private customers pay immediately
       items: lineItems,
     };
 
@@ -448,7 +448,7 @@ export class BillingService {
     if (result.success) {
       // Update invoice with provider response
       const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + invoice.partnerCompany.paymentDueDays);
+      dueDate.setDate(dueDate.getDate() + (invoice.partnerCompany?.paymentDueDays ?? 0));
 
       await this.prisma.invoice.update({
         where: { id: invoiceId },
@@ -504,6 +504,13 @@ export class BillingService {
 
     const partner = washEvent.partnerCompany;
 
+    // For walk-in customers or private customers without partner, use walkIn billing data
+    const isWalkIn = washEvent.walkInInvoiceRequested && !partner;
+
+    if (!partner && !isWalkIn) {
+      throw new BadRequestException('No billing information available for this wash event');
+    }
+
     // Calculate totals
     let subtotal = 0;
     const items: Array<{
@@ -548,10 +555,32 @@ export class BillingService {
     const total = subtotal + vatAmount;
 
     // Create invoice in ISSUED status (cash invoices are issued immediately)
+    // Determine billing data source: partner company or walk-in customer data
+    const billingData = partner ? {
+      partnerCompanyId: partner.id,
+      billingName: partner.billingName || partner.name,
+      billingAddress: partner.billingAddress || '',
+      billingCity: partner.billingCity || '',
+      billingZipCode: partner.billingZipCode || '',
+      billingCountry: partner.billingCountry || 'HU',
+      taxNumber: partner.taxNumber,
+      euVatNumber: partner.euVatNumber,
+    } : {
+      // Walk-in customer (no partner company)
+      partnerCompanyId: null,
+      billingName: washEvent.walkInBillingName || 'Walk-in ügyfél',
+      billingAddress: washEvent.walkInBillingAddress || '',
+      billingCity: washEvent.walkInBillingCity || '',
+      billingZipCode: washEvent.walkInBillingZipCode || '',
+      billingCountry: washEvent.walkInBillingCountry || 'HU',
+      taxNumber: washEvent.walkInBillingTaxNumber,
+      euVatNumber: null,
+    };
+
     const invoice = await this.prisma.invoice.create({
       data: {
         networkId,
-        partnerCompanyId: partner.id,
+        partnerCompanyId: billingData.partnerCompanyId,
         subtotal: new Decimal(subtotal),
         vatRate: 27,
         vatAmount: new Decimal(vatAmount),
@@ -561,13 +590,13 @@ export class BillingService {
         paymentMethod: paymentMethod as any,
         issueDate: new Date(),
         dueDate: new Date(), // Immediate payment
-        billingName: partner.billingName || partner.name,
-        billingAddress: partner.billingAddress || '',
-        billingCity: partner.billingCity || '',
-        billingZipCode: partner.billingZipCode || '',
-        billingCountry: partner.billingCountry || 'HU',
-        taxNumber: partner.taxNumber,
-        euVatNumber: partner.euVatNumber,
+        billingName: billingData.billingName,
+        billingAddress: billingData.billingAddress,
+        billingCity: billingData.billingCity,
+        billingZipCode: billingData.billingZipCode,
+        billingCountry: billingData.billingCountry,
+        taxNumber: billingData.taxNumber,
+        euVatNumber: billingData.euVatNumber,
         items: {
           create: items.map((item) => ({
             description: item.description,

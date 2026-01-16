@@ -11,7 +11,7 @@ import {
   Matches,
   IsEnum,
 } from 'class-validator';
-import { OperationType, LocationType } from '@prisma/client';
+import { OperationType, LocationType, LocationVisibility } from '@prisma/client';
 
 // ============================================================================
 // AUTH DTOs
@@ -285,6 +285,12 @@ export class LocationListItemDto {
 
   @ApiPropertyOptional({ enum: LocationType, description: 'Location type: CAR_WASH or TRUCK_WASH' })
   locationType?: LocationType;
+
+  @ApiPropertyOptional({ enum: LocationVisibility, description: 'Location visibility: PUBLIC, NETWORK_ONLY, or DEDICATED' })
+  visibility?: LocationVisibility;
+
+  @ApiPropertyOptional({ description: 'Partner IDs for DEDICATED visibility', type: [String] })
+  dedicatedPartnerIds?: string[];
 }
 
 export class CreateLocationDto {
@@ -481,6 +487,17 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsEnum(LocationType)
   locationType?: LocationType;
+
+  @ApiPropertyOptional({ enum: LocationVisibility, description: 'Location visibility: PUBLIC, NETWORK_ONLY, or DEDICATED' })
+  @IsOptional()
+  @IsEnum(LocationVisibility)
+  visibility?: LocationVisibility;
+
+  @ApiPropertyOptional({ description: 'Partner IDs for DEDICATED visibility', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dedicatedPartnerIds?: string[];
 }
 
 // ============================================================================

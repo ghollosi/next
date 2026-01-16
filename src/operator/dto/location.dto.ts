@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsEnum, IsArray, IsUUID } from 'class-validator';
 
 export enum OperationType {
   OWN = 'OWN',
@@ -8,6 +8,12 @@ export enum OperationType {
 export enum WashMode {
   AUTOMATIC = 'AUTOMATIC',
   MANUAL = 'MANUAL',
+}
+
+export enum LocationVisibility {
+  PUBLIC = 'PUBLIC',
+  NETWORK_ONLY = 'NETWORK_ONLY',
+  DEDICATED = 'DEDICATED',
 }
 
 export class CreateLocationDto {
@@ -72,6 +78,15 @@ export class CreateLocationDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsEnum(LocationVisibility)
+  visibility?: LocationVisibility;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  dedicatedPartnerIds?: string[];
 }
 
 export class UpdateLocationDto {
@@ -138,4 +153,13 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsEnum(LocationVisibility)
+  visibility?: LocationVisibility;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  dedicatedPartnerIds?: string[];
 }

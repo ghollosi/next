@@ -977,6 +977,8 @@ Vemiax csapata`;
       locationType: l.locationType || 'TRUCK_WASH',
       operatorCount: 0, // operators reláció nem létezik
       washEventCount: l._count?.washEvents || 0,
+      visibility: l.visibility || 'NETWORK_ONLY',
+      dedicatedPartnerIds: l.dedicatedPartnerIds || [],
     }));
   }
 
@@ -1162,6 +1164,16 @@ Vemiax csapata`;
     if (dto.subcontractorContactEmail !== undefined) updateData.subcontractorContactEmail = dto.subcontractorContactEmail;
     if (dto.subcontractorBankAccount !== undefined) updateData.subcontractorBankAccount = dto.subcontractorBankAccount;
     if (dto.locationType !== undefined) updateData.locationType = dto.locationType;
+    // Visibility beállítások
+    if (dto.visibility !== undefined) updateData.visibility = dto.visibility;
+    if (dto.dedicatedPartnerIds !== undefined) {
+      // Ha nem DEDICATED, ürítsük a partner listát
+      if (dto.visibility !== undefined && dto.visibility !== 'DEDICATED') {
+        updateData.dedicatedPartnerIds = [];
+      } else {
+        updateData.dedicatedPartnerIds = dto.dedicatedPartnerIds;
+      }
+    }
 
     const updated = await this.prisma.location.update({
       where: { id: locationId },
@@ -2933,14 +2945,20 @@ Vemiax csapata`;
       paymentMethod: invoice.paymentMethod,
       externalId: invoice.externalId,
       pdfUrl: invoice.szamlazzPdfUrl,
-      partnerCompany: {
+      partnerCompany: invoice.partnerCompany ? {
         id: invoice.partnerCompany.id,
         name: invoice.partnerCompany.name,
         code: invoice.partnerCompany.code,
         taxNumber: invoice.partnerCompany.taxNumber,
         billingAddress: invoice.partnerCompany.billingAddress,
         email: invoice.partnerCompany.email,
-      },
+      } : null,
+      // Include billing info from invoice for private customers
+      billingName: invoice.billingName,
+      billingAddress: invoice.billingAddress,
+      billingCity: invoice.billingCity,
+      billingZipCode: invoice.billingZipCode,
+      taxNumber: invoice.taxNumber,
       items: invoice.items.map((item) => ({
         id: item.id,
         description: item.description,
@@ -3115,10 +3133,12 @@ Vemiax csapata`;
       vatAmount: Number(invoice.vatAmount),
       total: Number(invoice.total),
       currency: invoice.currency,
-      partnerCompany: {
+      partnerCompany: invoice.partnerCompany ? {
         id: invoice.partnerCompany.id,
         name: invoice.partnerCompany.name,
-      },
+      } : null,
+      // Include billing info for private customers
+      billingName: invoice.billingName,
       items: invoice.items.map((item) => ({
         description: item.description,
         quantity: item.quantity,

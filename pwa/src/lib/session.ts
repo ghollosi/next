@@ -7,10 +7,18 @@ const PENDING_LOCATION_KEY = 'vsys_pending_location';
 export interface DriverInfo {
   driverId: string;
   networkId: string;
-  partnerCompanyId: string;
+  partnerCompanyId: string | null;  // null for private customers
   firstName: string;
   lastName: string;
-  partnerCompanyName: string;
+  partnerCompanyName: string | null;  // null for private customers
+  isPrivateCustomer: boolean;
+  // Billing info for private customers
+  billingName?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingZipCode?: string;
+  billingCountry?: string;
+  billingTaxNumber?: string;
 }
 
 export function saveSession(sessionId: string, driver: DriverInfo): void {
