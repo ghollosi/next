@@ -5,10 +5,12 @@ export const metadata: Metadata = {
   title: 'VSys Wash',
   description: 'Truck wash management system',
   manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'VSys Wash',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/icon-192.png',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
   },
 }
 
