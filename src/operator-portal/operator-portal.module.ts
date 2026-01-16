@@ -5,9 +5,10 @@ import { LocationModule } from '../modules/location/location.module';
 import { BillingModule } from '../billing/billing.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { BookingModule } from '../modules/booking/booking.module';
+import { EmailModule } from '../modules/email/email.module';
 
 @Module({
-  imports: [WashEventModule, LocationModule, BillingModule, AuditLogModule, BookingModule],
+  imports: [WashEventModule, LocationModule, BillingModule, AuditLogModule, BookingModule, EmailModule],
   controllers: [OperatorPortalController],
 })
 export class OperatorPortalModule {}

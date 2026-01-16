@@ -26,6 +26,7 @@ import { LocationService } from '../modules/location/location.service';
 import { BillingService } from '../billing/billing.service';
 import { BookingService } from '../modules/booking/booking.service';
 import { SessionService, OperatorSessionData } from '../common/session/session.service';
+import { EmailService } from '../modules/email/email.service';
 import { SessionType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as crypto from 'crypto';
@@ -45,6 +46,7 @@ export class OperatorPortalController {
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   // SECURITY: Get session from cookie (httpOnly) or header (backwards compatibility)
@@ -250,13 +252,28 @@ export class OperatorPortalController {
     });
 
     // Send email
-    const platformUrl = this.configService.get('PLATFORM_URL') || 'http://localhost:3001';
+    const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/operator-portal/reset-pin?token=${resetToken}`;
 
     this.logger.log(`PIN reset link for operator ${operator.name} at ${location.code}: ${resetLink}`);
 
-    // TODO: Email küldés implementálása
-    // Egyelőre logoljuk a linket
+    // Send PIN reset email to location email
+    if (location.email) {
+      try {
+        await this.emailService.sendPinResetEmail(
+          location.email,
+          operator.name,
+          resetLink,
+          'operator',
+        );
+        this.logger.log(`PIN reset email sent to location ${location.code} for operator ${operator.name}`);
+      } catch (emailError) {
+        this.logger.error(`Failed to send PIN reset email: ${emailError.message}`);
+        // Don't throw - still allow the process to continue
+      }
+    } else {
+      this.logger.warn(`Location ${location.code} has no email configured, PIN reset email not sent`);
+    }
 
     // AUDIT: Log PIN reset request
     await this.auditLogService.log({
@@ -1299,7 +1316,29 @@ export class OperatorPortalController {
       },
     });
 
-    // TODO: Send notification to Network Admin (email/push)
+    // Send notification to Network Admin (email)
+    const networkAdmins = await this.prisma.networkAdmin.findMany({
+      where: { networkId: session.networkId, isActive: true },
+      select: { email: true, name: true },
+    });
+
+    const requestTypeLabel = 'Mosási esemény törlése';
+    for (const admin of networkAdmins) {
+      if (admin.email) {
+        try {
+          await this.emailService.sendDeleteRequestNotification(
+            admin.email,
+            admin.name,
+            operatorIdentifier,
+            requestTypeLabel,
+            reason.trim(),
+          );
+          this.logger.log(`Delete request notification sent to ${admin.email}`);
+        } catch (emailError) {
+          this.logger.error(`Failed to send delete request notification: ${emailError.message}`);
+        }
+      }
+    }
 
     return {
       success: true,

@@ -610,6 +610,7 @@ export const platformApi = {
     optenApiSecret: string;
     bisnodeApiKey: string;
     bisnodeApiSecret: string;
+    eCegjegyzekApiKey: string;
     companyDataMonthlyFee: number | null;
   }> {
     return fetchWithAuth('/platform-admin/company-data/settings');
@@ -622,6 +623,7 @@ export const platformApi = {
     optenApiSecret?: string;
     bisnodeApiKey?: string;
     bisnodeApiSecret?: string;
+    eCegjegyzekApiKey?: string;
     companyDataMonthlyFee?: number | null;
   }): Promise<any> {
     return fetchWithAuth('/platform-admin/company-data/settings', {
@@ -640,6 +642,7 @@ export const platformApi = {
     optenApiSecret: string;
     bisnodeApiKey: string;
     bisnodeApiSecret: string;
+    eCegjegyzekApiKey: string;
     platformHasService: boolean;
     platformServiceProvider: string;
     platformServiceMonthlyFee: number | null;
@@ -655,6 +658,7 @@ export const platformApi = {
     optenApiSecret?: string;
     bisnodeApiKey?: string;
     bisnodeApiSecret?: string;
+    eCegjegyzekApiKey?: string;
   }): Promise<any> {
     return fetchWithAuth(`/platform-admin/networks/${networkId}/company-data/settings`, {
       method: 'PUT',

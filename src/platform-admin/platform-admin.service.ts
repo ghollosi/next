@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { EmailService } from '../modules/email/email.service';
 import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction, CompanyDataProvider } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
@@ -45,6 +46,7 @@ export class PlatformAdminService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditLogService: AuditLogService,
+    private readonly emailService: EmailService,
   ) {}
 
   // SECURITY: Get JWT secret with production check
@@ -346,12 +348,23 @@ export class PlatformAdminService {
       },
     });
 
-    // TODO: Email küldés - egyelőre csak logoljuk
-    this.logger.log(`Password reset token for ${admin.email}: ${resetToken}`);
+    const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
+    const resetLink = `${platformUrl}/platform-admin/reset-password?token=${resetToken}`;
 
-    // Ideiglenesen: konzolra kiírjuk a linket
-    const platformUrl = this.configService.get('PLATFORM_URL') || 'http://localhost:3001';
-    this.logger.log(`Password reset link: ${platformUrl}/platform-admin/reset-password?token=${resetToken}`);
+    this.logger.log(`Password reset link for ${admin.email}: ${resetLink}`);
+
+    // Send password reset email
+    try {
+      await this.emailService.sendPasswordResetEmail(
+        admin.email,
+        admin.name,
+        resetLink,
+      );
+      this.logger.log(`Password reset email sent to ${admin.email}`);
+    } catch (emailError) {
+      this.logger.error(`Failed to send password reset email to ${admin.email}: ${emailError.message}`);
+      // Don't throw - still allow the process to continue
+    }
 
     return { message: 'Ha az email cím létezik, elküldtük a jelszó-visszaállító linket' };
   }
@@ -1604,6 +1617,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       optenApiSecret: settings?.optenApiSecret ? '***' : '',
       bisnodeApiKey: settings?.bisnodeApiKey ? '***' : '',
       bisnodeApiSecret: settings?.bisnodeApiSecret ? '***' : '',
+      eCegjegyzekApiKey: settings?.eCegjegyzekApiKey ? '***' : '',
       companyDataMonthlyFee: settings?.companyDataMonthlyFee ? Number(settings.companyDataMonthlyFee) : null,
     };
   }
@@ -1614,6 +1628,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     optenApiSecret?: string;
     bisnodeApiKey?: string;
     bisnodeApiSecret?: string;
+    eCegjegyzekApiKey?: string;
     companyDataMonthlyFee?: number | null;
   }): Promise<any> {
     let settings = await this.prisma.platformSettings.findFirst();
@@ -1647,6 +1662,9 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     if (dto.bisnodeApiSecret && dto.bisnodeApiSecret !== '***') {
       updateData.bisnodeApiSecret = dto.bisnodeApiSecret;
     }
+    if (dto.eCegjegyzekApiKey && dto.eCegjegyzekApiKey !== '***') {
+      updateData.eCegjegyzekApiKey = dto.eCegjegyzekApiKey;
+    }
 
     // Clear keys if provider is NONE
     if (dto.companyDataProvider === 'NONE') {
@@ -1654,15 +1672,23 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       updateData.optenApiSecret = null;
       updateData.bisnodeApiKey = null;
       updateData.bisnodeApiSecret = null;
+      updateData.eCegjegyzekApiKey = null;
     }
 
     // Clear non-relevant provider keys
     if (dto.companyDataProvider === 'OPTEN') {
       updateData.bisnodeApiKey = null;
       updateData.bisnodeApiSecret = null;
+      updateData.eCegjegyzekApiKey = null;
     } else if (dto.companyDataProvider === 'BISNODE') {
       updateData.optenApiKey = null;
       updateData.optenApiSecret = null;
+      updateData.eCegjegyzekApiKey = null;
+    } else if (dto.companyDataProvider === 'E_CEGJEGYZEK') {
+      updateData.optenApiKey = null;
+      updateData.optenApiSecret = null;
+      updateData.bisnodeApiKey = null;
+      updateData.bisnodeApiSecret = null;
     }
 
     const updated = await this.prisma.platformSettings.update({
@@ -1676,6 +1702,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       optenApiSecret: updated.optenApiSecret ? '***' : '',
       bisnodeApiKey: updated.bisnodeApiKey ? '***' : '',
       bisnodeApiSecret: updated.bisnodeApiSecret ? '***' : '',
+      eCegjegyzekApiKey: updated.eCegjegyzekApiKey ? '***' : '',
       companyDataMonthlyFee: updated.companyDataMonthlyFee ? Number(updated.companyDataMonthlyFee) : null,
     };
   }
@@ -1700,7 +1727,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     // Get platform settings to check if platform service is available
     const platformSettings = await this.prisma.platformSettings.findFirst();
     const platformHasService = platformSettings?.companyDataProvider !== 'NONE' &&
-      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey);
+      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey || platformSettings?.eCegjegyzekApiKey);
 
     return {
       // Network-level settings
@@ -1710,6 +1737,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       optenApiSecret: settings?.optenApiSecret ? '***' : '',
       bisnodeApiKey: settings?.bisnodeApiKey ? '***' : '',
       bisnodeApiSecret: settings?.bisnodeApiSecret ? '***' : '',
+      eCegjegyzekApiKey: settings?.eCegjegyzekApiKey ? '***' : '',
       // Platform service info
       platformHasService: !!platformHasService,
       platformServiceProvider: platformSettings?.companyDataProvider || 'NONE',
@@ -1728,6 +1756,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       optenApiSecret?: string;
       bisnodeApiKey?: string;
       bisnodeApiSecret?: string;
+      eCegjegyzekApiKey?: string;
     },
   ): Promise<any> {
     const network = await this.prisma.network.findUnique({
@@ -1775,6 +1804,9 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     if (dto.bisnodeApiSecret && dto.bisnodeApiSecret !== '***') {
       updateData.bisnodeApiSecret = dto.bisnodeApiSecret;
     }
+    if (dto.eCegjegyzekApiKey && dto.eCegjegyzekApiKey !== '***') {
+      updateData.eCegjegyzekApiKey = dto.eCegjegyzekApiKey;
+    }
 
     // Clear keys if provider is NONE
     if (dto.companyDataProvider === 'NONE') {
@@ -1782,15 +1814,23 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       updateData.optenApiSecret = null;
       updateData.bisnodeApiKey = null;
       updateData.bisnodeApiSecret = null;
+      updateData.eCegjegyzekApiKey = null;
     }
 
     // Clear non-relevant provider keys
     if (dto.companyDataProvider === 'OPTEN') {
       updateData.bisnodeApiKey = null;
       updateData.bisnodeApiSecret = null;
+      updateData.eCegjegyzekApiKey = null;
     } else if (dto.companyDataProvider === 'BISNODE') {
       updateData.optenApiKey = null;
       updateData.optenApiSecret = null;
+      updateData.eCegjegyzekApiKey = null;
+    } else if (dto.companyDataProvider === 'E_CEGJEGYZEK') {
+      updateData.optenApiKey = null;
+      updateData.optenApiSecret = null;
+      updateData.bisnodeApiKey = null;
+      updateData.bisnodeApiSecret = null;
     }
 
     const updated = await this.prisma.networkSettings.update({
@@ -1801,7 +1841,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     // Get platform settings for response
     const platformSettings = await this.prisma.platformSettings.findFirst();
     const platformHasService = platformSettings?.companyDataProvider !== 'NONE' &&
-      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey);
+      (platformSettings?.optenApiKey || platformSettings?.bisnodeApiKey || platformSettings?.eCegjegyzekApiKey);
 
     return {
       allowCustomCompanyDataProvider: updated.allowCustomCompanyDataProvider,
@@ -1810,6 +1850,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       optenApiSecret: updated.optenApiSecret ? '***' : '',
       bisnodeApiKey: updated.bisnodeApiKey ? '***' : '',
       bisnodeApiSecret: updated.bisnodeApiSecret ? '***' : '',
+      eCegjegyzekApiKey: updated.eCegjegyzekApiKey ? '***' : '',
       platformHasService: !!platformHasService,
       platformServiceProvider: platformSettings?.companyDataProvider || 'NONE',
       platformServiceMonthlyFee: platformSettings?.companyDataMonthlyFee

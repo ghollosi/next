@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { OptenProvider } from './opten.provider';
+import { BisnodeProvider } from './bisnode.provider';
+import { ECegjegyzekProvider } from './ecegjegyzek.provider';
 import {
   CompanyDataProvider,
   CompanySearchRequest,
@@ -20,9 +22,13 @@ export class CompanyDataService {
   constructor(
     private prisma: PrismaService,
     private optenProvider: OptenProvider,
+    private bisnodeProvider: BisnodeProvider,
+    private eCegjegyzekProvider: ECegjegyzekProvider,
   ) {
     // Register available providers
     this.providers.set('opten', this.optenProvider);
+    this.providers.set('bisnode', this.bisnodeProvider);
+    this.providers.set('e_cegjegyzek', this.eCegjegyzekProvider);
   }
 
   /**
@@ -93,18 +99,26 @@ export class CompanyDataService {
       return { provider: null, providerName: 'opten', source: 'none' };
     }
 
-    // Bisnode support (for future)
+    // Bisnode support
     if (providerType === CompanyDataProviderEnum.BISNODE) {
-      // TODO: Implement Bisnode provider
-      this.logger.warn('Bisnode provider not yet implemented');
+      if (bisnodeApiKey && bisnodeApiSecret) {
+        this.bisnodeProvider.configure(
+          bisnodeApiKey,
+          bisnodeApiSecret,
+        );
+        return { provider: this.bisnodeProvider, providerName: 'bisnode', source };
+      }
       return { provider: null, providerName: 'bisnode', source: 'none' };
     }
 
-    // e-Cégjegyzék support (for future)
+    // e-Cégjegyzék support
     if (providerType === CompanyDataProviderEnum.E_CEGJEGYZEK) {
-      // TODO: Implement e-Cégjegyzék provider
-      this.logger.warn('e-Cégjegyzék provider not yet implemented');
-      return { provider: null, providerName: 'e_cegjegyzek', source: 'none' };
+      // e-Cégjegyzék can work without API key in limited mode
+      this.eCegjegyzekProvider.configure(
+        optenApiKey || '', // Using opten fields for now, could be separate fields
+        optenApiSecret || '',
+      );
+      return { provider: this.eCegjegyzekProvider, providerName: 'e_cegjegyzek', source };
     }
 
     return { provider: null, providerName: 'none', source: 'none' };

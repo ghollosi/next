@@ -752,4 +752,334 @@ Fontos: Kérjük, érkezz meg időben a megadott helyszínre. Ha nem tudsz megje
       html,
     });
   }
+
+  // PIN visszaállítás email (Partner és Operator)
+  async sendPinResetEmail(
+    to: string,
+    recipientName: string,
+    resetLink: string,
+    portalType: 'partner' | 'operator',
+  ): Promise<boolean> {
+    const portalLabel = portalType === 'partner' ? 'Partner' : 'Operátor';
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 15px 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>VSys Wash</h1>
+      <p>${portalLabel} PIN visszaállítás</p>
+    </div>
+    <div class="content">
+      <h2>Kedves ${recipientName}!</h2>
+      <p>PIN visszaállítási kérelmet kaptunk a fiókodhoz.</p>
+      <p>Kattints az alábbi gombra az új PIN beállításához:</p>
+      <p style="text-align: center;">
+        <a href="${resetLink}" class="button">PIN visszaállítása</a>
+      </p>
+      <p>Ha a gomb nem működik, másold be ezt a linket a böngésződbe:</p>
+      <p style="word-break: break-all; color: #6b7280; font-size: 12px;">${resetLink}</p>
+
+      <div class="warning">
+        <strong>Fontos!</strong> A link 1 órán belül lejár. Ha nem te kérted a PIN visszaállítást, kérjük, hagyd figyelmen kívül ezt az emailt.
+      </div>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Wash. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+Kedves ${recipientName}!
+
+PIN visszaállítási kérelmet kaptunk a fiókodhoz.
+
+Kattints az alábbi linkre az új PIN beállításához:
+${resetLink}
+
+A link 1 órán belül lejár. Ha nem te kérted a PIN visszaállítást, kérjük, hagyd figyelmen kívül ezt az emailt.
+
+© ${new Date().getFullYear()} VSys Wash
+    `;
+
+    return this.sendEmail({
+      to,
+      subject: `VSys Wash - ${portalLabel} PIN visszaállítás`,
+      html,
+      text,
+    });
+  }
+
+  // Platform Admin jelszó visszaállítás email
+  async sendPasswordResetEmail(
+    to: string,
+    adminName: string,
+    resetLink: string,
+  ): Promise<boolean> {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #7c3aed; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .button { display: inline-block; background: #7c3aed; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 15px 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>VSys Platform</h1>
+      <p>Jelszó visszaállítás</p>
+    </div>
+    <div class="content">
+      <h2>Kedves ${adminName}!</h2>
+      <p>Jelszó visszaállítási kérelmet kaptunk a Platform Admin fiókodhoz.</p>
+      <p>Kattints az alábbi gombra az új jelszó beállításához:</p>
+      <p style="text-align: center;">
+        <a href="${resetLink}" class="button">Jelszó visszaállítása</a>
+      </p>
+      <p>Ha a gomb nem működik, másold be ezt a linket a böngésződbe:</p>
+      <p style="word-break: break-all; color: #6b7280; font-size: 12px;">${resetLink}</p>
+
+      <div class="warning">
+        <strong>Biztonsági figyelmeztetés!</strong> A link 1 órán belül lejár. Ha nem te kérted a jelszó visszaállítást, azonnal értesítsd a rendszergazdát, mert valaki hozzáférést próbálhatott szerezni a fiókodhoz.
+      </div>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Platform. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+Kedves ${adminName}!
+
+Jelszó visszaállítási kérelmet kaptunk a Platform Admin fiókodhoz.
+
+Kattints az alábbi linkre az új jelszó beállításához:
+${resetLink}
+
+A link 1 órán belül lejár. Ha nem te kérted a jelszó visszaállítást, azonnal értesítsd a rendszergazdát!
+
+© ${new Date().getFullYear()} VSys Platform
+    `;
+
+    return this.sendEmail({
+      to,
+      subject: 'VSys Platform - Jelszó visszaállítás',
+      html,
+      text,
+    });
+  }
+
+  // Stripe sikertelen fizetés értesítés
+  async sendPaymentFailedEmail(
+    to: string,
+    networkName: string,
+    amount: number,
+    currency: string,
+    retryDate?: Date,
+  ): Promise<boolean> {
+    const formatPrice = (price: number, curr: string) => {
+      return new Intl.NumberFormat('hu-HU', {
+        style: 'currency',
+        currency: curr,
+        minimumFractionDigits: 0,
+      }).format(price);
+    };
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    .warning { background: #fee2e2; border: 1px solid #dc2626; border-radius: 8px; padding: 15px; margin: 15px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>VSys Platform</h1>
+      <p>Fizetési hiba</p>
+    </div>
+    <div class="content">
+      <h2>Sikertelen fizetés</h2>
+      <p>Sajnos a(z) <strong>${networkName}</strong> network előfizetési díjának levonása sikertelen volt.</p>
+
+      <div class="info-box">
+        <p><strong>Összeg:</strong> ${formatPrice(amount, currency)}</p>
+        ${retryDate ? `<p><strong>Következő próbálkozás:</strong> ${retryDate.toLocaleDateString('hu-HU')}</p>` : ''}
+      </div>
+
+      <div class="warning">
+        <strong>Fontos!</strong> Kérjük, ellenőrizd a fizetési adataidat a Network Admin felületen, hogy elkerüld a szolgáltatás felfüggesztését.
+      </div>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Platform. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    return this.sendEmail({
+      to,
+      subject: `VSys - Sikertelen fizetés: ${networkName}`,
+      html,
+    });
+  }
+
+  // Stripe trial lejárat figyelmeztetés
+  async sendTrialEndingEmail(
+    to: string,
+    networkName: string,
+    trialEndDate: Date,
+    daysRemaining: number,
+  ): Promise<boolean> {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #f59e0b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .days-box { background: white; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+    .days { font-size: 48px; font-weight: bold; color: #f59e0b; }
+    .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>VSys Platform</h1>
+      <p>Trial időszak hamarosan lejár</p>
+    </div>
+    <div class="content">
+      <h2>Kedves Network Admin!</h2>
+      <p>A(z) <strong>${networkName}</strong> network próbaidőszaka hamarosan lejár.</p>
+
+      <div class="days-box">
+        <div class="days">${daysRemaining}</div>
+        <div>nap van hátra</div>
+      </div>
+
+      <p><strong>Lejárat dátuma:</strong> ${trialEndDate.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+      <p>A szolgáltatás folytatásához kérjük, add meg a fizetési adataidat a Network Admin felületen.</p>
+
+      <p style="text-align: center;">
+        <a href="https://app.vemiax.com/network-admin/settings/billing" class="button">Előfizetés kezelése</a>
+      </p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Platform. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    return this.sendEmail({
+      to,
+      subject: `VSys - Trial lejár ${daysRemaining} napon belül: ${networkName}`,
+      html,
+    });
+  }
+
+  // Network Admin értesítés új törlési kérelemről
+  async sendDeleteRequestNotification(
+    to: string,
+    adminName: string,
+    driverName: string,
+    requestType: string,
+    details: string,
+  ): Promise<boolean> {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #ef4444; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
+    .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>VSys Wash</h1>
+      <p>Új törlési kérelem</p>
+    </div>
+    <div class="content">
+      <h2>Kedves ${adminName}!</h2>
+      <p>Új törlési kérelmet kaptunk egy sofőrtől.</p>
+
+      <div class="info-box">
+        <p><strong>Sofőr neve:</strong> ${driverName}</p>
+        <p><strong>Kérelem típusa:</strong> ${requestType}</p>
+        <p><strong>Részletek:</strong> ${details}</p>
+        <p><strong>Dátum:</strong> ${new Date().toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+      </div>
+
+      <p>Kérjük, kezeld a kérelmet a Network Admin felületen.</p>
+
+      <p style="text-align: center;">
+        <a href="https://app.vemiax.com/network-admin/delete-requests" class="button">Törlési kérelmek megtekintése</a>
+      </p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Wash. Minden jog fenntartva.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    return this.sendEmail({
+      to,
+      subject: `VSys - Új törlési kérelem: ${driverName}`,
+      html,
+    });
+  }
 }

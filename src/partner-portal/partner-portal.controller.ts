@@ -30,6 +30,7 @@ import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, PartnerSessionData } from '../common/session/session.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { EmailService } from '../modules/email/email.service';
 import { SessionType, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
@@ -54,6 +55,7 @@ export class PartnerPortalController {
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   private async getPartnerSession(req: Request): Promise<PartnerSessionData> {
@@ -245,13 +247,24 @@ export class PartnerPortalController {
     });
 
     // Send email
-    const platformUrl = this.configService.get('PLATFORM_URL') || 'http://localhost:3001';
+    const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/partner/reset-pin?token=${resetToken}`;
 
     this.logger.log(`PIN reset link for partner ${partner.code}: ${resetLink}`);
 
-    // TODO: Email küldés implementálása
-    // Egyelőre logoljuk a linket
+    // Send PIN reset email
+    try {
+      await this.emailService.sendPinResetEmail(
+        partner.email,
+        partner.name,
+        resetLink,
+        'partner',
+      );
+      this.logger.log(`PIN reset email sent to partner ${partner.code}`);
+    } catch (emailError) {
+      this.logger.error(`Failed to send PIN reset email to partner ${partner.code}: ${emailError.message}`);
+      // Don't throw - still allow the process to continue
+    }
 
     // AUDIT: Log PIN reset request
     await this.auditLogService.log({

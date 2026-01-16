@@ -73,6 +73,9 @@ export default function PlatformSettingsPage() {
   const [companyDataProvider, setCompanyDataProvider] = useState('NONE');
   const [optenApiKey, setOptenApiKey] = useState('');
   const [optenApiSecret, setOptenApiSecret] = useState('');
+  const [bisnodeApiKey, setBisnodeApiKey] = useState('');
+  const [bisnodeApiSecret, setBisnodeApiSecret] = useState('');
+  const [eCegjegyzekApiKey, setECegjegyzekApiKey] = useState('');
   const [companyDataMonthlyFee, setCompanyDataMonthlyFee] = useState<number | null>(null);
   const [companyDataLoading, setCompanyDataLoading] = useState(false);
   const [companyDataConfigured, setCompanyDataConfigured] = useState(false);
@@ -107,7 +110,11 @@ export default function PlatformSettingsPage() {
       const data = await platformApi.getPlatformCompanyDataSettings();
       setCompanyDataProvider(data.companyDataProvider || 'NONE');
       setCompanyDataMonthlyFee(data.companyDataMonthlyFee);
-      setCompanyDataConfigured(data.optenApiKey !== '' || data.bisnodeApiKey !== '');
+      setCompanyDataConfigured(
+        data.optenApiKey !== '' ||
+        data.bisnodeApiKey !== '' ||
+        data.eCegjegyzekApiKey !== ''
+      );
     } catch (err) {
       console.error('Error loading company data settings:', err);
     } finally {
@@ -125,11 +132,17 @@ export default function PlatformSettingsPage() {
         companyDataProvider,
         ...(optenApiKey ? { optenApiKey } : {}),
         ...(optenApiSecret ? { optenApiSecret } : {}),
+        ...(bisnodeApiKey ? { bisnodeApiKey } : {}),
+        ...(bisnodeApiSecret ? { bisnodeApiSecret } : {}),
+        ...(eCegjegyzekApiKey ? { eCegjegyzekApiKey } : {}),
         companyDataMonthlyFee,
       });
       setSuccess('Cégadatbázis beállítások mentve!');
       setOptenApiKey('');
       setOptenApiSecret('');
+      setBisnodeApiKey('');
+      setBisnodeApiSecret('');
+      setECegjegyzekApiKey('');
       await loadCompanyDataSettings();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt');
@@ -793,7 +806,8 @@ export default function PlatformSettingsPage() {
             >
               <option value="NONE">Nincs (nem szolgáltatunk)</option>
               <option value="OPTEN">Opten</option>
-              <option value="BISNODE">Bisnode (hamarosan)</option>
+              <option value="BISNODE">Bisnode (D&B)</option>
+              <option value="E_CEGJEGYZEK">e-Cégjegyzék</option>
             </select>
           </div>
 
@@ -828,6 +842,66 @@ export default function PlatformSettingsPage() {
                     className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+              </div>
+            </div>
+          )}
+
+          {companyDataProvider === 'BISNODE' && (
+            <div className="border-t border-gray-700 pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-300">Bisnode (D&B) beállítások</h3>
+              <p className="text-xs text-gray-500">
+                A Bisnode / Dun & Bradstreet API kulcsokat a <a href="https://www.dnb.com/hu-hu/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">D&B weboldalán</a> tudod igényelni.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    API kulcs (Client ID)
+                  </label>
+                  <input
+                    type="password"
+                    value={bisnodeApiKey}
+                    onChange={(e) => setBisnodeApiKey(e.target.value)}
+                    placeholder={companyDataConfigured ? '••••••••••••' : 'API kulcs'}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    API titkos kulcs (Client Secret)
+                  </label>
+                  <input
+                    type="password"
+                    value={bisnodeApiSecret}
+                    onChange={(e) => setBisnodeApiSecret(e.target.value)}
+                    placeholder={companyDataConfigured ? '••••••••••••' : 'API titkos kulcs'}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {companyDataProvider === 'E_CEGJEGYZEK' && (
+            <div className="border-t border-gray-700 pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-300">e-Cégjegyzék beállítások</h3>
+              <p className="text-xs text-gray-500">
+                Az e-Cégjegyzék a hivatalos magyar cégnyilvántartás. API kulcs nélkül is használható korlátozott funkcionalitással.
+                Teljes hozzáféréshez <a href="https://e-cegjegyzek.hu" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">e-akta előfizetés</a> szükséges.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  API kulcs (opcionális)
+                </label>
+                <input
+                  type="password"
+                  value={eCegjegyzekApiKey}
+                  onChange={(e) => setECegjegyzekApiKey(e.target.value)}
+                  placeholder={companyDataConfigured ? '••••••••••••' : 'API kulcs (opcionális)'}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Hagyd üresen az ingyenes, korlátozott módhoz
+                </p>
               </div>
             </div>
           )}

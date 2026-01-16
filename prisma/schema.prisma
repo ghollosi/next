@@ -1140,6 +1140,7 @@ model PlatformSettings {
   optenApiSecret           String?       @map("opten_api_secret")
   bisnodeApiKey            String?       @map("bisnode_api_key")
   bisnodeApiSecret         String?       @map("bisnode_api_secret")
+  eCegjegyzekApiKey        String?       @map("e_cegjegyzek_api_key")
   // Havi díjak Network-ök felé (ha a Platform szolgáltatást használják)
   companyDataMonthlyFee    Decimal?      @db.Decimal(10, 2) @map("company_data_monthly_fee")
 
@@ -1243,6 +1244,7 @@ model NetworkSettings {
   optenApiSecret        String?         @map("opten_api_secret")
   bisnodeApiKey         String?         @map("bisnode_api_key")
   bisnodeApiSecret      String?         @map("bisnode_api_secret")
+  eCegjegyzekApiKey     String?         @map("e_cegjegyzek_api_key")
 
   // Üzleti szabályok
   allowCashPayment      Boolean @default(true) @map("allow_cash_payment")

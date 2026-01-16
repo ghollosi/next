@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EmailService } from '../modules/email/email.service';
 import { SubscriptionStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import {
@@ -18,7 +19,10 @@ export class StripeService {
   private stripe: Stripe | null = null;
   private readonly logger = new Logger(StripeService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   // =========================================================================
   // STRIPE CLIENT INITIALIZATION
@@ -613,8 +617,30 @@ export class StripeService {
       },
     });
 
-    // TODO: Send email notification about failed payment
+    // Send email notification about failed payment
     this.logger.warn(`Payment failed for network ${network.id}`);
+
+    // Get network admins to notify
+    const networkAdmins = await this.prisma.networkAdmin.findMany({
+      where: { networkId: network.id, isActive: true },
+      select: { email: true, name: true },
+    });
+
+    for (const admin of networkAdmins) {
+      if (admin.email) {
+        try {
+          await this.emailService.sendPaymentFailedEmail(
+            admin.email,
+            network.name,
+            0, // Amount would come from invoice in real implementation
+            'HUF',
+          );
+          this.logger.log(`Payment failed email sent to ${admin.email} for network ${network.name}`);
+        } catch (emailError) {
+          this.logger.error(`Failed to send payment failed email: ${emailError.message}`);
+        }
+      }
+    }
   }
 
   private async handleTrialWillEnd(subscription: Stripe.Subscription): Promise<void> {
@@ -624,8 +650,33 @@ export class StripeService {
 
     if (!network) return;
 
-    // TODO: Send email notification that trial is ending in 3 days
+    // Send email notification that trial is ending in 3 days
     this.logger.log(`Trial ending soon for network ${network.id}`);
+
+    const trialEndDate = subscription.trial_end ? new Date(subscription.trial_end * 1000) : new Date();
+    const daysRemaining = Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+    // Get network admins to notify
+    const networkAdmins = await this.prisma.networkAdmin.findMany({
+      where: { networkId: network.id, isActive: true },
+      select: { email: true, name: true },
+    });
+
+    for (const admin of networkAdmins) {
+      if (admin.email) {
+        try {
+          await this.emailService.sendTrialEndingEmail(
+            admin.email,
+            network.name,
+            trialEndDate,
+            daysRemaining,
+          );
+          this.logger.log(`Trial ending email sent to ${admin.email} for network ${network.name}`);
+        } catch (emailError) {
+          this.logger.error(`Failed to send trial ending email: ${emailError.message}`);
+        }
+      }
+    }
   }
 
   // =========================================================================

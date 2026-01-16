@@ -1133,15 +1133,19 @@ export default function SettingsPage() {
                         <div>
                           <h4 className="font-semibold text-purple-900">Bisnode / Dun & Bradstreet</h4>
                           <p className="text-sm text-purple-700">
-                            Nemzetközi cégadatbázis szolgáltató. A támogatás hamarosan elérhető lesz.
+                            Nemzetközi cégadatbázis szolgáltató prémium minőségű adatokkal.
                           </p>
                         </div>
                       </div>
 
-                      <div className="bg-yellow-100 rounded-lg p-3">
-                        <p className="text-sm text-yellow-800 font-medium">
-                          Hamarosan elérhető! A Bisnode integráció jelenleg fejlesztés alatt áll.
-                        </p>
+                      <div className="text-sm text-purple-700 space-y-1">
+                        <p className="font-medium">Elérhető szolgáltatások:</p>
+                        <ul className="list-disc list-inside">
+                          <li>• Cégkeresés adószám, cégnév alapján</li>
+                          <li>• Részletes cégadatok (tulajdonosok, vezetők)</li>
+                          <li>• Pénzügyi adatok (D&B előfizetéssel)</li>
+                          <li>• Kockázati értékelés</li>
+                        </ul>
                       </div>
                     </div>
                   )}
@@ -1155,16 +1159,19 @@ export default function SettingsPage() {
                         <div>
                           <h4 className="font-semibold text-gray-900">e-Cégjegyzék</h4>
                           <p className="text-sm text-gray-600">
-                            Ingyenes magyar cégadatbázis korlátozott funkcionalitással.
-                            A támogatás hamarosan elérhető lesz.
+                            A hivatalos magyar cégnyilvántartás elektronikus szolgáltatása.
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-4 bg-yellow-100 rounded-lg p-3">
-                        <p className="text-sm text-yellow-800 font-medium">
-                          Hamarosan elérhető! Az e-Cégjegyzék integráció jelenleg fejlesztés alatt áll.
-                        </p>
+                      <div className="mt-4 text-sm text-gray-600 space-y-1">
+                        <p className="font-medium">Elérhető szolgáltatások:</p>
+                        <ul className="list-disc list-inside">
+                          <li>• Cégkeresés adószám, cégnév, cégjegyzékszám alapján</li>
+                          <li>• Alapvető cégadatok (székhely, státusz)</li>
+                          <li>• Korlátozott mód (API kulcs nélkül)</li>
+                          <li>• Teljes hozzáférés e-akta előfizetéssel</li>
+                        </ul>
                       </div>
                     </div>
                   )}
