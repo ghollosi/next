@@ -2,12 +2,15 @@
 # Includes: API + PWA + PostgreSQL
 #
 # USAGE:
-# docker compose -f docker-compose.full.yml up -d --build
+# 1. Copy .env.production.example to .env on the server
+# 2. Fill in the sensitive values in .env
+# 3. docker compose -f docker-compose.full.yml up -d --build
 #
 # PORTS:
 # - API: 3000 (http://localhost:3000)
 # - PWA: 3001 (http://localhost:3001)
-# - Swagger: http://localhost:3000/api/docs
+#
+# SECURITY: All sensitive values are loaded from .env file
 
 version: '3.8'
 
@@ -16,14 +19,14 @@ services:
     image: postgres:16-alpine
     container_name: vsys-postgres
     environment:
-      POSTGRES_USER: vsys
-      POSTGRES_PASSWORD: vsys_staging_password
-      POSTGRES_DB: vsys_next
+      POSTGRES_USER: ${POSTGRES_USER:-vsys}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-vsys_next}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - vsys_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vsys -d vsys_next"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vsys} -d ${POSTGRES_DB:-vsys_next}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,16 +43,17 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://vsys:vsys_staging_password@postgres:5432/vsys_next?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vsys}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vsys_next}?schema=public
       NODE_ENV: production
       PORT: 3000
       LOG_LEVEL: info
       CORS_ORIGIN: https://app.vemiax.com,https://vsys.vemiax.com,https://api.vemiax.com
-      # WebSupport SMTP Configuration
-      SMTP_HOST: smtp.websupport.hu
-      SMTP_PORT: 587
-      SMTP_USER: info@vemiax.com
-      SMTP_PASS: Vemiax2026!
+      # Sensitive values loaded from .env
+      SMTP_HOST: ${SMTP_HOST:-smtp.websupport.hu}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       # PWA Base URL for QR codes
       PWA_BASE_URL: https://app.vemiax.com
     ports:
