@@ -1,0 +1,20 @@
+# VSys Next - Environment Configuration
+# Module 1: Core Wash Registration & Wash Ledger
+
+# Database Configuration
+DATABASE_URL="postgresql://vsys:vsys_dev_password@localhost:5432/vsys_next?schema=public"
+
+# Application
+NODE_ENV=development
+PORT=3000
+
+# JWT Configuration (for future modules)
+JWT_SECRET=vsys-next-dev-secret-change-in-production
+
+# Logging
+LOG_LEVEL=debug
+
+# Docker PostgreSQL Configuration
+POSTGRES_USER=vsys
+POSTGRES_PASSWORD=vsys_dev_password
+POSTGRES_DB=vsys_next
