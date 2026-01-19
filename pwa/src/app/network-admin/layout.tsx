@@ -128,7 +128,7 @@ export default function NetworkAdminLayout({
     { href: '/network-admin/audit-logs', label: 'Audit napló', icon: '📋' },
     { href: '/network-admin/subscription', label: 'Előfizetés', icon: '💳' },
     { href: '/network-admin/settings', label: 'Beállítások', icon: '⚙️' },
-    { href: '/docs/network-admin', label: 'Dokumentáció', icon: '📚' },
+    { href: '/docs/network-admin?from=network', label: 'Dokumentáció', icon: '📚' },
   ];
 
   // Filter nav items for Platform View - hide sensitive items

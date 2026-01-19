@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   HomeIcon,
   BuildingOffice2Icon,
@@ -13,98 +13,128 @@ import {
   XMarkIcon,
   ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import {
   getAuthStatus,
   getSectionFromPath,
-  getLoginPageForSection,
-  filterNavigationForRole,
-  type DocSection
+  buildDocsUrl,
+  type DocSection,
+  type PortalSource
 } from '@/lib/docs-auth'
 
 const allNavigation = [
-  { name: 'Áttekintés', href: '/docs', icon: HomeIcon, section: 'overview' as DocSection },
-  { name: 'Platform Admin', href: '/docs/platform-admin', icon: BuildingOffice2Icon, section: 'platform-admin' as DocSection },
-  { name: 'Hálózat Admin', href: '/docs/network-admin', icon: BuildingStorefrontIcon, section: 'network-admin' as DocSection },
-  { name: 'Operátor', href: '/docs/operator', icon: WrenchScrewdriverIcon, section: 'operator' as DocSection },
-  { name: 'Sofőr', href: '/docs/driver', icon: TruckIcon, section: 'driver' as DocSection },
-  { name: 'Partner', href: '/docs/partner', icon: UserGroupIcon, section: 'partner' as DocSection },
+  { name: 'Áttekintés', section: 'overview' as DocSection, icon: HomeIcon },
+  { name: 'Platform Admin', section: 'platform-admin' as DocSection, icon: BuildingOffice2Icon },
+  { name: 'Hálózat Admin', section: 'network-admin' as DocSection, icon: BuildingStorefrontIcon },
+  { name: 'Operátor', section: 'operator' as DocSection, icon: WrenchScrewdriverIcon },
+  { name: 'Sofőr', section: 'driver' as DocSection, icon: TruckIcon },
+  { name: 'Partner', section: 'partner' as DocSection, icon: UserGroupIcon },
 ]
 
-export default function DocsLayout({
+// Portal access mapping (duplicated here for direct access)
+const PORTAL_ACCESS: Record<string, DocSection[]> = {
+  'platform': ['overview', 'platform-admin', 'network-admin', 'operator', 'driver', 'partner'],
+  'network': ['overview', 'network-admin', 'operator', 'driver', 'partner'],
+  'operator': ['operator'],
+  'partner': ['partner'],
+  'driver': ['driver'],
+}
+
+const BACK_LINKS: Record<string, string> = {
+  'platform': '/platform-admin/dashboard',
+  'network': '/network-admin/dashboard',
+  'operator': '/operator-portal/dashboard',
+  'partner': '/partner/dashboard',
+  'driver': '/dashboard',
+}
+
+const LOGIN_PAGES: Record<string, string> = {
+  'platform': '/platform-admin',
+  'network': '/network-admin',
+  'operator': '/operator-portal/login',
+  'partner': '/partner/login',
+  'driver': '/login',
+}
+
+// Inner component that handles the actual layout logic
+function DocsLayoutInner({
   children,
 }: {
   children: React.ReactNode
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
-  const [navigation, setNavigation] = useState(allNavigation)
+  const [navigation, setNavigation] = useState<Array<{ name: string; section: DocSection; icon: typeof HomeIcon; href: string }>>([])
+  const [portalSource, setPortalSource] = useState<PortalSource>(null)
+  const [backLink, setBackLink] = useState('/')
 
   useEffect(() => {
     const checkAuth = () => {
-      const authStatus = getAuthStatus()
-      const currentSection = getSectionFromPath(pathname || '/docs')
+      // CRITICAL: Get portal source DIRECTLY from URL search params
+      // This is the ONLY source of truth - we use useSearchParams hook
+      const fromParam = searchParams.get('from')
 
-      // Check if user is authenticated
+      // Validate the portal source
+      const validPortals = ['platform', 'network', 'operator', 'partner', 'driver']
+      const portal = (fromParam && validPortals.includes(fromParam)) ? fromParam as PortalSource : null
+
+      setPortalSource(portal)
+
+      // If no valid portal source in URL, redirect to login
+      if (!portal) {
+        router.push('/login')
+        return
+      }
+
+      // Get allowed sections for this portal
+      const allowedSections = PORTAL_ACCESS[portal] || []
+      const currentSection = getSectionFromPath(pathname || '/docs')
+      const portalBackLink = BACK_LINKS[portal] || '/'
+
+      // Check if user has valid session for this portal
+      const authStatus = getAuthStatus(portal)
+
       if (!authStatus.isAuthenticated) {
-        const loginPage = getLoginPageForSection(currentSection || 'overview')
+        const loginPage = LOGIN_PAGES[portal] || '/login'
         router.push(loginPage)
         return
       }
 
+      // Set back link
+      setBackLink(portalBackLink)
+
       // Check if user can access this section
-      if (currentSection && !authStatus.allowedSections.includes(currentSection)) {
-        // Redirect to the first allowed section
-        if (authStatus.allowedSections.length > 0) {
-          const firstAllowed = authStatus.allowedSections[0]
-          if (firstAllowed === 'overview') {
-            router.push('/docs')
-          } else {
-            router.push(`/docs/${firstAllowed}`)
-          }
+      if (currentSection && !allowedSections.includes(currentSection)) {
+        // Redirect to the first allowed section with portal param
+        if (allowedSections.length > 0) {
+          const firstAllowed = allowedSections[0]
+          const redirectUrl = buildDocsUrl(firstAllowed, portal)
+          router.push(redirectUrl)
         } else {
-          router.push('/login')
+          router.push(portalBackLink)
         }
         return
       }
 
-      // Filter navigation based on role
-      const filteredNav = allNavigation.filter(item =>
-        authStatus.allowedSections.includes(item.section)
-      )
+      // Filter navigation based on allowed sections and add hrefs with portal param
+      const filteredNav = allNavigation
+        .filter(item => allowedSections.includes(item.section))
+        .map(item => ({
+          ...item,
+          href: buildDocsUrl(item.section, portal)
+        }))
+
       setNavigation(filteredNav)
       setIsAuthorized(true)
       setIsLoading(false)
     }
 
     checkAuth()
-  }, [pathname, router])
-
-  // Get back link based on user role
-  const getBackLink = () => {
-    const authStatus = getAuthStatus()
-    switch (authStatus.role) {
-      case 'PLATFORM_OWNER':
-      case 'PLATFORM_ADMIN':
-        return '/platform-admin/dashboard'
-      case 'NETWORK_OWNER':
-      case 'NETWORK_ADMIN':
-      case 'NETWORK_CONTROLLER':
-      case 'NETWORK_ACCOUNTANT':
-        return '/network-admin/dashboard'
-      case 'OPERATOR':
-        return '/operator-portal/dashboard'
-      case 'PARTNER':
-        return '/partner/dashboard'
-      case 'DRIVER':
-        return '/dashboard'
-      default:
-        return '/'
-    }
-  }
+  }, [pathname, router, searchParams])
 
   if (isLoading) {
     return (
@@ -154,8 +184,9 @@ export default function DocsLayout({
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = pathname === item.href ||
-                (item.href !== '/docs' && pathname?.startsWith(item.href))
+              // Check if section matches (ignore query params)
+              const currentSection = getSectionFromPath(pathname || '')
+              const isActive = currentSection === item.section
               return (
                 <Link
                   key={item.name}
@@ -177,13 +208,13 @@ export default function DocsLayout({
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-700">
-            <Link
-              href={getBackLink()}
-              className="text-gray-400 hover:text-white text-sm flex items-center gap-2"
+            <button
+              onClick={() => router.push(backLink)}
+              className="text-gray-400 hover:text-white text-sm flex items-center gap-2 w-full"
             >
               <ArrowLeftOnRectangleIcon className="w-4 h-4" />
               Vissza az alkalmazásba
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
@@ -203,5 +234,22 @@ export default function DocsLayout({
         </div>
       </main>
     </div>
+  )
+}
+
+// Wrapper component with Suspense for useSearchParams in getPortalSourceFromUrl
+export default function DocsLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      </div>
+    }>
+      <DocsLayoutInner>{children}</DocsLayoutInner>
+    </Suspense>
   )
 }

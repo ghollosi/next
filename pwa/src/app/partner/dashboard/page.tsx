@@ -284,7 +284,7 @@ export default function PartnerDashboardPage() {
           </div>
           <div className="flex gap-2">
             <Link
-              href="/docs/partner"
+              href="/docs/partner?from=partner"
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm transition-colors flex items-center gap-1"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

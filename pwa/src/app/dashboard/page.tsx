@@ -154,7 +154,7 @@ export default function DashboardPage() {
 
         {/* Help Button */}
         <button
-          onClick={() => router.push('/docs/driver')}
+          onClick={() => router.push('/docs/driver?from=driver')}
           className="w-full bg-white rounded-xl shadow-sm p-4 flex items-center gap-4
                      hover:bg-gray-50 active:bg-gray-100 transition-colors mb-3"
         >
