@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { platformApi, getPlatformAdmin } from '@/lib/platform-api';
+import HelpTooltip from '@/components/ui/HelpTooltip';
 
 interface Settings {
   id: string;
@@ -253,9 +254,12 @@ export default function PlatformSettingsPage() {
         <h2 className="text-lg font-semibold text-white mb-4">Általános</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Platform neve
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Platform neve
+              </label>
+              <HelpTooltip text="A platform megjelenített neve, amely minden felületen és értesítésben megjelenik." />
+            </div>
             <input
               type="text"
               value={platformName}
@@ -264,9 +268,12 @@ export default function PlatformSettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Platform URL
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Platform URL
+              </label>
+              <HelpTooltip text="A platform fő webcíme, amely az emailekben és értesítésekben megjelenik linkként." />
+            </div>
             <input
               type="url"
               value={platformUrl}
@@ -277,9 +284,12 @@ export default function PlatformSettingsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Support email
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Support email
+                </label>
+                <HelpTooltip text="Az ügyfélszolgálati email cím, ahová a felhasználók kérdéseiket küldhetik." />
+              </div>
               <input
                 type="email"
                 value={supportEmail}
@@ -288,9 +298,12 @@ export default function PlatformSettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Support telefon
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Support telefon
+                </label>
+                <HelpTooltip text="Az ügyfélszolgálati telefonszám, amelyen a felhasználók elérhetik a támogatást." />
+              </div>
               <input
                 type="tel"
                 value={supportPhone}
@@ -311,9 +324,12 @@ export default function PlatformSettingsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Cégnév
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Cégnév
+                </label>
+                <HelpTooltip text="A platform üzemeltető cég hivatalos neve a számlákon és jogi dokumentumokon." />
+              </div>
               <input
                 type="text"
                 value={companyName}
@@ -323,9 +339,12 @@ export default function PlatformSettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Adószám
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Adószám
+                </label>
+                <HelpTooltip text="A cég adószáma (pl. 12345678-1-42), amely a számlákon megjelenik." />
+              </div>
               <input
                 type="text"
                 value={taxNumber}
@@ -391,9 +410,12 @@ export default function PlatformSettingsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                EU adószám (opcionális)
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  EU adószám (opcionális)
+                </label>
+                <HelpTooltip text="EU közösségi adószám, amely az EU-n belüli ügyletekhez szükséges." />
+              </div>
               <input
                 type="text"
                 value={euVatNumber}
@@ -403,9 +425,12 @@ export default function PlatformSettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Bank neve
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Bank neve
+                </label>
+                <HelpTooltip text="A cég számlavezető bankjának neve a számlákon való megjelenítéshez." />
+              </div>
               <input
                 type="text"
                 value={bankName}
@@ -417,9 +442,12 @@ export default function PlatformSettingsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Bankszámlaszám
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Bankszámlaszám
+                </label>
+                <HelpTooltip text="A cég bankszámlaszáma átutalásos fizetésekhez." />
+              </div>
               <input
                 type="text"
                 value={bankAccountNumber}
@@ -429,9 +457,12 @@ export default function PlatformSettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                IBAN (opcionális)
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  IBAN (opcionális)
+                </label>
+                <HelpTooltip text="Nemzetközi bankszámlaszám formátum külföldi ügyfeleknek és utalásokhoz." />
+              </div>
               <input
                 type="text"
                 value={bankAccountIban}
@@ -449,9 +480,12 @@ export default function PlatformSettingsPage() {
         <h2 className="text-lg font-semibold text-white mb-4">Árazás (SaaS díjak)</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Trial időszak (napok)
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Trial időszak (napok)
+              </label>
+              <HelpTooltip text="A próbaidőszak hossza napokban új hálózatok számára. A próbaidő alatt a hálózat minden funkciót használhat." />
+            </div>
             <input
               type="number"
               value={defaultTrialDays}
@@ -463,9 +497,12 @@ export default function PlatformSettingsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Alap havi díj (Ft)
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Alap havi díj (Ft)
+                </label>
+                <HelpTooltip text="A havi előfizetési alapdíj hálózatonként forintban. Ez minden hónap elején automatikusan számlázásra kerül." />
+              </div>
               <input
                 type="number"
                 value={baseMonthlyFee}
@@ -476,9 +513,12 @@ export default function PlatformSettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Díj mosásonként (Ft)
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Díj mosásonként (Ft)
+                </label>
+                <HelpTooltip text="Használatalapú díj mosásonként. A hónap végén az összes elvégzett mosás után kerül felszámításra." />
+              </div>
               <input
                 type="number"
                 value={perWashFee}
@@ -507,9 +547,12 @@ export default function PlatformSettingsPage() {
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">
-            Resend API Key
-          </label>
+          <div className="flex items-center gap-1.5 mb-1">
+            <label className="block text-sm font-medium text-gray-300">
+              Resend API Key
+            </label>
+            <HelpTooltip text="A Resend szolgáltatás API kulcsa email küldéshez. Regisztráljon a resend.com oldalon és hozzon létre egy API kulcsot." />
+          </div>
           <input
             type="password"
             value={resendApiKey}
@@ -537,9 +580,12 @@ export default function PlatformSettingsPage() {
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Account SID
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Account SID
+              </label>
+              <HelpTooltip text="A Twilio fiók SID azonosítója. A Twilio Console főoldalán található 'Account SID' mezőben." />
+            </div>
             <input
               type="password"
               value={twilioAccountSid}
@@ -549,9 +595,12 @@ export default function PlatformSettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Auth Token
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Auth Token
+              </label>
+              <HelpTooltip text="A Twilio fiók Auth Token azonosítója. Tartsa titokban, ne ossza meg senkivel!" />
+            </div>
             <input
               type="password"
               value={twilioAuthToken}
@@ -561,9 +610,12 @@ export default function PlatformSettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Telefonszám
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Telefonszám
+              </label>
+              <HelpTooltip text="A Twilio telefonszám, amelyről az SMS-ek kimennek. Nemzetközi formátumban adja meg (pl. +36701234567)." />
+            </div>
             <input
               type="tel"
               value={twilioPhoneNumber}
@@ -595,9 +647,12 @@ export default function PlatformSettingsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Secret Key
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Secret Key
+                </label>
+                <HelpTooltip text="A Stripe titkos kulcsa. SOHA ne ossza meg és ne tegye nyilvánossá! Csak szerveroldalon használható." />
+              </div>
               <input
                 type="password"
                 value={stripeSecretKey}
@@ -608,9 +663,12 @@ export default function PlatformSettingsPage() {
               <p className="text-xs text-gray-500 mt-1">Stripe Dashboard &gt; Developers &gt; API keys</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Publishable Key
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Publishable Key
+                </label>
+                <HelpTooltip text="A Stripe nyilvános kulcsa. Ez a frontenden használható, biztonságosan megosztható a böngészővel." />
+              </div>
               <input
                 type="text"
                 value={stripePublishableKey}
@@ -622,9 +680,12 @@ export default function PlatformSettingsPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Webhook Secret
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Webhook Secret
+              </label>
+              <HelpTooltip text="A Stripe webhook titkosító kulcsa a webhook események hitelesítéséhez. A Stripe küldi a fizetési eseményeket erre a végpontra." />
+            </div>
             <input
               type="password"
               value={stripeWebhookSecret}
@@ -640,9 +701,12 @@ export default function PlatformSettingsPage() {
             <h3 className="text-sm font-medium text-gray-300 mb-3">Stripe Product árak</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Havi alap díj Price ID
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Havi alap díj Price ID
+                  </label>
+                  <HelpTooltip text="A Stripe-ban létrehozott termék árazonosítója a havi előfizetéshez. Stripe Dashboard > Products menüben hozható létre." />
+                </div>
                 <input
                   type="text"
                   value={stripeBasePriceId}
@@ -653,9 +717,12 @@ export default function PlatformSettingsPage() {
                 <p className="text-xs text-gray-500 mt-1">Recurring/flat price (havi)</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Mosásonkénti díj Price ID (opcionális)
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Mosásonkénti díj Price ID (opcionális)
+                  </label>
+                  <HelpTooltip text="Használatalapú árazonosító a mosások utáni díjazáshoz. Metered billing típusú árként kell létrehozni a Stripe-ban." />
+                </div>
                 <input
                   type="text"
                   value={stripeUsagePriceId}
@@ -689,9 +756,12 @@ export default function PlatformSettingsPage() {
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Számlázó szolgáltató
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Számlázó szolgáltató
+              </label>
+              <HelpTooltip text="Válassza ki a számlázási szolgáltatót. A Billingo és Számlázz.hu a két legelterjedtebb magyar megoldás az automatikus számlázáshoz." />
+            </div>
             <select
               value={invoiceProvider}
               onChange={(e) => setInvoiceProvider(e.target.value)}
@@ -710,9 +780,12 @@ export default function PlatformSettingsPage() {
                 Az eladó adatai a fenti "Platform cégadatok" szekcióból kerülnek a számlákra.
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Agent kulcs
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Agent kulcs
+                  </label>
+                  <HelpTooltip text="A Számlázz.hu Agent kulcsa. A Számlázz.hu fiókjában a Beállítások > Számla Agent menüpont alatt generálható." />
+                </div>
                 <input
                   type="password"
                   value={szamlazzAgentKey}
@@ -733,9 +806,12 @@ export default function PlatformSettingsPage() {
                 A Billingo API kulcsot a <a href="https://app.billingo.hu/api-key" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">Billingo admin</a> felületen tudod létrehozni.
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  API kulcs
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="block text-sm font-medium text-gray-300">
+                    API kulcs
+                  </label>
+                  <HelpTooltip text="A Billingo API kulcsa. A Billingo fiókjában a Beállítások > API menüpont alatt található." />
+                </div>
                 <input
                   type="password"
                   value={billingoApiKey}
@@ -746,9 +822,12 @@ export default function PlatformSettingsPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Számlatömb ID
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      Számlatömb ID
+                    </label>
+                    <HelpTooltip text="A Billingo számlatömb azonosítója. A Billingo > Beállítások > Számlatömbök menüben találod az ID-t." />
+                  </div>
                   <input
                     type="number"
                     value={billingoBlockId}
@@ -759,9 +838,12 @@ export default function PlatformSettingsPage() {
                   <p className="text-xs text-gray-500 mt-1">Billingo → Beállítások → Számlatömbök</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Bankszámla ID (opcionális)
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      Bankszámla ID (opcionális)
+                    </label>
+                    <HelpTooltip text="A Billingo-ban létrehozott bankszámla azonosítója. A számlákon ez a bankszámla jelenik meg fizetési információként." />
+                  </div>
                   <input
                     type="number"
                     value={billingoBankAccountId}
@@ -796,9 +878,12 @@ export default function PlatformSettingsPage() {
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Szolgáltató
-            </label>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="block text-sm font-medium text-gray-300">
+                Szolgáltató
+              </label>
+              <HelpTooltip text="Válassza ki a cégadatlekérdezési szolgáltatót az automatikus cégadatkitöltéshez adószám alapján." />
+            </div>
             <select
               value={companyDataProvider}
               onChange={(e) => setCompanyDataProvider(e.target.value)}
@@ -819,9 +904,12 @@ export default function PlatformSettingsPage() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    API kulcs (felhasználónév)
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      API kulcs (felhasználónév)
+                    </label>
+                    <HelpTooltip text="Az Opten-től kapott API hozzáférési felhasználónév." />
+                  </div>
                   <input
                     type="password"
                     value={optenApiKey}
@@ -831,9 +919,12 @@ export default function PlatformSettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    API titkos kulcs (jelszó)
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      API titkos kulcs (jelszó)
+                    </label>
+                    <HelpTooltip text="Az Opten API titkos kulcsa. Tartsa biztonságban, ne ossza meg senkivel!" />
+                  </div>
                   <input
                     type="password"
                     value={optenApiSecret}
@@ -854,9 +945,12 @@ export default function PlatformSettingsPage() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    API kulcs (Client ID)
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      API kulcs (Client ID)
+                    </label>
+                    <HelpTooltip text="A Bisnode (D&B) API Client ID azonosítója a cégadatok lekérdezéséhez." />
+                  </div>
                   <input
                     type="password"
                     value={bisnodeApiKey}
@@ -866,9 +960,12 @@ export default function PlatformSettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    API titkos kulcs (Client Secret)
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      API titkos kulcs (Client Secret)
+                    </label>
+                    <HelpTooltip text="A Bisnode (D&B) API Client Secret kulcsa. Tartsa titokban!" />
+                  </div>
                   <input
                     type="password"
                     value={bisnodeApiSecret}
@@ -889,9 +986,12 @@ export default function PlatformSettingsPage() {
                 Teljes hozzáféréshez <a href="https://e-cegjegyzek.hu" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">e-akta előfizetés</a> szükséges.
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  API kulcs (opcionális)
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="block text-sm font-medium text-gray-300">
+                    API kulcs (opcionális)
+                  </label>
+                  <HelpTooltip text="Az e-Cégjegyzék API kulcsa a hivatalos magyar cégjegyzék adatainak eléréséhez. Üresen hagyva korlátozott mód." />
+                </div>
                 <input
                   type="password"
                   value={eCegjegyzekApiKey}
@@ -912,9 +1012,12 @@ export default function PlatformSettingsPage() {
               Ez az összeg a Network-ök felé történő havi számlázáskor felszámításra kerül, ha használják a Platform cégadatbázis szolgáltatását.
             </p>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Havi díj (Ft)
-              </label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Havi díj (Ft)
+                </label>
+                <HelpTooltip text="A cégadatbázis szolgáltatás havi díja, amelyet a Network-ök fizetnek, ha igénybe veszik a platform központi szolgáltatását." />
+              </div>
               <input
                 type="number"
                 value={companyDataMonthlyFee ?? ''}

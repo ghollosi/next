@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   HomeIcon,
   BuildingOffice2Icon,
@@ -10,17 +10,25 @@ import {
   TruckIcon,
   UserGroupIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import {
+  getAuthStatus,
+  getSectionFromPath,
+  getLoginPageForSection,
+  filterNavigationForRole,
+  type DocSection
+} from '@/lib/docs-auth'
 
-const navigation = [
-  { name: 'Áttekintés', href: '/docs', icon: HomeIcon },
-  { name: 'Platform Admin', href: '/docs/platform-admin', icon: BuildingOffice2Icon },
-  { name: 'Hálózat Admin', href: '/docs/network-admin', icon: BuildingStorefrontIcon },
-  { name: 'Operátor', href: '/docs/operator', icon: WrenchScrewdriverIcon },
-  { name: 'Sofőr', href: '/docs/driver', icon: TruckIcon },
-  { name: 'Partner', href: '/docs/partner', icon: UserGroupIcon },
+const allNavigation = [
+  { name: 'Áttekintés', href: '/docs', icon: HomeIcon, section: 'overview' as DocSection },
+  { name: 'Platform Admin', href: '/docs/platform-admin', icon: BuildingOffice2Icon, section: 'platform-admin' as DocSection },
+  { name: 'Hálózat Admin', href: '/docs/network-admin', icon: BuildingStorefrontIcon, section: 'network-admin' as DocSection },
+  { name: 'Operátor', href: '/docs/operator', icon: WrenchScrewdriverIcon, section: 'operator' as DocSection },
+  { name: 'Sofőr', href: '/docs/driver', icon: TruckIcon, section: 'driver' as DocSection },
+  { name: 'Partner', href: '/docs/partner', icon: UserGroupIcon, section: 'partner' as DocSection },
 ]
 
 export default function DocsLayout({
@@ -29,7 +37,86 @@ export default function DocsLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [navigation, setNavigation] = useState(allNavigation)
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const authStatus = getAuthStatus()
+      const currentSection = getSectionFromPath(pathname || '/docs')
+
+      // Check if user is authenticated
+      if (!authStatus.isAuthenticated) {
+        const loginPage = getLoginPageForSection(currentSection || 'overview')
+        router.push(loginPage)
+        return
+      }
+
+      // Check if user can access this section
+      if (currentSection && !authStatus.allowedSections.includes(currentSection)) {
+        // Redirect to the first allowed section
+        if (authStatus.allowedSections.length > 0) {
+          const firstAllowed = authStatus.allowedSections[0]
+          if (firstAllowed === 'overview') {
+            router.push('/docs')
+          } else {
+            router.push(`/docs/${firstAllowed}`)
+          }
+        } else {
+          router.push('/login')
+        }
+        return
+      }
+
+      // Filter navigation based on role
+      const filteredNav = allNavigation.filter(item =>
+        authStatus.allowedSections.includes(item.section)
+      )
+      setNavigation(filteredNav)
+      setIsAuthorized(true)
+      setIsLoading(false)
+    }
+
+    checkAuth()
+  }, [pathname, router])
+
+  // Get back link based on user role
+  const getBackLink = () => {
+    const authStatus = getAuthStatus()
+    switch (authStatus.role) {
+      case 'PLATFORM_OWNER':
+      case 'PLATFORM_ADMIN':
+        return '/platform-admin/dashboard'
+      case 'NETWORK_OWNER':
+      case 'NETWORK_ADMIN':
+      case 'NETWORK_CONTROLLER':
+      case 'NETWORK_ACCOUNTANT':
+        return '/network-admin/dashboard'
+      case 'OPERATOR':
+        return '/operator-portal/dashboard'
+      case 'PARTNER':
+        return '/partner/dashboard'
+      case 'DRIVER':
+        return '/dashboard'
+      default:
+        return '/'
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      </div>
+    )
+  }
+
+  if (!isAuthorized) {
+    return null // Will redirect
+  }
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -91,10 +178,11 @@ export default function DocsLayout({
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-700">
             <Link
-              href="/"
+              href={getBackLink()}
               className="text-gray-400 hover:text-white text-sm flex items-center gap-2"
             >
-              ← Vissza az alkalmazásba
+              <ArrowLeftOnRectangleIcon className="w-4 h-4" />
+              Vissza az alkalmazásba
             </Link>
           </div>
         </div>
