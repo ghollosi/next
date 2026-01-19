@@ -69,6 +69,14 @@ export default function NetworkAdminLayout({
     // Check for Platform View mode first
     const platformViewData = getPlatformViewData();
     if (platformViewData) {
+      // Also verify that we have a valid Platform Admin token
+      const platformToken = localStorage.getItem('vsys_platform_token');
+      if (!platformToken) {
+        // No Platform Admin token - clear Platform View data and redirect
+        sessionStorage.removeItem('vsys_platform_view');
+        router.push('/platform-admin');
+        return;
+      }
       setIsPlatformView(true);
       setPlatformViewNetwork(platformViewData.networkName);
       setAdmin({
@@ -120,6 +128,7 @@ export default function NetworkAdminLayout({
     { href: '/network-admin/audit-logs', label: 'Audit napló', icon: '📋' },
     { href: '/network-admin/subscription', label: 'Előfizetés', icon: '💳' },
     { href: '/network-admin/settings', label: 'Beállítások', icon: '⚙️' },
+    { href: '/docs/network-admin', label: 'Dokumentáció', icon: '📚' },
   ];
 
   // Filter nav items for Platform View - hide sensitive items

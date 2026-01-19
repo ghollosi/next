@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { networkAdminApi, fetchOperatorApi } from '@/lib/network-admin-api';
+import { networkAdminApi, fetchOperatorApi, isPlatformViewMode } from '@/lib/network-admin-api';
 
 type LocationVisibility = 'PUBLIC' | 'NETWORK_ONLY' | 'DEDICATED';
 
@@ -92,6 +92,16 @@ export default function LocationEditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isPlatformView, setIsPlatformView] = useState(false);
+
+  // Check if in Platform View mode - redirect to details page
+  useEffect(() => {
+    if (isPlatformViewMode()) {
+      setIsPlatformView(true);
+      // Platform View mode is read-only, redirect to details page
+      router.replace(`/network-admin/locations/${locationId}`);
+    }
+  }, [locationId, router]);
 
   const [form, setForm] = useState({
     name: '',
@@ -362,10 +372,12 @@ export default function LocationEditPage() {
     pkg => pkg.isActive && !locationServices.some(ls => ls.servicePackageId === pkg.id)
   );
 
-  if (loading) {
+  if (loading || isPlatformView) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-gray-500">Betoltes...</div>
+        <div className="text-gray-500">
+          {isPlatformView ? 'Atiranyitas...' : 'Betoltes...'}
+        </div>
       </div>
     );
   }

@@ -79,16 +79,41 @@ export class NetworkAdminController {
     private readonly platformAdminService: PlatformAdminService,
   ) {}
 
-  private async validateAuth(authHeader: string | undefined): Promise<{
+  private async validateAuth(
+    authHeader: string | undefined,
+    platformViewHeader?: string,
+    networkIdHeader?: string,
+  ): Promise<{
     adminId: string;
     role: string;
     networkId: string;
+    isPlatformView?: boolean;
   }> {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('Nincs bejelentkezve');
     }
 
     const token = authHeader.substring(7);
+
+    // Check if this is Platform View mode
+    if (platformViewHeader === 'true' && networkIdHeader) {
+      // Validate Platform Admin token
+      const platformResult = await this.platformAdminService.validateToken(token);
+
+      if (!platformResult) {
+        throw new UnauthorizedException('Érvénytelen vagy lejárt token');
+      }
+
+      // Return Platform View context - read-only access
+      return {
+        adminId: platformResult.adminId,
+        role: 'platform_view',
+        networkId: networkIdHeader,
+        isPlatformView: true,
+      };
+    }
+
+    // Normal Network Admin authentication
     const result = await this.networkAdminService.validateToken(token);
 
     if (!result) {
@@ -902,8 +927,10 @@ export class NetworkAdminController {
   async listLocationOperators(
     @Param('locationId') locationId: string,
     @Headers('authorization') auth?: string,
+    @Headers('x-platform-view') platformView?: string,
+    @Headers('x-network-id') networkIdHeader?: string,
   ): Promise<any[]> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuth(auth, platformView, networkIdHeader);
     return this.networkAdminService.listLocationOperators(networkId, locationId);
   }
 
@@ -1072,8 +1099,10 @@ export class NetworkAdminController {
   async listLocationServices(
     @Param('locationId') locationId: string,
     @Headers('authorization') auth?: string,
+    @Headers('x-platform-view') platformView?: string,
+    @Headers('x-network-id') networkIdHeader?: string,
   ): Promise<any[]> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuth(auth, platformView, networkIdHeader);
     return this.networkAdminService.listLocationServices(networkId, locationId);
   }
 
@@ -1690,8 +1719,10 @@ export class NetworkAdminController {
   async listBlockedTimeSlots(
     @Query('locationId') locationId?: string,
     @Headers('authorization') auth?: string,
+    @Headers('x-platform-view') platformView?: string,
+    @Headers('x-network-id') networkIdHeader?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuth(auth, platformView, networkIdHeader);
     return this.bookingService.listBlockedTimeSlots(networkId, locationId);
   }
 

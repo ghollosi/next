@@ -45,3 +45,4 @@ temp/
 # Docker volumes (if any local mounts)
 .docker/
 backup/**/database_dump.sql
+backup/

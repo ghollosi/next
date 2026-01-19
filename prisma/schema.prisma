@@ -288,6 +288,28 @@ enum BillingCycle {
   WEEKLY      // Heti számlázás (hétfő-vasárnap)
 }
 
+enum LocationStatementStatus {
+  GENERATED     // Kimutatás generálva, várakozik számla kiállításra
+  INVOICE_PENDING // Számla kiállítás folyamatban
+  INVOICED      // Számla kiállítva
+  PAID          // Számla kifizetve
+}
+
+enum LocationInvoiceStatus {
+  DRAFT         // Előkészített, még nem kiállított
+  ISSUED        // Kiállított
+  SENT          // Elküldött
+  PAID          // Kifizetve
+  CANCELLED     // Sztornózott
+  OVERDUE       // Lejárt fizetési határidő
+}
+
+enum LocationInvoiceType {
+  WALK_IN       // Walk-in ügyfél helyszíni számla
+  PARTNER       // Alvállalkozó saját partnere felé gyűjtőszámla
+  NETWORK       // Network felé kiállított gyűjtőszámla
+}
+
 enum PaymentMethod {
   CASH        // Készpénz
   CARD        // Bankkártya
@@ -456,6 +478,10 @@ model Location {
   subcontractorContactEmail String? @map("subcontractor_contact_email") // Kapcsolattartó email címe
   subcontractorBankAccount  String? @map("subcontractor_bank_account")  // Bankszámlaszám
 
+  // Alvállalkozói számlázási beállítások (Network admin állítja be)
+  subcontractorBillingCycle       BillingCycle? @map("subcontractor_billing_cycle")  // MONTHLY vagy WEEKLY (Network felé számlázáshoz)
+  subcontractorAutoInvoiceEnabled Boolean @default(false) @map("subcontractor_auto_invoice_enabled") // Automatikus számla kiállítás engedélyezve
+
   // Relations
   network                     Network                       @relation(fields: [networkId], references: [id])
   serviceAvailability         LocationServiceAvailability[]
@@ -464,6 +490,11 @@ model Location {
   openingHoursStructured      LocationOpeningHours[]
   blockedTimeSlots            BlockedTimeSlot[]
   bookings                    Booking[]
+  // Alvállalkozó számlázási kapcsolatok
+  billingSettings             LocationBillingSettings?
+  partnerCompanies            LocationPartner[]
+  statements                  LocationStatement[]
+  invoices                    LocationInvoice[]
 
   @@unique([networkId, code])
   @@index([networkId])
@@ -727,6 +758,7 @@ model WashEvent {
   networkId            String          @map("network_id")
   locationId           String          @map("location_id")
   partnerCompanyId     String?         @map("partner_company_id")  // Nullable: privát ügyfélnek/walk-in-nek nincs partnere
+  locationPartnerId    String?         @map("location_partner_id") // Alvállalkozó saját partnere (ha van)
   servicePackageId     String?         @map("service_package_id") // DEPRECATED - használd a services relációt
 
   // Entry mode and status
@@ -768,6 +800,7 @@ model WashEvent {
   paymentMethod        PaymentMethod?  @map("payment_method")
   paidAt               DateTime?       @map("paid_at")
   invoiceId            String?         @map("invoice_id")
+  locationInvoiceId    String?         @map("location_invoice_id") // Alvállalkozó számlája (ha van)
 
   // Walk-in ügyfél számlázási adatai (egyszeri, nem mentjük a driverhez)
   walkInInvoiceRequested  Boolean   @default(false) @map("walk_in_invoice_requested")  // Kért-e számlát
@@ -784,26 +817,30 @@ model WashEvent {
   updatedAt            DateTime        @updatedAt
 
   // Relations
-  network        Network        @relation(fields: [networkId], references: [id])
-  location       Location       @relation(fields: [locationId], references: [id])
-  partnerCompany PartnerCompany? @relation(fields: [partnerCompanyId], references: [id])  // Opcionális: walk-in/privát ügyfélnek nincs
-  servicePackage ServicePackage? @relation(fields: [servicePackageId], references: [id])
-  driver         Driver?        @relation(fields: [driverId], references: [id])
-  tractorVehicle Vehicle?       @relation("TractorVehicle", fields: [tractorVehicleId], references: [id])
-  trailerVehicle Vehicle?       @relation("TrailerVehicle", fields: [trailerVehicleId], references: [id])
-  auditLogs      AuditLog[]
-  invoice        Invoice?       @relation(fields: [invoiceId], references: [id])
-  services       WashEventService[]  // Több szolgáltatás a mosáshoz
-  deleteRequests WashDeleteRequest[] // Törlési kérelmek
-  booking        Booking?       // Kapcsolt foglalás (ha foglalásból indult)
+  network         Network          @relation(fields: [networkId], references: [id])
+  location        Location         @relation(fields: [locationId], references: [id])
+  partnerCompany  PartnerCompany?  @relation(fields: [partnerCompanyId], references: [id])  // Opcionális: walk-in/privát ügyfélnek nincs
+  locationPartner LocationPartner? @relation(fields: [locationPartnerId], references: [id]) // Alvállalkozó saját partnere
+  servicePackage  ServicePackage?  @relation(fields: [servicePackageId], references: [id])
+  driver          Driver?          @relation(fields: [driverId], references: [id])
+  tractorVehicle  Vehicle?         @relation("TractorVehicle", fields: [tractorVehicleId], references: [id])
+  trailerVehicle  Vehicle?         @relation("TrailerVehicle", fields: [trailerVehicleId], references: [id])
+  auditLogs       AuditLog[]
+  invoice         Invoice?         @relation(fields: [invoiceId], references: [id])
+  locationInvoice LocationInvoice? @relation(fields: [locationInvoiceId], references: [id]) // Alvállalkozó számlája
+  services        WashEventService[]  // Több szolgáltatás a mosáshoz
+  deleteRequests  WashDeleteRequest[] // Törlési kérelmek
+  booking         Booking?         // Kapcsolt foglalás (ha foglalásból indult)
 
   @@index([networkId])
   @@index([locationId])
   @@index([partnerCompanyId])
+  @@index([locationPartnerId])
   @@index([driverId])
   @@index([status])
   @@index([createdAt])
   @@index([invoiceId])
+  @@index([locationInvoiceId])
   @@index([locationId, status])
   @@index([networkId, status, createdAt])
   @@map("wash_events")
@@ -1951,4 +1988,260 @@ model PaymentTransaction {
   @@index([status])
   @@index([providerTransactionId])
   @@map("payment_transactions")
+}
+
+// =============================================================================
+// LOCATION BILLING SETTINGS (Alvállalkozó számlázási beállítások)
+// =============================================================================
+
+model LocationBillingSettings {
+  id         String @id @default(uuid())
+  locationId String @unique @map("location_id")
+
+  // Számlázó szolgáltató (alvállalkozó saját beállítása)
+  invoiceProvider       InvoiceProvider @default(NONE) @map("invoice_provider")
+  szamlazzAgentKey      String?         @map("szamlazz_agent_key")
+  billingoApiKey        String?         @map("billingo_api_key")
+  billingoBlockId       Int?            @map("billingo_block_id")
+  billingoBankAccountId Int?            @map("billingo_bank_account_id")
+  navOnlineUser         String?         @map("nav_online_user")
+  navOnlinePassword     String?         @map("nav_online_password")
+  navOnlineTaxNum       String?         @map("nav_online_tax_num")
+  navOnlineSignKey      String?         @map("nav_online_sign_key")
+  navOnlineExchKey      String?         @map("nav_online_exch_key")
+
+  // Eladó adatok (alvállalkozó cégadatai - számlára kerül)
+  sellerName            String?  @map("seller_name")
+  sellerAddress         String?  @map("seller_address")
+  sellerCity            String?  @map("seller_city")
+  sellerZipCode         String?  @map("seller_zip_code")
+  sellerCountry         String   @default("HU") @map("seller_country")
+  sellerTaxNumber       String?  @map("seller_tax_number")
+  sellerEuVatNumber     String?  @map("seller_eu_vat_number")
+  sellerBankAccount     String?  @map("seller_bank_account")
+  sellerBankName        String?  @map("seller_bank_name")
+
+  // Kapcsolattartó
+  contactEmail          String?  @map("contact_email")
+  contactPhone          String?  @map("contact_phone")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("location_billing_settings")
+}
+
+// =============================================================================
+// LOCATION PARTNER (Alvállalkozó saját partnerei)
+// =============================================================================
+
+model LocationPartner {
+  id          String   @id @default(uuid())
+  locationId  String   @map("location_id")
+  name        String
+  code        String   // Rövid azonosító
+  contactName String?  @map("contact_name")
+  email       String?
+  phone       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Számlázási adatok
+  billingType    BillingType   @default(CONTRACT) @map("billing_type")
+  billingCycle   BillingCycle? @map("billing_cycle")  // Csak CONTRACT esetén releváns
+  billingName    String?       @map("billing_name")   // Számlázási név
+  billingAddress String?       @map("billing_address")
+  billingCity    String?       @map("billing_city")
+  billingZipCode String?       @map("billing_zip_code")
+  billingCountry String?       @map("billing_country") @default("HU")
+  taxNumber      String?       @map("tax_number")      // Adószám
+  euVatNumber    String?       @map("eu_vat_number")   // EU adószám
+  paymentDueDays Int           @default(8) @map("payment_due_days")
+
+  // Kedvezmények - 5 sávos kedvezmény rendszer
+  discountThreshold1 Int?    @map("discount_threshold_1")
+  discountPercent1   Float?  @map("discount_percent_1")
+  discountThreshold2 Int?    @map("discount_threshold_2")
+  discountPercent2   Float?  @map("discount_percent_2")
+  discountThreshold3 Int?    @map("discount_threshold_3")
+  discountPercent3   Float?  @map("discount_percent_3")
+  discountThreshold4 Int?    @map("discount_threshold_4")
+  discountPercent4   Float?  @map("discount_percent_4")
+  discountThreshold5 Int?    @map("discount_threshold_5")
+  discountPercent5   Float?  @map("discount_percent_5")
+
+  // Relations
+  location   Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  washEvents WashEvent[]
+  invoices   LocationInvoice[]
+
+  @@unique([locationId, code])
+  @@unique([locationId, taxNumber]) // Egy helyszínen nem lehet két partner ugyanazzal az adószámmal
+  @@index([locationId])
+  @@index([billingType])
+  @@index([taxNumber])
+  @@map("location_partners")
+}
+
+// =============================================================================
+// LOCATION STATEMENT (Kimutatás az alvállalkozó mosásairól a Network felé)
+// =============================================================================
+
+model LocationStatement {
+  id         String   @id @default(uuid())
+  locationId String   @map("location_id")
+
+  // Időszak
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  periodLabel String   @map("period_label") // pl. "2026. január"
+
+  // Statisztikák
+  washCount    Int     @map("wash_count")
+  totalAmount  Decimal @db.Decimal(10, 2) @map("total_amount")
+  currency     String  @default("HUF")
+
+  // Státusz
+  status LocationStatementStatus @default(GENERATED)
+
+  // Számla kapcsolat (ha már kiállították)
+  invoiceId String? @unique @map("invoice_id")
+
+  // Értesítés
+  sentAt     DateTime? @map("sent_at")
+  sentToEmail String?  @map("sent_to_email")
+
+  // PDF letöltési link (opcionális)
+  pdfUrl     String?  @map("pdf_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  location Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  invoice  LocationInvoice? @relation(fields: [invoiceId], references: [id])
+
+  @@index([locationId])
+  @@index([periodStart])
+  @@index([status])
+  @@map("location_statements")
+}
+
+// =============================================================================
+// LOCATION INVOICE (Alvállalkozó által kiállított számlák)
+// =============================================================================
+
+model LocationInvoice {
+  id                 String   @id @default(uuid())
+  locationId         String   @map("location_id")
+  locationPartnerId  String?  @map("location_partner_id")  // NULL ha walk-in vagy Network felé
+
+  // Számla típusa
+  invoiceType        LocationInvoiceType @map("invoice_type")
+
+  // Számla azonosítók
+  invoiceNumber      String?  @unique @map("invoice_number")
+  externalId         String?  @map("external_id")
+
+  // Időszak (gyűjtőszámláknál)
+  periodStart        DateTime? @map("period_start")
+  periodEnd          DateTime? @map("period_end")
+  periodLabel        String?   @map("period_label") // pl. "2026. január járműmosás gyűjtőszámla"
+
+  // Összegek
+  subtotal           Decimal  @db.Decimal(10, 2)
+  vatRate            Float    @default(27) @map("vat_rate")
+  vatAmount          Decimal  @db.Decimal(10, 2) @map("vat_amount")
+  total              Decimal  @db.Decimal(10, 2)
+  currency           String   @default("HUF")
+
+  // Kedvezmények
+  discountPercent    Float?   @map("discount_percent")
+  discountAmount     Decimal? @db.Decimal(10, 2) @map("discount_amount")
+
+  // Státusz és dátumok
+  status             LocationInvoiceStatus @default(DRAFT)
+  issueDate          DateTime? @map("issue_date")
+  dueDate            DateTime? @map("due_date")
+  paidDate           DateTime? @map("paid_date")
+  cancelledAt        DateTime? @map("cancelled_at")
+
+  // Fizetési mód (walk-in számláknál)
+  paymentMethod      PaymentMethod? @map("payment_method")
+
+  // Vevő adatok pillanatképe
+  buyerName          String   @map("buyer_name")
+  buyerAddress       String   @map("buyer_address")
+  buyerCity          String   @map("buyer_city")
+  buyerZipCode       String   @map("buyer_zip_code")
+  buyerCountry       String   @default("HU") @map("buyer_country")
+  buyerTaxNumber     String?  @map("buyer_tax_number")
+  buyerEuVatNumber   String?  @map("buyer_eu_vat_number")
+  buyerEmail         String?  @map("buyer_email")
+
+  // Eladó adatok pillanatképe (alvállalkozó adatai)
+  sellerName         String   @map("seller_name")
+  sellerAddress      String   @map("seller_address")
+  sellerCity         String   @map("seller_city")
+  sellerZipCode      String   @map("seller_zip_code")
+  sellerCountry      String   @default("HU") @map("seller_country")
+  sellerTaxNumber    String?  @map("seller_tax_number")
+  sellerEuVatNumber  String?  @map("seller_eu_vat_number")
+  sellerBankAccount  String?  @map("seller_bank_account")
+  sellerBankName     String?  @map("seller_bank_name")
+
+  // Számlázó szolgáltató válasz
+  providerName       String?  @map("provider_name")  // 'szamlazz', 'billingo', 'nav'
+  providerPdfUrl     String?  @map("provider_pdf_url")
+  providerResponse   Json?    @map("provider_response")
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  location        Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  locationPartner LocationPartner?  @relation(fields: [locationPartnerId], references: [id])
+  items           LocationInvoiceItem[]
+  washEvents      WashEvent[]
+  statement       LocationStatement? // Network felé kiállított számla kimutatása
+
+  @@index([locationId])
+  @@index([locationPartnerId])
+  @@index([invoiceType])
+  @@index([status])
+  @@index([issueDate])
+  @@map("location_invoices")
+}
+
+// =============================================================================
+// LOCATION INVOICE ITEM (Alvállalkozó számla tételek)
+// =============================================================================
+
+model LocationInvoiceItem {
+  id                 String   @id @default(uuid())
+  locationInvoiceId  String   @map("location_invoice_id")
+
+  // Tétel adatok
+  description        String
+  quantity           Int      @default(1)
+  unitPrice          Decimal  @db.Decimal(10, 2) @map("unit_price")
+  totalPrice         Decimal  @db.Decimal(10, 2) @map("total_price")
+  vatRate            Float    @default(27) @map("vat_rate")
+
+  // Referenciák
+  washEventId        String?  @map("wash_event_id")
+  vehicleType        VehicleType? @map("vehicle_type")
+
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  // Relations
+  locationInvoice LocationInvoice @relation(fields: [locationInvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([locationInvoiceId])
+  @@map("location_invoice_items")
 }
