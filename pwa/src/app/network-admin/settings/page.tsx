@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import HelpTooltip from '@/components/ui/HelpTooltip';
 
 interface Settings {
   network: {
@@ -405,9 +406,12 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cégnév *
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Cégnév *
+                    </label>
+                    <HelpTooltip text="A hálózat hivatalos cégneve, amely a számlákon és hivatalos dokumentumokon megjelenik." />
+                  </div>
                   <input
                     type="text"
                     value={settings.company.companyName || ''}
@@ -417,9 +421,12 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Adószám *
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Adószám *
+                    </label>
+                    <HelpTooltip text="A cég adószáma (pl. 12345678-1-42). Kötelező a számlaküldéshez és NAV adatszolgáltatáshoz." />
+                  </div>
                   <input
                     type="text"
                     value={settings.company.taxNumber || ''}
@@ -432,9 +439,12 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    EU ÁFA szám
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      EU ÁFA szám
+                    </label>
+                    <HelpTooltip text="EU közösségi adószám (pl. HU12345678). EU-n belüli szolgáltatásnyújtáshoz és fordított ÁFA-s ügyletekhez szükséges." />
+                  </div>
                   <input
                     type="text"
                     value={settings.company.euVatNumber || ''}
@@ -444,9 +454,12 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ország
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Ország
+                    </label>
+                    <HelpTooltip text="A cég bejegyzési országa. Ez határozza meg az alapértelmezett ÁFA kulcsokat és számlázási szabályokat." />
+                  </div>
                   <select
                     value={settings.company.companyCountry || ''}
                     onChange={(e) => updateSettings('company', 'companyCountry', e.target.value)}
@@ -461,9 +474,12 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cím
-                </label>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Cím
+                  </label>
+                  <HelpTooltip text="A cég székhelyének utca és házszám adata. A számlákon és hivatalos iratokon megjelenik." />
+                </div>
                 <input
                   type="text"
                   value={settings.company.companyAddress || ''}
@@ -505,9 +521,12 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bank neve
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Bank neve
+                    </label>
+                    <HelpTooltip text="A számlavezető bank neve. A számlákon fizetési információként jelenik meg." />
+                  </div>
                   <input
                     type="text"
                     value={settings.company.bankName || ''}
@@ -517,9 +536,12 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Számlaszám
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Számlaszám
+                    </label>
+                    <HelpTooltip text="Magyar formátumú bankszámlaszám (pl. 11111111-22222222-33333333). Átutalásos fizetésekhez szükséges." />
+                  </div>
                   <input
                     type="text"
                     value={settings.company.bankAccountNumber || ''}
@@ -531,9 +553,12 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  IBAN
-                </label>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    IBAN
+                  </label>
+                  <HelpTooltip text="Nemzetközi bankszámlaszám formátum. Külföldi partnerekkel való elszámoláshoz és nemzetközi utalásokhoz ajánlott." />
+                </div>
                 <input
                   type="text"
                   value={settings.company.bankAccountIban || ''}
@@ -548,9 +573,12 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email
+                    </label>
+                    <HelpTooltip text="A hálózat kapcsolattartási email címe. Ide érkeznek a rendszer értesítések és az ügyfelek megkeresései." />
+                  </div>
                   <input
                     type="email"
                     value={settings.contact.contactEmail || ''}
@@ -560,9 +588,12 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Telefon
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Telefon
+                    </label>
+                    <HelpTooltip text="A hálózat kapcsolattartási telefonszáma. Sürgős esetben és ügyfélszolgálati célokra használható." />
+                  </div>
                   <input
                     type="tel"
                     value={settings.contact.contactPhone || ''}
@@ -580,9 +611,12 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ország
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Ország
+                    </label>
+                    <HelpTooltip text="A hálózat működési országa. Meghatározza az alapértelmezett regionális beállításokat és jogszabályi megfelelést." />
+                  </div>
                   <select
                     value={settings.network.country || ''}
                     onChange={(e) => updateSettings('network', 'country', e.target.value)}
@@ -595,9 +629,12 @@ export default function SettingsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Időzóna
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Időzóna
+                    </label>
+                    <HelpTooltip text="A hálózat időzónája. A mosások időbélyegei, ütemezett feladatok és riportok ezt az időzónát használják." />
+                  </div>
                   <select
                     value={settings.network.timezone || ''}
                     onChange={(e) => updateSettings('network', 'timezone', e.target.value)}
@@ -613,9 +650,12 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Alapértelmezett pénznem
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Alapértelmezett pénznem
+                    </label>
+                    <HelpTooltip text="Az alapértelmezett pénznem az árak, számlák és pénzügyi kimutatások megjelenítéséhez. Később több pénznem is hozzáadható." />
+                  </div>
                   <select
                     value={settings.network.defaultCurrency || ''}
                     onChange={(e) => updateSettings('network', 'defaultCurrency', e.target.value)}
@@ -628,9 +668,12 @@ export default function SettingsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nyelv
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Nyelv
+                    </label>
+                    <HelpTooltip text="A hálózat alapértelmezett nyelve. A felhasználói felület, értesítések és dokumentumok ezen a nyelven jelennek meg." />
+                  </div>
                   <select
                     value={settings.network.defaultLanguage || 'hu'}
                     onChange={(e) => updateSettings('network', 'defaultLanguage', e.target.value)}
@@ -855,9 +898,12 @@ export default function SettingsPage() {
           {activeTab === 'invoicing' && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Számlázó rendszer
-                </label>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Számlázó rendszer
+                  </label>
+                  <HelpTooltip text="Válassza ki a számlázási szolgáltatót az automatikus számlakiállításhoz. A Számlázz.hu és Billingo a legnépszerűbb magyar megoldások." />
+                </div>
                 <select
                   value={settings.invoicing.invoiceProvider || 'none'}
                   onChange={(e) => updateSettings('invoicing', 'invoiceProvider', e.target.value)}
@@ -873,9 +919,12 @@ export default function SettingsPage() {
                 <div className="bg-blue-50 rounded-xl p-4 space-y-4">
                   <h4 className="font-semibold text-blue-900">Számlázz.hu beállítások</h4>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Agent kulcs
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Agent kulcs
+                      </label>
+                      <HelpTooltip text="A Számlázz.hu Agent kulcsa az automatikus számlázáshoz. A Számlázz.hu fiókban: Beállítások > Számla Agent menüpont." />
+                    </div>
                     <input
                       type="password"
                       value={settings.invoicing.szamlazzAgentKey || ''}
@@ -897,9 +946,12 @@ export default function SettingsPage() {
                     A Billingo API kulcsot a <a href="https://app.billingo.hu/api-key" target="_blank" rel="noopener noreferrer" className="underline">Billingo admin</a> felületen tudod létrehozni.
                   </p>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API kulcs *
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        API kulcs *
+                      </label>
+                      <HelpTooltip text="A Billingo API kulcsa a számlák automatikus kiállításához. A Billingo fiókban a Beállítások > API menüpont alatt található." />
+                    </div>
                     <input
                       type="password"
                       value={settings.invoicing.billingoApiKey || ''}
@@ -910,9 +962,12 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Számlatömb ID *
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Számlatömb ID *
+                        </label>
+                        <HelpTooltip text="A Billingo számlatömb azonosítója. A Billingo > Beállítások > Számlatömbök menüben találod. Minden számlatömbnek egyedi ID-ja van." />
+                      </div>
                       <input
                         type="number"
                         value={settings.invoicing.billingoBlockId || ''}
@@ -925,9 +980,12 @@ export default function SettingsPage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bankszámla ID (opcionális)
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Bankszámla ID (opcionális)
+                        </label>
+                        <HelpTooltip text="A Billingo-ban létrehozott bankszámla azonosítója. A számlákon ez a bankszámla jelenik meg fizetési információként." />
+                      </div>
                       <input
                         type="number"
                         value={settings.invoicing.billingoBankAccountId || ''}
@@ -952,9 +1010,12 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    NAV felhasználónév
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      NAV felhasználónév
+                    </label>
+                    <HelpTooltip text="A NAV Online Számla rendszerhez létrehozott technikai felhasználó neve. A NAV honlapján, az Online Számla portálon hozható létre." />
+                  </div>
                   <input
                     type="text"
                     value={settings.invoicing.navOnlineUser || ''}
@@ -964,9 +1025,12 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Adószám (NAV)
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Adószám (NAV)
+                    </label>
+                    <HelpTooltip text="A NAV-nál regisztrált 8 jegyű adószám törzs (az adószám első 8 karaktere, kötőjelek nélkül)." />
+                  </div>
                   <input
                     type="text"
                     value={settings.invoicing.navOnlineTaxNum || ''}
@@ -1195,9 +1259,12 @@ export default function SettingsPage() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Email beállítások</h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email szolgáltató
-                </label>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Email szolgáltató
+                  </label>
+                  <HelpTooltip text="Válassza ki az email küldési szolgáltatót. Platform: a központi szolgáltatást használja. SMTP/Resend: saját email szervert használ." />
+                </div>
                 <select
                   value={settings.email.emailProvider || 'PLATFORM'}
                   onChange={(e) => updateSettings('email', 'emailProvider', e.target.value)}
@@ -1218,9 +1285,12 @@ export default function SettingsPage() {
                 <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        SMTP szerver
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          SMTP szerver
+                        </label>
+                        <HelpTooltip text="Az SMTP szerver címe (pl. smtp.gmail.com, smtp.office365.com). Az email szolgáltatódtól kapod meg ezt az információt." />
+                      </div>
                       <input
                         type="text"
                         value={settings.email.smtpHost || ''}
@@ -1230,9 +1300,12 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Port
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Port
+                        </label>
+                        <HelpTooltip text="Az SMTP port száma. Általában: 587 (TLS), 465 (SSL), 25 (nem titkosított - nem ajánlott)." />
+                      </div>
                       <input
                         type="number"
                         value={settings.email.smtpPort || 587}
@@ -1243,9 +1316,12 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        SMTP felhasználó
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          SMTP felhasználó
+                        </label>
+                        <HelpTooltip text="Az SMTP hitelesítéshez használt felhasználónév. Általában az email cím vagy egy külön létrehozott felhasználó." />
+                      </div>
                       <input
                         type="text"
                         value={settings.email.smtpUser || ''}
@@ -1255,9 +1331,12 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        SMTP jelszó
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          SMTP jelszó
+                        </label>
+                        <HelpTooltip text="Az SMTP hitelesítéshez használt jelszó. Gmail esetén alkalmazásjelszó szükséges, nem a normál fiók jelszava." />
+                      </div>
                       <input
                         type="password"
                         value={settings.email.smtpPassword || ''}
@@ -1269,9 +1348,12 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Feladó email
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Feladó email
+                        </label>
+                        <HelpTooltip text="Az email cím, amelyről a levelek kimennek. A címzettek ezt látják feladóként." />
+                      </div>
                       <input
                         type="email"
                         value={settings.email.smtpFromEmail || ''}
@@ -1281,9 +1363,12 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Feladó név
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Feladó név
+                        </label>
+                        <HelpTooltip text="A feladó megjelenített neve az emailekben. Ez jelenik meg a címzett postafiókjában a feladó neveként." />
+                      </div>
                       <input
                         type="text"
                         value={settings.email.smtpFromName || ''}
@@ -1299,9 +1384,12 @@ export default function SettingsPage() {
               {settings.email.emailProvider === 'RESEND' && (
                 <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Resend API kulcs
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Resend API kulcs
+                      </label>
+                      <HelpTooltip text="A Resend szolgáltatás API kulcsa. A resend.com oldalon regisztráció után hozható létre az API Keys menüpontban." />
+                    </div>
                     <input
                       type="password"
                       value={settings.email.resendApiKey || ''}
@@ -1315,9 +1403,12 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Feladó email
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Feladó email
+                        </label>
+                        <HelpTooltip text="Az email cím, amelyről a levelek kimennek. Resend esetén a domain-t előbb hitelesíteni kell." />
+                      </div>
                       <input
                         type="email"
                         value={settings.email.smtpFromEmail || ''}
@@ -1327,9 +1418,12 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Feladó név
-                      </label>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Feladó név
+                        </label>
+                        <HelpTooltip text="A feladó megjelenített neve az emailekben. Ez jelenik meg a címzett postafiókjában." />
+                      </div>
                       <input
                         type="text"
                         value={settings.email.smtpFromName || ''}
@@ -1351,9 +1445,12 @@ export default function SettingsPage() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">SMS beállítások</h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  SMS szolgáltató
-                </label>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    SMS szolgáltató
+                  </label>
+                  <HelpTooltip text="SMS küldési szolgáltató kiválasztása. A Twilio a legelterjedtebb megoldás programozott SMS küldéshez." />
+                </div>
                 <select
                   value={settings.sms.smsProvider || 'none'}
                   onChange={(e) => updateSettings('sms', 'smsProvider', e.target.value)}
@@ -1367,9 +1464,12 @@ export default function SettingsPage() {
               {settings.sms.smsProvider === 'twilio' && (
                 <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Twilio Account SID
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Twilio Account SID
+                      </label>
+                      <HelpTooltip text="A Twilio fiók SID azonosítója. A Twilio Console főoldalán található 'Account SID' mezőben." />
+                    </div>
                     <input
                       type="text"
                       value={settings.sms.twilioAccountSid || ''}
@@ -1379,9 +1479,12 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Twilio telefonszám
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Twilio telefonszám
+                      </label>
+                      <HelpTooltip text="A Twilio-tól kapott telefonszám, amelyről az SMS-ek kimennek. Nemzetközi formátumban add meg (pl. +36701234567)." />
+                    </div>
                     <input
                       type="text"
                       value={settings.sms.twilioPhoneNumber || ''}
@@ -1398,7 +1501,10 @@ export default function SettingsPage() {
           {/* Business Tab */}
           {activeTab === 'business' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Fizetési módok</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Fizetési módok</h3>
+                <HelpTooltip text="Állítsa be, hogy az ügyfelek milyen fizetési módokat használhatnak a mosások kifizetéséhez." />
+              </div>
 
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -1408,7 +1514,10 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'allowCashPayment', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <span className="text-gray-700">Készpénzes fizetés engedélyezése</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-700">Készpénzes fizetés engedélyezése</span>
+                    <HelpTooltip text="Engedélyezi a készpénzes fizetést az operátoroknál. Az operátor manuálisan rögzíti a fizetést." />
+                  </div>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -1417,7 +1526,10 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'allowCardPayment', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <span className="text-gray-700">Bankkártyás fizetés engedélyezése</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-700">Bankkártyás fizetés engedélyezése</span>
+                    <HelpTooltip text="Engedélyezi a bankkártyás fizetést. Online fizetéshez Stripe integráció szükséges." />
+                  </div>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -1426,12 +1538,18 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'allowFuelCards', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <span className="text-gray-700">Üzemanyagkártyás fizetés engedélyezése</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-700">Üzemanyagkártyás fizetés engedélyezése</span>
+                    <HelpTooltip text="Engedélyezi üzemanyagkártyák (MOL, Shell, stb.) elfogadását. A kártya adatok rögzítése szükséges." />
+                  </div>
                 </label>
               </div>
 
               <hr className="my-6" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Regisztráció és jóváhagyás</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Regisztráció és jóváhagyás</h3>
+                <HelpTooltip text="Szabályozza, hogyan regisztrálhatnak és válhatnak aktívvá a sofőrök a rendszerben." />
+              </div>
 
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -1441,9 +1559,12 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'allowSelfRegistration', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <div>
-                    <span className="text-gray-700">Önálló regisztráció engedélyezése</span>
-                    <p className="text-sm text-gray-500">Sofőrök regisztrálhatnak meghívókód nélkül</p>
+                  <div className="flex items-center gap-1.5">
+                    <div>
+                      <span className="text-gray-700">Önálló regisztráció engedélyezése</span>
+                      <p className="text-sm text-gray-500">Sofőrök regisztrálhatnak meghívókód nélkül</p>
+                    </div>
+                    <HelpTooltip text="Ha engedélyezve van, bárki regisztrálhat a rendszerbe. Ha kikapcsolt, csak meghívóval lehet csatlakozni." />
                   </div>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -1453,15 +1574,21 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'autoApproveDrivers', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <div>
-                    <span className="text-gray-700">Automatikus sofőr jóváhagyás</span>
-                    <p className="text-sm text-gray-500">Új sofőrök automatikusan jóváhagyásra kerülnek</p>
+                  <div className="flex items-center gap-1.5">
+                    <div>
+                      <span className="text-gray-700">Automatikus sofőr jóváhagyás</span>
+                      <p className="text-sm text-gray-500">Új sofőrök automatikusan jóváhagyásra kerülnek</p>
+                    </div>
+                    <HelpTooltip text="Ha kikapcsolt, az adminnak manuálisan kell jóváhagynia minden új sofőrt, mielőtt mosást indíthatnának." />
                   </div>
                 </label>
               </div>
 
               <hr className="my-6" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Ellenőrzési követelmények</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Ellenőrzési követelmények</h3>
+                <HelpTooltip text="Határozza meg, milyen ellenőrzések szükségesek a sofőrök regisztrációjánál." />
+              </div>
 
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -1471,9 +1598,12 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'requireEmailVerify', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <div>
-                    <span className="text-gray-700">Email megerősítés szükséges</span>
-                    <p className="text-sm text-gray-500">Sofőröknek meg kell erősíteniük az email címüket</p>
+                  <div className="flex items-center gap-1.5">
+                    <div>
+                      <span className="text-gray-700">Email megerősítés szükséges</span>
+                      <p className="text-sm text-gray-500">Sofőröknek meg kell erősíteniük az email címüket</p>
+                    </div>
+                    <HelpTooltip text="A sofőrnek meg kell erősítenie email címét egy megerősítő linkre kattintva, mielőtt beléphetne." />
                   </div>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -1483,9 +1613,12 @@ export default function SettingsPage() {
                     onChange={(e) => updateSettings('business', 'requirePhoneVerify', e.target.checked)}
                     className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <div>
-                    <span className="text-gray-700">Telefonszám megerősítés szükséges</span>
-                    <p className="text-sm text-gray-500">Sofőröknek SMS-ben meg kell erősíteniük a telefonszámukat</p>
+                  <div className="flex items-center gap-1.5">
+                    <div>
+                      <span className="text-gray-700">Telefonszám megerősítés szükséges</span>
+                      <p className="text-sm text-gray-500">Sofőröknek SMS-ben meg kell erősíteniük a telefonszámukat</p>
+                    </div>
+                    <HelpTooltip text="A sofőrnek SMS kóddal kell megerősítenie telefonszámát. Ehhez SMS szolgáltató beállítása szükséges." />
                   </div>
                 </label>
               </div>
