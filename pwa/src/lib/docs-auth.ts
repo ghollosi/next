@@ -74,8 +74,8 @@ export function getAuthStatus(): AuthStatus {
     };
   }
 
-  // Check Platform Admin
-  const platformAdmin = localStorage.getItem('platform_admin');
+  // Check Platform Admin (key: vsys_platform_admin)
+  const platformAdmin = localStorage.getItem('vsys_platform_admin');
   if (platformAdmin) {
     try {
       const data = JSON.parse(platformAdmin);
@@ -91,8 +91,8 @@ export function getAuthStatus(): AuthStatus {
     }
   }
 
-  // Check Network Admin
-  const networkAdmin = localStorage.getItem('network_admin');
+  // Check Network Admin (key: vsys_network_admin_data)
+  const networkAdmin = localStorage.getItem('vsys_network_admin_data');
   if (networkAdmin) {
     try {
       const data = JSON.parse(networkAdmin);
