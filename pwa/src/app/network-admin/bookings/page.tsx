@@ -100,6 +100,8 @@ export default function BookingsPage() {
         dateTo: dateTo || undefined,
         page,
         limit,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
       });
       setBookings(result.data);
       setTotal(result.total);
@@ -253,6 +255,9 @@ export default function BookingsPage() {
                     Kód
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Foglalva
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Időpont
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -282,6 +287,14 @@ export default function BookingsPage() {
                       <span className="font-mono text-sm font-medium text-gray-900">
                         {booking.bookingCode}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {formatDate(booking.createdAt)}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {formatTime(booking.createdAt)}
+                      </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">

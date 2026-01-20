@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   UnauthorizedException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -263,6 +264,56 @@ export class DriverService {
     return driver;
   }
 
+  async activateByEmail(
+    email: string,
+    pin: string,
+  ): Promise<Driver & { partnerCompany: { id: string; name: string; networkId: string } | null }> {
+    // Normalize email (lowercase, trim)
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find driver by email
+    const driver = await this.prisma.driver.findFirst({
+      where: {
+        email: { equals: normalizedEmail, mode: 'insensitive' },
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        partnerCompany: true,
+      },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Nem található sofőr ezzel az email címmel');
+    }
+
+    // Check if email is verified
+    if (!driver.emailVerified) {
+      throw new BadRequestException('Az email cím még nincs megerősítve. Kérjük, ellenőrizd a postafiókod.');
+    }
+
+    // Check if driver is approved
+    if (driver.approvalStatus !== DriverApprovalStatus.APPROVED) {
+      if (driver.approvalStatus === DriverApprovalStatus.PENDING) {
+        throw new BadRequestException('A regisztrációd még jóváhagyásra vár');
+      }
+      throw new BadRequestException('A regisztrációd el lett utasítva');
+    }
+
+    // Verify PIN (supports both bcrypt and legacy SHA-256)
+    const isValidPin = await this.verifyPin(pin, driver.pinHash);
+    if (!isValidPin) {
+      throw new UnauthorizedException('Hibás PIN kód');
+    }
+
+    // SECURITY: Migrate legacy SHA-256 to bcrypt on successful login
+    if (!driver.pinHash.startsWith('$2b$') && !driver.pinHash.startsWith('$2a$')) {
+      await this.migrateToBcrypt(driver.id, pin);
+    }
+
+    return driver;
+  }
+
   async activateByInviteCode(
     inviteCode: string,
     pin: string,
@@ -413,6 +464,43 @@ export class DriverService {
       billingTaxNumber?: string;
     },
   ): Promise<Driver & { invite: DriverInvite }> {
+    // Check for duplicate email
+    if (data.email) {
+      const existingByEmail = await this.prisma.driver.findFirst({
+        where: {
+          email: { equals: data.email.toLowerCase().trim(), mode: 'insensitive' },
+          deletedAt: null,
+        },
+      });
+      if (existingByEmail) {
+        throw new ConflictException('Ezzel az email címmel már regisztráltak. Kérjük, használd a bejelentkezés funkciót.');
+      }
+    }
+
+    // Check for duplicate phone
+    if (data.phone) {
+      const normalizedPhone = data.phone.replace(/[\s\-\(\)+]/g, '');
+      const lastNineDigits = normalizedPhone.slice(-9);
+
+      const existingDrivers = await this.prisma.driver.findMany({
+        where: {
+          phone: { not: null },
+          deletedAt: null,
+        },
+        select: { phone: true },
+      });
+
+      const phoneExists = existingDrivers.some(d => {
+        if (!d.phone) return false;
+        const driverPhoneNormalized = d.phone.replace(/[\s\-\(\)+]/g, '');
+        return driverPhoneNormalized.slice(-9) === lastNineDigits;
+      });
+
+      if (phoneExists) {
+        throw new ConflictException('Ezzel a telefonszámmal már regisztráltak. Kérjük, használd a bejelentkezés funkciót.');
+      }
+    }
+
     // Privát ügyfél esetén ellenőrizzük a számlázási adatokat
     const isPrivateCustomer = !data.partnerCompanyId;
 

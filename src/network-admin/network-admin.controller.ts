@@ -1484,6 +1484,8 @@ export class NetworkAdminController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
     @Headers('authorization') auth?: string,
     @Headers('x-platform-view') platformView?: string,
     @Headers('x-network-id') networkIdHeader?: string,
@@ -1496,6 +1498,8 @@ export class NetworkAdminController {
       status: status as any,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
+      sortBy: sortBy || 'createdAt',
+      sortOrder: (sortOrder as 'asc' | 'desc') || 'desc',
     });
   }
 

@@ -37,10 +37,10 @@ import { CompanyDataModule } from './company-data/company-data.module';
       envFilePath: '.env',
     }),
     ScheduleModule.forRoot(),
-    // SECURITY: Rate limiting - 100 requests per minute per IP
+    // SECURITY: Rate limiting - 300 requests per minute per IP
     ThrottlerModule.forRoot([{
       ttl: 60000, // 1 minute in milliseconds
-      limit: 100, // max 100 requests per minute
+      limit: 300, // max 300 requests per minute
     }]),
     PrismaModule,
     SessionModule,

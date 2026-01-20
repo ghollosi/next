@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { saveSession, getPendingLocation, clearPendingLocation } from '@/lib/session';
 
-type LoginMethod = 'phone' | 'invite';
+type LoginMethod = 'phone' | 'email' | 'invite';
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -46,6 +47,8 @@ function LoginContent() {
 
       if (loginMethod === 'phone') {
         response = await api.loginByPhone(phone, pin);
+      } else if (loginMethod === 'email') {
+        response = await api.loginByEmail(email, pin);
       } else {
         response = await api.activate(inviteCode.toUpperCase(), pin);
       }
@@ -99,11 +102,17 @@ function LoginContent() {
     setInviteCode(cleaned);
   };
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value.trim());
+  };
+
   const isSubmitDisabled = () => {
     if (loading) return true;
     if (pin.length !== 4) return true;
     if (loginMethod === 'phone') {
       return phone.replace(/[\s\-+]/g, '').length < 9;
+    } else if (loginMethod === 'email') {
+      return !email.includes('@') || email.length < 5;
     } else {
       return inviteCode.length !== 6;
     }
@@ -140,18 +149,29 @@ function LoginContent() {
           <button
             type="button"
             onClick={() => { setLoginMethod('phone'); setError(''); }}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
               loginMethod === 'phone'
                 ? 'bg-white text-primary-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            Telefonszám
+            Telefon
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLoginMethod('email'); setError(''); }}
+            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
+              loginMethod === 'email'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Email
           </button>
           <button
             type="button"
             onClick={() => { setLoginMethod('invite'); setError(''); }}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
               loginMethod === 'invite'
                 ? 'bg-white text-primary-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-800'
@@ -179,6 +199,27 @@ function LoginContent() {
               />
               <p className="text-xs text-gray-500 mt-1 text-center">
                 A regisztrációkor megadott telefonszám
+              </p>
+            </div>
+          )}
+
+          {/* Email Input (shown when email method selected) */}
+          {loginMethod === 'email' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email cím
+              </label>
+              <input
+                type="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                placeholder="pelda@email.com"
+                className="w-full px-4 py-4 text-lg text-center border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                autoComplete="email"
+              />
+              <p className="text-xs text-gray-500 mt-1 text-center">
+                A regisztrációkor megadott email cím
               </p>
             </div>
           )}

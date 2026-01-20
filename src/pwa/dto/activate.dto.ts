@@ -46,6 +46,27 @@ export class ActivateByPhoneDto {
   pin: string;
 }
 
+export class ActivateByEmailDto {
+  @ApiProperty({
+    description: 'Email address of the driver',
+    example: 'sofor@example.com',
+  })
+  @IsString()
+  @Length(5, 100)
+  email: string;
+
+  @ApiProperty({
+    description: '4-digit PIN',
+    example: '1234',
+  })
+  @IsString()
+  @Length(4, 4)
+  @Matches(/^\d{4}$/, {
+    message: 'PIN must be exactly 4 digits',
+  })
+  pin: string;
+}
+
 export class ActivateResponseDto {
   @ApiProperty()
   driverId: string;

@@ -221,6 +221,11 @@ export class BookingService {
       }
     }
 
+    // Determine sort field and order
+    const sortField = query.sortBy || 'createdAt';
+    const sortOrder = query.sortOrder || 'desc';
+    const orderBy: any = { [sortField]: sortOrder };
+
     const [bookings, total] = await Promise.all([
       this.prisma.booking.findMany({
         where,
@@ -228,7 +233,7 @@ export class BookingService {
           location: { select: { id: true, name: true, code: true } },
           servicePackage: { select: { id: true, name: true, code: true } },
         },
-        orderBy: { scheduledStart: 'asc' },
+        orderBy,
         skip: ((query.page || 1) - 1) * (query.limit || 20),
         take: query.limit || 20,
       }),

@@ -1252,6 +1252,8 @@ export const networkAdminApi = {
     status?: string;
     page?: number;
     limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
   }): Promise<{
     data: any[];
     total: number;
@@ -1265,6 +1267,8 @@ export const networkAdminApi = {
     if (options?.status) params.set('status', options.status);
     if (options?.page) params.set('page', String(options.page));
     if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.sortBy) params.set('sortBy', options.sortBy);
+    if (options?.sortOrder) params.set('sortOrder', options.sortOrder);
     return fetchWithAuth(`/network-admin/bookings?${params.toString()}`);
   },
 

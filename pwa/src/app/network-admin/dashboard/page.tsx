@@ -11,6 +11,8 @@ interface DashboardStats {
   activeWashes: number;
   completedToday: number;
   totalDrivers: number;
+  todayRevenue: number;
+  monthlyRevenue: number;
 }
 
 interface WashEvent {
@@ -19,6 +21,7 @@ interface WashEvent {
   tractorPlateManual?: string;
   createdAt: string;
   location?: { name: string };
+  totalPrice?: string;
 }
 
 export default function NetworkAdminDashboardPage() {
@@ -27,6 +30,8 @@ export default function NetworkAdminDashboardPage() {
     activeWashes: 0,
     completedToday: 0,
     totalDrivers: 0,
+    todayRevenue: 0,
+    monthlyRevenue: 0,
   });
   const [recentWashes, setRecentWashes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +74,10 @@ export default function NetworkAdminDashboardPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+
       const todayWashes = allWashEvents.filter(
         (w) => new Date(w.createdAt) >= today
       );
@@ -79,11 +88,23 @@ export default function NetworkAdminDashboardPage() {
         (w) => w.status === 'COMPLETED'
       );
 
+      // Calculate today's revenue (only completed/locked washes)
+      const todayRevenue = todayWashes
+        .filter((w) => w.status === 'COMPLETED' || w.status === 'LOCKED')
+        .reduce((sum, w) => sum + (w.totalPrice ? parseFloat(w.totalPrice) : 0), 0);
+
+      // Calculate monthly revenue (only completed/locked washes)
+      const monthlyRevenue = allWashEvents
+        .filter((w) => new Date(w.createdAt) >= monthStart && (w.status === 'COMPLETED' || w.status === 'LOCKED'))
+        .reduce((sum, w) => sum + (w.totalPrice ? parseFloat(w.totalPrice) : 0), 0);
+
       setStats({
         todayWashes: todayWashes.length,
         activeWashes: activeWashes.length,
         completedToday: completedToday.length,
         totalDrivers: driversCount,
+        todayRevenue,
+        monthlyRevenue,
       });
 
       // Get recent washes (last 5)
@@ -133,11 +154,17 @@ export default function NetworkAdminDashboardPage() {
     return `${diffDays} napja`;
   };
 
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('hu-HU') + ' Ft';
+  };
+
   const statCards = [
-    { label: 'Mai mosások', value: stats.todayWashes, icon: '🚿', color: 'bg-blue-500' },
-    { label: 'Aktív most', value: stats.activeWashes, icon: '⏳', color: 'bg-yellow-500' },
-    { label: 'Ma befejezett', value: stats.completedToday, icon: '✅', color: 'bg-green-500' },
-    { label: 'Összes sofőr', value: stats.totalDrivers, icon: '👤', color: 'bg-purple-500' },
+    { label: 'Mai mosások', value: stats.todayWashes.toString(), icon: '🚿', color: 'bg-blue-500' },
+    { label: 'Aktív most', value: stats.activeWashes.toString(), icon: '⏳', color: 'bg-yellow-500' },
+    { label: 'Ma befejezett', value: stats.completedToday.toString(), icon: '✅', color: 'bg-green-500' },
+    { label: 'Összes sofőr', value: stats.totalDrivers.toString(), icon: '👤', color: 'bg-purple-500' },
+    { label: 'Napi bevétel', value: formatCurrency(stats.todayRevenue), icon: '💰', color: 'bg-emerald-500' },
+    { label: 'Havi bevétel', value: formatCurrency(stats.monthlyRevenue), icon: '📊', color: 'bg-indigo-500' },
   ];
 
   if (loading) {
@@ -165,7 +192,7 @@ export default function NetworkAdminDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {statCards.map((stat) => (
           <div
             key={stat.label}

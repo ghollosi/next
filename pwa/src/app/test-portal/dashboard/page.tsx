@@ -287,7 +287,7 @@ export default function TesterDashboard() {
         {/* Quick Actions */}
         <div className="mt-6 grid grid-cols-2 gap-4">
           <button
-            onClick={() => router.push('/test-portal/docs')}
+            onClick={() => router.push('/docs?from=tester')}
             className="flex items-center justify-center gap-2 p-4 bg-white rounded-xl shadow-sm
                      text-gray-700 hover:bg-gray-50 transition-colors"
           >

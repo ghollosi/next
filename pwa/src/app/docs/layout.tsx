@@ -38,6 +38,7 @@ const PORTAL_ACCESS: Record<string, DocSection[]> = {
   'operator': ['operator'],
   'partner': ['partner'],
   'driver': ['driver'],
+  'tester': ['overview', 'platform-admin', 'network-admin', 'operator', 'driver', 'partner'],
 }
 
 const BACK_LINKS: Record<string, string> = {
@@ -46,6 +47,7 @@ const BACK_LINKS: Record<string, string> = {
   'operator': '/operator-portal/dashboard',
   'partner': '/partner/dashboard',
   'driver': '/dashboard',
+  'tester': '/test-portal/dashboard',
 }
 
 const LOGIN_PAGES: Record<string, string> = {
@@ -54,6 +56,7 @@ const LOGIN_PAGES: Record<string, string> = {
   'operator': '/operator-portal/login',
   'partner': '/partner/login',
   'driver': '/login',
+  'tester': '/test-portal',
 }
 
 // Inner component that handles the actual layout logic
@@ -79,7 +82,7 @@ function DocsLayoutInner({
       const fromParam = searchParams.get('from')
 
       // Validate the portal source
-      const validPortals = ['platform', 'network', 'operator', 'partner', 'driver']
+      const validPortals = ['platform', 'network', 'operator', 'partner', 'driver', 'tester']
       const portal = (fromParam && validPortals.includes(fromParam)) ? fromParam as PortalSource : null
 
       setPortalSource(portal)

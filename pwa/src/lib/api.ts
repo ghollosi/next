@@ -143,6 +143,23 @@ class ApiClient {
     return response.json();
   }
 
+  async loginByEmail(email: string, pin: string): Promise<ActivateResponse> {
+    const response = await fetch(`${this.baseUrl}/pwa/login-email`, this.fetchOptions({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, pin }),
+    }));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Bejelentkezés sikertelen');
+    }
+
+    return response.json();
+  }
+
   async getProfile(sessionId: string): Promise<ActivateResponse> {
     const response = await fetch(`${this.baseUrl}/pwa/profile`, this.fetchOptions({
       headers: {

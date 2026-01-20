@@ -14,7 +14,7 @@
  * - driver: ONLY driver docs
  */
 
-export type PortalSource = 'platform' | 'network' | 'operator' | 'partner' | 'driver' | null;
+export type PortalSource = 'platform' | 'network' | 'operator' | 'partner' | 'driver' | 'tester' | null;
 
 export type UserRole =
   | 'PLATFORM_OWNER'
@@ -52,6 +52,7 @@ export const PORTAL_ACCESS: Record<string, DocSection[]> = {
   'operator': ['operator'],
   'partner': ['partner'],
   'driver': ['driver'],
+  'tester': ['overview', 'platform-admin', 'network-admin', 'operator', 'driver', 'partner'], // Full access like platform admin
 };
 
 // Back links for each portal type
@@ -61,6 +62,7 @@ export const BACK_LINKS: Record<string, string> = {
   'operator': '/operator-portal/dashboard',
   'partner': '/partner/dashboard',
   'driver': '/dashboard',
+  'tester': '/test-portal/dashboard',
 };
 
 // Login pages for each portal type
@@ -70,6 +72,7 @@ export const LOGIN_PAGES: Record<string, string> = {
   'operator': '/operator-portal/login',
   'partner': '/partner/login',
   'driver': '/login',
+  'tester': '/test-portal',
 };
 
 // Session storage keys for each portal type (for checking if user is logged in)
@@ -79,6 +82,7 @@ const SESSION_KEYS: Record<string, string[]> = {
   'operator': ['operator_session'],
   'partner': ['partner_session'],
   'driver': ['vsys_session'],
+  'tester': ['vsys_test_session'],
 };
 
 /**
@@ -148,6 +152,8 @@ function getRoleFromPortal(portal: PortalSource): UserRole {
       return 'PARTNER';
     case 'driver':
       return 'DRIVER';
+    case 'tester':
+      return null; // Testers don't have a role, they just need session validation
     default:
       return null;
   }

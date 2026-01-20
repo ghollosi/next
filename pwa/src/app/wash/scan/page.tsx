@@ -1,9 +1,27 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
-import { api, Location } from '@/lib/api';
+import { api } from '@/lib/api';
+import dynamic from 'next/dynamic';
+
+// Dynamically import QRScanner to avoid SSR issues with html5-qrcode
+const QRScanner = dynamic(() => import('@/components/QRScanner'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-center">
+        <svg className="animate-spin w-8 h-8 text-primary-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <p className="text-white text-sm">Szkenner betoltese...</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function ScanQRPage() {
   const router = useRouter();
@@ -13,9 +31,9 @@ export default function ScanQRPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [hasCamera, setHasCamera] = useState(false);
-  const [cameraError, setCameraError] = useState('');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scannedRawValue, setScannedRawValue] = useState<string | null>(null);
 
   useEffect(() => {
     const session = getSession();
@@ -28,23 +46,67 @@ export default function ScanQRPage() {
 
     setSessionId(session);
     setDriver(driverInfo);
-    checkCamera();
   }, [router]);
 
-  const checkCamera = async () => {
+  const handleScanResult = useCallback(async (scannedCode: string) => {
+    if (isProcessing || !sessionId) return;
+
+    setIsProcessing(true);
+    setError('');
+    setScannedRawValue(scannedCode); // Store raw value for debugging
+
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(device => device.kind === 'videoinput');
-      if (cameras.length > 0) {
-        setHasCamera(true);
-        // Note: Actual QR scanning would require a library like @zxing/library or html5-qrcode
-        // For now, we'll show a placeholder and use manual input
+      // Extract location code from QR data
+      let locationCode = scannedCode.trim();
+
+      // Check if it's a URL with location parameter (e.g., https://app.vemiax.com/wash/new?location=A2)
+      if (scannedCode.includes('location=')) {
+        const match = scannedCode.match(/location=([^&\s#]+)/i);
+        if (match) {
+          locationCode = match[1].trim();
+        }
       }
-    } catch (err) {
-      setCameraError('Camera access not available');
-      setShowManualInput(true);
+      // If it's a URL without location param, try to extract the last path segment
+      else if (scannedCode.includes('/')) {
+        const parts = scannedCode.split('/');
+        locationCode = parts[parts.length - 1].trim();
+
+        // Remove any query parameters if present
+        if (locationCode.includes('?')) {
+          locationCode = locationCode.split('?')[0];
+        }
+      }
+
+      // Remove any hash if present
+      if (locationCode.includes('#')) {
+        locationCode = locationCode.split('#')[0];
+      }
+
+      // Convert to uppercase for matching
+      locationCode = locationCode.toUpperCase();
+
+      // Validate location exists
+      const location = await api.getLocationByCode(sessionId, locationCode);
+
+      // Navigate to new wash with pre-selected location
+      router.push(`/wash/new?location=${location.code}`);
+    } catch (err: any) {
+      setError(`Helyszin nem talalhato: "${scannedCode}"`);
+      setIsProcessing(false);
+
+      // Reset after a longer delay so user can see the error
+      setTimeout(() => {
+        setIsProcessing(false);
+        setScannedRawValue(null);
+      }, 5000);
     }
-  };
+  }, [sessionId, router, isProcessing]);
+
+  const handleCameraError = useCallback((errorMsg: string) => {
+    setCameraError(errorMsg);
+    // Automatically show manual input when camera fails
+    setShowManualInput(true);
+  }, []);
 
   const handleBack = () => {
     router.back();
@@ -63,7 +125,7 @@ export default function ScanQRPage() {
       // Navigate to new wash with pre-selected location
       router.push(`/wash/new?location=${location.code}`);
     } catch (err: any) {
-      setError(err.message || 'Location not found');
+      setError(err.message || 'Helyszin nem talalhato');
       setIsLoading(false);
     }
   };
@@ -71,7 +133,7 @@ export default function ScanQRPage() {
   if (!driver) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Betoltes...</div>
       </div>
     );
   }
@@ -90,72 +152,65 @@ export default function ScanQRPage() {
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-semibold">Scan QR Code</h1>
-            <p className="text-gray-400 text-sm">Point at location QR code</p>
+            <h1 className="text-lg font-semibold">QR kod szkenneles</h1>
+            <p className="text-gray-400 text-sm">Iranyitsd a kamerát a QR kodra</p>
           </div>
         </div>
       </header>
 
-      {/* Camera View / Placeholder */}
-      <div className="flex-1 flex items-center justify-center relative">
+      {/* Camera View / Manual Input */}
+      <div className="flex-1 flex items-center justify-center pt-20 pb-32 px-4">
         {!showManualInput ? (
-          <>
-            {/* QR Scanner Placeholder */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {hasCamera ? (
-                <div className="relative">
-                  {/* Scanner Frame */}
-                  <div className="w-64 h-64 relative">
-                    {/* Corner brackets */}
-                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary-500 rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary-500 rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary-500 rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary-500 rounded-br-lg" />
+          <div className="w-full max-w-sm">
+            {/* QR Scanner */}
+            <QRScanner
+              onScan={handleScanResult}
+              onCameraError={handleCameraError}
+            />
 
-                    {/* Scanning line animation */}
-                    <div className="absolute inset-4 overflow-hidden">
-                      <div className="w-full h-0.5 bg-primary-500 animate-pulse"
-                           style={{ animation: 'scan 2s ease-in-out infinite' }} />
-                    </div>
-                  </div>
-
-                  <p className="text-white text-center mt-8 text-sm">
-                    QR scanner coming soon
-                  </p>
+            {/* Status messages */}
+            {isProcessing && (
+              <div className="mt-4 text-center">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600/20 rounded-full">
+                  <svg className="animate-spin w-4 h-4 text-primary-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span className="text-primary-400 text-sm">Helyszin keresese...</span>
                 </div>
-              ) : (
-                <div className="text-center text-white px-8">
-                  <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-400">
-                    {cameraError || 'Camera not available'}
-                  </p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Manual Entry Button */}
-            <div className="absolute bottom-24 left-0 right-0 px-4">
-              <button
-                onClick={() => setShowManualInput(true)}
-                className="w-full py-4 bg-white/10 backdrop-blur text-white font-semibold rounded-xl
-                           hover:bg-white/20 active:scale-[0.98] transition-all"
-              >
-                Enter Code Manually
-              </button>
-            </div>
-          </>
+            {error && !isProcessing && (
+              <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-sm text-center">
+                {error}
+                {scannedRawValue && (
+                  <div className="mt-2 text-xs text-gray-400 break-all">
+                    Beolvasott ertek: <code className="bg-gray-800 px-1 rounded">{scannedRawValue}</code>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Instructions */}
+            <p className="text-gray-400 text-sm text-center mt-6">
+              Helyezd a QR kodot a keret kozepe
+            </p>
+          </div>
         ) : (
           /* Manual Input Form */
-          <div className="w-full px-6">
+          <div className="w-full max-w-sm">
             <div className="bg-white rounded-2xl shadow-xl p-6">
-              <h2 className="text-xl font-semibold text-gray-800 text-center mb-6">
-                Enter Location Code
+              <h2 className="text-xl font-semibold text-gray-800 text-center mb-2">
+                Helyszin kod megadasa
               </h2>
+
+              {cameraError && (
+                <p className="text-orange-600 text-sm text-center mb-4">
+                  {cameraError}
+                </p>
+              )}
 
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm text-center">
@@ -193,35 +248,40 @@ export default function ScanQRPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Looking up...
+                      Kereses...
                     </span>
                   ) : (
-                    'Find Location'
+                    'Helyszin keresese'
                   )}
                 </button>
 
-                <button
-                  onClick={() => setShowManualInput(false)}
-                  className="w-full py-3 text-gray-600 font-medium
-                             hover:text-gray-800 transition-colors"
-                >
-                  Back to Scanner
-                </button>
+                {!cameraError && (
+                  <button
+                    onClick={() => setShowManualInput(false)}
+                    className="w-full py-3 text-gray-600 font-medium
+                               hover:text-gray-800 transition-colors"
+                  >
+                    Vissza a szkennerhez
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Bottom Safe Area */}
-      <div className="safe-area-bottom bg-gray-900" />
-
-      <style jsx>{`
-        @keyframes scan {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(200px); }
-        }
-      `}</style>
+      {/* Bottom Button - Manual Entry Toggle */}
+      {!showManualInput && (
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-8 safe-area-bottom">
+          <button
+            onClick={() => setShowManualInput(true)}
+            className="w-full py-4 bg-white/10 backdrop-blur text-white font-semibold rounded-xl
+                       hover:bg-white/20 active:scale-[0.98] transition-all"
+          >
+            Kod kezi megadasa
+          </button>
+        </div>
+      )}
     </div>
   );
 }
