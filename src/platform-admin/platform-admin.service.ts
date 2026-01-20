@@ -896,6 +896,33 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       metadata: { entityType: 'network' },
     });
 
+    // Check if trial was extended and send notification
+    if (dto.trialEndsAt) {
+      const newTrialEndsAt = new Date(dto.trialEndsAt);
+      const oldTrialEndsAt = network.trialEndsAt;
+
+      // Only if trial date changed (extended or set)
+      if (!oldTrialEndsAt || newTrialEndsAt.getTime() !== oldTrialEndsAt.getTime()) {
+        // AUDIT: Log trial extension specifically
+        await this.auditLogService.log({
+          networkId: id,
+          action: AuditAction.UPDATE,
+          actorType: 'PLATFORM_ADMIN',
+          actorId: updatedByAdminId,
+          previousData: { trialEndsAt: oldTrialEndsAt?.toISOString() || null },
+          newData: { trialEndsAt: newTrialEndsAt.toISOString() },
+          metadata: {
+            entityType: 'network',
+            actionSubtype: 'TRIAL_EXTENSION',
+            networkName: network.name,
+          },
+        });
+
+        // Send email notification to network admin
+        await this.notifyNetworkAdminTrialExtended(id, network.name, oldTrialEndsAt, newTrialEndsAt);
+      }
+    }
+
     return this.getNetwork(id);
   }
 
@@ -1857,5 +1884,132 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
         ? Number(platformSettings.companyDataMonthlyFee)
         : null,
     };
+  }
+
+  // =========================================================================
+  // TRIAL EXTENSION NOTIFICATION
+  // =========================================================================
+
+  private async notifyNetworkAdminTrialExtended(
+    networkId: string,
+    networkName: string,
+    oldTrialEndsAt: Date | null,
+    newTrialEndsAt: Date,
+  ): Promise<void> {
+    try {
+      // Find network admin(s)
+      const networkAdmins = await this.prisma.networkAdmin.findMany({
+        where: {
+          networkId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          email: true,
+          name: true,
+        },
+      });
+
+      if (networkAdmins.length === 0) {
+        this.logger.warn(`No network admins found for network ${networkId} to notify about trial extension`);
+        return;
+      }
+
+      const formatDate = (date: Date) => date.toLocaleDateString('hu-HU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const newEndDateStr = formatDate(newTrialEndsAt);
+      const oldEndDateStr = oldTrialEndsAt ? formatDate(oldTrialEndsAt) : 'nincs beállítva';
+
+      // Calculate days added
+      let daysAdded = '';
+      if (oldTrialEndsAt) {
+        const diffMs = newTrialEndsAt.getTime() - oldTrialEndsAt.getTime();
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          daysAdded = `(+${diffDays} nap)`;
+        }
+      }
+
+      for (const admin of networkAdmins) {
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+    .highlight { background: #ecfdf5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 0 5px 5px 0; }
+    .date-box { display: inline-block; background: #10b981; color: white; padding: 10px 20px; border-radius: 5px; font-size: 18px; font-weight: bold; }
+    .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0;">🎉 Próbaidőszak meghosszabbítva!</h1>
+    </div>
+    <div class="content">
+      <p>Kedves ${admin.name || 'Adminisztrátor'}!</p>
+
+      <p>Örömmel értesítjük, hogy a <strong>${networkName}</strong> hálózat próbaidőszaka meghosszabbításra került.</p>
+
+      <div class="highlight">
+        <p style="margin: 0 0 10px 0;"><strong>Korábbi lejárat:</strong> ${oldEndDateStr}</p>
+        <p style="margin: 0;"><strong>Új lejárat:</strong></p>
+        <div class="date-box">${newEndDateStr} ${daysAdded}</div>
+      </div>
+
+      <p>A meghosszabbítás azonnali hatállyal érvényes. A rendszer minden funkciója továbbra is korlátozás nélkül elérhető.</p>
+
+      <p>Ha bármilyen kérdése van, kérjük vegye fel velünk a kapcsolatot!</p>
+
+      <p>Üdvözlettel,<br>A VSys Platform csapata</p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} VSys Platform</p>
+    </div>
+  </div>
+</body>
+</html>
+        `;
+
+        const text = `
+Kedves ${admin.name || 'Adminisztrátor'}!
+
+Örömmel értesítjük, hogy a ${networkName} hálózat próbaidőszaka meghosszabbításra került.
+
+Korábbi lejárat: ${oldEndDateStr}
+Új lejárat: ${newEndDateStr} ${daysAdded}
+
+A meghosszabbítás azonnali hatállyal érvényes. A rendszer minden funkciója továbbra is korlátozás nélkül elérhető.
+
+Ha bármilyen kérdése van, kérjük vegye fel velünk a kapcsolatot!
+
+Üdvözlettel,
+A VSys Platform csapata
+
+© ${new Date().getFullYear()} VSys Platform
+        `;
+
+        await this.emailService.sendEmail({
+          to: admin.email,
+          subject: `VSys - Próbaidőszak meghosszabbítva: ${networkName}`,
+          html,
+          text,
+        });
+
+        this.logger.log(`Trial extension notification sent to ${admin.email} for network ${networkName}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send trial extension notification: ${error.message}`, error.stack);
+      // Don't throw - notification failure shouldn't break the update
+    }
   }
 }

@@ -61,6 +61,7 @@ import {
   VerificationTypeDto,
 } from './dto/verification.dto';
 import { ConfigService } from '@nestjs/config';
+import { EmailService } from '../modules/email/email.service';
 
 // Default network ID for self-registration
 // In production, this would come from QR code or subdomain
@@ -85,6 +86,7 @@ export class PwaController {
     private readonly sessionService: SessionService,
     private readonly auditLogService: AuditLogService,
     private readonly bookingService: BookingService,
+    private readonly emailService: EmailService,
   ) {}
 
   private getRequestMetadata(req: Request) {
@@ -1817,5 +1819,290 @@ export class PwaController {
     @Param('code') code: string,
   ) {
     return this.bookingService.getBookingByCode(code);
+  }
+
+  // =========================================================================
+  // TEST PORTAL ENDPOINTS
+  // =========================================================================
+
+  @Post('test-portal/send-invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send test portal invitation email' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email', 'name', 'password'],
+      properties: {
+        email: { type: 'string', description: 'Tester email address' },
+        name: { type: 'string', description: 'Tester name' },
+        password: { type: 'string', description: 'Generated password' },
+        language: { type: 'string', enum: ['hu', 'en'], description: 'Preferred language' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation email sent',
+  })
+  async sendTestPortalInvite(
+    @Body() body: {
+      email: string;
+      name: string;
+      password: string;
+      language?: 'hu' | 'en';
+    },
+  ) {
+    const lang = body.language || 'hu';
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://app.vemiax.com';
+    const testPortalUrl = `${frontendUrl}/test-portal`;
+
+    const isHungarian = lang === 'hu';
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+    .code-box { background: white; border: 2px solid #2563eb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .code { font-size: 24px; font-weight: bold; color: #2563eb; font-family: monospace; }
+    .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>vSys Test Portal</h1>
+      <p>${isHungarian ? 'Meghívó a tesztelésre' : 'Testing Invitation'}</p>
+    </div>
+    <div class="content">
+      <h2>${isHungarian ? 'Kedves' : 'Dear'} ${body.name}!</h2>
+      <p>${isHungarian
+        ? 'Meghívást kaptál a vSys rendszer tesztelésére. Az alábbi adatokkal tudsz bejelentkezni:'
+        : 'You have been invited to test the vSys system. Use the following credentials to log in:'}</p>
+
+      <div class="info-box">
+        <p><strong>Email:</strong> ${body.email}</p>
+        <p><strong>${isHungarian ? 'Jelszó' : 'Password'}:</strong></p>
+        <div class="code-box">
+          <span class="code">${body.password}</span>
+        </div>
+      </div>
+
+      <p style="text-align: center;">
+        <a href="${testPortalUrl}" class="button">
+          ${isHungarian ? 'Belépés a tesztportálra' : 'Go to Test Portal'}
+        </a>
+      </p>
+
+      <p>${isHungarian
+        ? 'A tesztelés során kérjük, kövesd az utasításokat és jelezd a hibákat a rendszerben.'
+        : 'During testing, please follow the instructions and report any bugs you find.'}</p>
+
+      <p>${isHungarian ? 'Köszönjük a segítségedet!' : 'Thank you for your help!'}</p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} vSys Wash. ${isHungarian ? 'Minden jog fenntartva.' : 'All rights reserved.'}</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+${isHungarian ? 'Kedves' : 'Dear'} ${body.name}!
+
+${isHungarian
+  ? 'Meghívást kaptál a vSys rendszer tesztelésére.'
+  : 'You have been invited to test the vSys system.'}
+
+Email: ${body.email}
+${isHungarian ? 'Jelszó' : 'Password'}: ${body.password}
+
+${isHungarian ? 'Tesztportál' : 'Test Portal'}: ${testPortalUrl}
+
+${isHungarian ? 'Köszönjük a segítségedet!' : 'Thank you for your help!'}
+    `;
+
+    const success = await this.emailService.sendEmail({
+      to: body.email,
+      subject: isHungarian
+        ? 'vSys Test Portal - Meghívó a tesztelésre'
+        : 'vSys Test Portal - Testing Invitation',
+      html,
+      text,
+    });
+
+    if (!success) {
+      throw new BadRequestException(
+        isHungarian
+          ? 'Nem sikerült elküldeni a meghívó emailt'
+          : 'Failed to send invitation email',
+      );
+    }
+
+    return { success: true, message: isHungarian ? 'Meghívó elküldve' : 'Invitation sent' };
+  }
+
+  @Get('test-portal/test-network-data')
+  @ApiOperation({ summary: 'Get test network data for testing portal' })
+  @ApiResponse({
+    status: 200,
+    description: 'Test network data with drivers, locations, and partners',
+  })
+  async getTestNetworkData() {
+    // Find the vemiax-test network
+    const network = await this.prisma.network.findFirst({
+      where: {
+        slug: 'vemiax-test',
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!network) {
+      throw new NotFoundException('Test network not found');
+    }
+
+    // Get drivers with their partner companies and invite codes
+    const drivers = await this.prisma.driver.findMany({
+      where: {
+        networkId: network.id,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        partnerCompany: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        invite: {
+          select: {
+            inviteCode: true,
+          },
+        },
+      },
+      orderBy: [
+        { partnerCompanyId: 'asc' },
+        { lastName: 'asc' },
+      ],
+    });
+
+    // Get locations
+    const locations = await this.prisma.location.findMany({
+      where: {
+        networkId: network.id,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        city: true,
+        address: true,
+        operationType: true,
+        washMode: true,
+        bookingEnabled: true,
+        email: true,
+      },
+      orderBy: { city: 'asc' },
+    });
+
+    // Get partner companies
+    const partners = await this.prisma.partnerCompany.findMany({
+      where: {
+        networkId: network.id,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        contactName: true,
+        email: true,
+        phone: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Get network admin
+    const networkAdmin = await this.prisma.networkAdmin.findFirst({
+      where: {
+        networkId: network.id,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    });
+
+    return {
+      network: {
+        id: network.id,
+        name: network.name,
+        slug: network.slug,
+      },
+      networkAdmin: networkAdmin ? {
+        email: networkAdmin.email,
+        name: networkAdmin.name,
+        // Note: Password not returned for security, but we know it's AdminPass123
+      } : null,
+      drivers: drivers.map(d => ({
+        id: d.id,
+        firstName: d.firstName,
+        lastName: d.lastName,
+        phone: d.phone,
+        email: d.email,
+        inviteCode: d.invite?.inviteCode,
+        partnerCompany: d.partnerCompany ? {
+          id: d.partnerCompany.id,
+          name: d.partnerCompany.name,
+          code: d.partnerCompany.code,
+        } : null,
+        isPrivateCustomer: d.isPrivateCustomer,
+        // Note: PIN is 1234 for all test drivers
+      })),
+      locations: locations.map(l => ({
+        id: l.id,
+        name: l.name,
+        code: l.code,
+        city: l.city,
+        address: l.address,
+        operationType: l.operationType,
+        washMode: l.washMode,
+        bookingEnabled: l.bookingEnabled,
+        email: l.email,
+        // Note: For operator login, use location email + 1234 PIN (if configured)
+      })),
+      partners: partners.map(p => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        contactName: p.contactName,
+        email: p.email,
+        phone: p.phone,
+        // Note: PIN is 1234 for all test partners
+      })),
+      // Static credentials for testing
+      testCredentials: {
+        driverPin: '1234',
+        partnerPin: '1234',
+        networkAdminPassword: 'AdminPass123',
+      },
+    };
   }
 }

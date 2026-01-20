@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi, getNetworkAdmin } from '@/lib/network-admin-api';
+
+const POLLING_INTERVAL = 15000; // 15 seconds
 
 interface DashboardStats {
   todayWashes: number;
@@ -28,12 +30,14 @@ export default function NetworkAdminDashboardPage() {
   });
   const [recentWashes, setRecentWashes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async (isPolling = false) => {
+    // Don't show loading spinner for polling updates
+    if (!isPolling) {
+      setLoading(true);
+    }
     try {
       // Load locations first to get wash events from ALL locations
       const locations = await fetchOperatorApi<any[]>('/operator/locations');
@@ -91,12 +95,30 @@ export default function NetworkAdminDashboardPage() {
         time: formatTimeAgo(new Date(w.createdAt)),
       }));
       setRecentWashes(recent);
+      setLastUpdate(new Date());
     } catch (err) {
       console.error('Failed to load dashboard data', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Initial load and polling setup
+  useEffect(() => {
+    loadDashboardData();
+
+    // Set up polling interval
+    intervalRef.current = setInterval(() => {
+      loadDashboardData(true);
+    }, POLLING_INTERVAL);
+
+    // Cleanup on unmount
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [loadDashboardData]);
 
   const formatTimeAgo = (date: Date) => {
     const now = new Date();

@@ -11,6 +11,7 @@ import { NetworkModule } from '../modules/network/network.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { BookingModule } from '../modules/booking/booking.module';
+import { EmailModule } from '../modules/email/email.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { BookingModule } from '../modules/booking/booking.module';
     NetworkModule,
     AuditLogModule,
     BookingModule,
+    EmailModule,
   ],
   controllers: [PwaController],
 })

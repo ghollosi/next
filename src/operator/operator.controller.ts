@@ -992,8 +992,15 @@ export class OperatorController {
     // First verify driver exists and belongs to network
     await this.driverService.findById(networkId, id);
 
-    // Get the invite - we need to add this method to the service
-    return this.driverService.getInvite(id);
+    // Get the invite
+    let invite = await this.driverService.getInvite(id);
+
+    // If no invite exists, generate one automatically
+    if (!invite) {
+      invite = await this.driverService.regenerateInvite(networkId, id);
+    }
+
+    return invite;
   }
 
   // =========================================================================

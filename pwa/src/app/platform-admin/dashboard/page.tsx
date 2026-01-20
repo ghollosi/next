@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { platformApi } from '@/lib/platform-api';
+
+const POLLING_INTERVAL = 30000; // 30 seconds (less critical than network admin)
 
 interface DashboardData {
   totalNetworks: number;
@@ -26,21 +28,45 @@ export default function PlatformDashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async (isPolling = false) => {
+    // Don't show loading spinner for polling updates
+    if (!isPolling) {
+      setLoading(true);
+    }
     try {
       const data = await platformApi.getDashboard();
       setDashboard(data);
+      setLastUpdate(new Date());
+      setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Hiba történt');
+      // Only set error on initial load, not polling
+      if (!isPolling) {
+        setError(err instanceof Error ? err.message : 'Hiba történt');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Initial load and polling setup
+  useEffect(() => {
+    loadDashboard();
+
+    // Set up polling interval
+    intervalRef.current = setInterval(() => {
+      loadDashboard(true);
+    }, POLLING_INTERVAL);
+
+    // Cleanup on unmount
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [loadDashboard]);
 
   if (loading) {
     return (
