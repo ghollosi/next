@@ -15,21 +15,9 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
 
-    // Simple demo login - in production, this would call an API
-    // Demo credentials: admin / admin123
-    if (username === 'admin' && password === 'admin123') {
-      // Store session
-      localStorage.setItem('vsys_admin_session', JSON.stringify({
-        userId: 'admin',
-        username: 'admin',
-        role: 'operator',
-        loginAt: new Date().toISOString(),
-      }));
-      router.push('/admin');
-    } else {
-      setError('Invalid username or password');
-      setLoading(false);
-    }
+    // This old admin page is deprecated - redirect to the proper login pages
+    setError('This admin page is deprecated. Please use /operator-portal, /network-admin, or /platform-admin for login.');
+    setLoading(false);
   };
 
   return (
@@ -90,7 +78,7 @@ export default function AdminLoginPage() {
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Demo credentials: admin / admin123</p>
+          <p>Use the proper portal login pages instead.</p>
         </div>
       </div>
     </div>

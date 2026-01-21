@@ -48,6 +48,7 @@
     "cookie-parser": "^1.4.7",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.3.3",
+    "helmet": "^8.1.0",
     "nodemailer": "^7.0.12",
     "prisma": "^5.22.0",
     "qrcode": "^1.5.4",

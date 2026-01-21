@@ -427,6 +427,7 @@ export class OperatorPortalController {
         { status: 'asc' }, // IN_PROGRESS first
         { createdAt: 'asc' },
       ],
+      take: 100, // Limit queue size for performance
     });
 
     // Group by status for easier display
@@ -489,7 +490,7 @@ export class OperatorPortalController {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: limit ? parseInt(limit) : 50,
+      take: Math.min(limit ? parseInt(limit) : 50, 500),
     });
 
     return { data: events };

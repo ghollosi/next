@@ -37,12 +37,19 @@ FROM base AS production
 
 ENV NODE_ENV=production
 
+# SECURITY: Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 -G nodejs
+
 COPY package*.json ./
 RUN npm ci --only=production
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
+
+# SECURITY: Change ownership and switch to non-root user
+RUN chown -R nestjs:nodejs /app
+USER nestjs
 
 EXPOSE 3000
 

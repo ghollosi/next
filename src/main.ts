@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -14,8 +15,14 @@ async function bootstrap() {
       : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
+  // SECURITY: Helmet for security headers (XSS, clickjacking, etc.)
+  app.use(helmet());
+
   // SECURITY: Cookie parser for httpOnly session cookies
   app.use(cookieParser());
+
+  // SECURITY: Trust proxy for correct IP detection behind Caddy reverse proxy
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Global validation pipe
   app.useGlobalPipes(

@@ -60,7 +60,7 @@ services:
       API_URL: https://api.vemiax.com
       FRONTEND_URL: https://app.vemiax.com
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,7 +88,7 @@ services:
       NODE_ENV: production
       API_URL: http://api:3000
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     depends_on:
       api:
         condition: service_healthy
