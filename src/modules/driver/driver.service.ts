@@ -70,16 +70,28 @@ export class DriverService {
     return code;
   }
 
-  // SECURITY: Remove pinHash from driver object before returning to API
-  private omitPinHash<T extends { pinHash?: string }>(driver: T): Omit<T, 'pinHash'> {
+  // SECURITY: Remove pinHash from driver object and nested partnerCompany before returning to API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private omitPinHash(obj: any): any {
+    if (!obj) return obj;
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { pinHash, ...safeDriver } = driver;
-    return safeDriver;
+    const { pinHash, ...rest } = obj;
+
+    // Also remove pinHash from nested partnerCompany if present
+    if (rest.partnerCompany && typeof rest.partnerCompany === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { pinHash: partnerPinHash, ...safePartner } = rest.partnerCompany;
+      rest.partnerCompany = safePartner;
+    }
+
+    return rest;
   }
 
-  // SECURITY: Remove pinHash from array of drivers
-  private omitPinHashFromArray<T extends { pinHash?: string }>(drivers: T[]): Omit<T, 'pinHash'>[] {
-    return drivers.map(driver => this.omitPinHash(driver));
+  // SECURITY: Remove pinHash from array of objects
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private omitPinHashFromArray(items: any[]): any[] {
+    return items.map(item => this.omitPinHash(item));
   }
 
   async findById(networkId: string, id: string): Promise<SafeDriverWithPartner> {
