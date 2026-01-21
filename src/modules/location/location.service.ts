@@ -24,7 +24,8 @@ export class LocationService {
 
     // Nyitvatartási órák mapelése
     const openingHoursMap = location.openingHoursStructured?.reduce((acc, oh) => {
-      acc[oh.dayOfWeek] = {
+      // Convert MONDAY -> monday for frontend compatibility
+      acc[oh.dayOfWeek.toLowerCase()] = {
         openTime: oh.openTime,
         closeTime: oh.closeTime,
         isClosed: oh.isClosed,
@@ -70,7 +71,8 @@ export class LocationService {
 
     return locations.map((loc) => {
       const openingHoursMap = loc.openingHoursStructured?.reduce((acc, oh) => {
-        acc[oh.dayOfWeek] = {
+        // Convert MONDAY -> monday for frontend compatibility
+        acc[oh.dayOfWeek.toLowerCase()] = {
           openTime: oh.openTime,
           closeTime: oh.closeTime,
           isClosed: oh.isClosed,

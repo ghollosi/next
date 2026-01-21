@@ -119,7 +119,7 @@ export class DriverService {
   async create(
     networkId: string,
     data: {
-      partnerCompanyId: string;
+      partnerCompanyId?: string;
       firstName: string;
       lastName: string;
       phone?: string;
@@ -127,17 +127,57 @@ export class DriverService {
       pin: string;
     },
   ): Promise<Driver & { invite: DriverInvite }> {
+    // Check for duplicate email
+    if (data.email) {
+      const existingByEmail = await this.prisma.driver.findFirst({
+        where: {
+          email: { equals: data.email.toLowerCase().trim(), mode: 'insensitive' },
+          deletedAt: null,
+        },
+      });
+      if (existingByEmail) {
+        throw new ConflictException('Ezzel az email címmel már létezik sofőr.');
+      }
+    }
+
+    // Check for duplicate phone
+    if (data.phone) {
+      const normalizedPhone = data.phone.replace(/[\s\-\(\)+]/g, '');
+      const lastNineDigits = normalizedPhone.slice(-9);
+
+      const existingDrivers = await this.prisma.driver.findMany({
+        where: {
+          phone: { not: null },
+          deletedAt: null,
+        },
+        select: { phone: true },
+      });
+
+      const phoneExists = existingDrivers.some(d => {
+        if (!d.phone) return false;
+        const driverPhoneNormalized = d.phone.replace(/[\s\-\(\)+]/g, '');
+        return driverPhoneNormalized.slice(-9) === lastNineDigits;
+      });
+
+      if (phoneExists) {
+        throw new ConflictException('Ezzel a telefonszámmal már létezik sofőr.');
+      }
+    }
+
     // Create driver with hashed PIN (bcrypt)
     const pinHash = await this.hashPin(data.pin);
     const driver = await this.prisma.driver.create({
       data: {
         networkId,
-        partnerCompanyId: data.partnerCompanyId,
+        partnerCompanyId: data.partnerCompanyId || null,
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone,
         email: data.email,
         pinHash,
+        approvalStatus: 'APPROVED',
+        approvedAt: new Date(),
+        isActive: true,
       },
     });
 

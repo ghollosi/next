@@ -227,22 +227,27 @@ export async function fetchOperatorApi<T>(endpoint: string, options: RequestInit
   const platformViewData = getPlatformViewData();
   const isPlatformView = !!platformViewData;
 
-  // Get networkId from Platform View or from regular session
+  // Get networkId and adminId from Platform View or from regular session
   let networkId: string | null = null;
+  let adminId: string | null = null;
   if (isPlatformView && platformViewData) {
     networkId = platformViewData.networkId;
+    // In Platform View mode, we don't have a real user ID, use a placeholder
+    adminId = 'platform-admin';
   } else {
     const admin = getNetworkAdmin();
     if (!admin) {
       throw new Error('Nincs bejelentkezve');
     }
     networkId = admin.networkId;
+    adminId = admin.id;
   }
 
   // Build headers
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-network-id': networkId,
+    'x-user-id': adminId,
   };
 
   // In Platform View mode, add special headers and use Platform Admin token

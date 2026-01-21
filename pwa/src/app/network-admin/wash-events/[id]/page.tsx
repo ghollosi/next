@@ -121,17 +121,25 @@ export default function WashEventDetailsPage() {
     }
   };
 
-  const updateStatus = async (action: string) => {
+  const updateStatus = async (action: string, body?: object) => {
     setActionLoading(true);
     try {
       await fetchOperatorApi(`/operator/wash-events/${eventId}/${action}`, {
         method: 'POST',
+        body: body ? JSON.stringify(body) : undefined,
       });
       await loadEvent();
     } catch (err: any) {
       alert(err.message || 'Muvelet sikertelen');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    const reason = prompt('Kerjuk, adja meg az elutasitas okat:');
+    if (reason && reason.trim()) {
+      await updateStatus('reject', { reason: reason.trim() });
     }
   };
 
@@ -335,7 +343,7 @@ export default function WashEventDetailsPage() {
                   {actionLoading ? 'Feldolgozas...' : 'Engedelyezes'}
                 </button>
                 <button
-                  onClick={() => updateStatus('reject')}
+                  onClick={handleReject}
                   disabled={actionLoading}
                   className="w-full py-3 bg-red-100 text-red-700 font-medium rounded-xl hover:bg-red-200 disabled:opacity-50 transition-colors"
                 >
@@ -354,7 +362,7 @@ export default function WashEventDetailsPage() {
                   {actionLoading ? 'Feldolgozas...' : 'Mosas inditasa'}
                 </button>
                 <button
-                  onClick={() => updateStatus('reject')}
+                  onClick={handleReject}
                   disabled={actionLoading}
                   className="w-full py-3 bg-red-100 text-red-700 font-medium rounded-xl hover:bg-red-200 disabled:opacity-50 transition-colors"
                 >

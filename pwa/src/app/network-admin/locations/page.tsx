@@ -6,6 +6,13 @@ import { fetchOperatorApi } from '@/lib/network-admin-api';
 
 type OperationType = 'OWN' | 'SUBCONTRACTOR';
 
+interface OpeningHourDay {
+  openTime: string;
+  closeTime: string;
+  isClosed: boolean;
+  isOpen?: boolean; // Legacy field
+}
+
 interface Location {
   id: string;
   code: string;
@@ -19,6 +26,7 @@ interface Location {
   latitude?: number;
   longitude?: number;
   openingHours?: string;
+  openingHoursStructured?: Record<string, OpeningHourDay>;
   isActive: boolean;
   createdAt: string;
 }
@@ -52,21 +60,43 @@ interface ParsedOpeningHours {
   time: string;
 }
 
-const parseOpeningHours = (openingHoursStr: string): ParsedOpeningHours[] => {
-  try {
-    const hours = JSON.parse(openingHoursStr);
+const parseOpeningHours = (location: Location): ParsedOpeningHours[] => {
+  // Prefer openingHoursStructured (from backend relation)
+  if (location.openingHoursStructured && Object.keys(location.openingHoursStructured).length > 0) {
+    const hours = location.openingHoursStructured;
     return DAY_ORDER.map(day => {
       const dayData = hours[day];
+      // Handle both formats: isClosed (new) and isOpen (legacy)
+      const isOpen = dayData ? (dayData.isOpen ?? !dayData.isClosed) : false;
       return {
         day,
         abbrev: DAY_ABBREV[day],
-        isOpen: dayData?.isOpen ?? false,
-        time: dayData?.isOpen ? `${dayData.openTime}-${dayData.closeTime}` : 'Zárva',
+        isOpen,
+        time: isOpen ? `${dayData.openTime}-${dayData.closeTime}` : 'Zárva',
       };
     });
-  } catch {
-    return [];
   }
+
+  // Fallback to openingHours string (legacy)
+  if (location.openingHours) {
+    try {
+      const hours = JSON.parse(location.openingHours);
+      return DAY_ORDER.map(day => {
+        const dayData = hours[day];
+        const isOpen = dayData?.isOpen ?? false;
+        return {
+          day,
+          abbrev: DAY_ABBREV[day],
+          isOpen,
+          time: isOpen ? `${dayData.openTime}-${dayData.closeTime}` : 'Zárva',
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
 };
 
 export default function LocationsPage() {
@@ -207,10 +237,10 @@ export default function LocationsPage() {
                 </div>
               )}
 
-              {location.openingHours && (
+              {((location.openingHoursStructured && Object.keys(location.openingHoursStructured).length > 0) || location.openingHours) && (
                 <div className="mb-3">
                   <div className="flex gap-1">
-                    {parseOpeningHours(location.openingHours).map(({ abbrev, isOpen, time }) => {
+                    {parseOpeningHours(location).map(({ abbrev, isOpen, time }) => {
                       const [openTime, closeTime] = time.split('-');
                       return (
                         <div

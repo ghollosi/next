@@ -10,9 +10,10 @@ import {
 } from 'class-validator';
 
 export class CreateDriverDto {
-  @ApiProperty({ description: 'Partner cég ID' })
+  @ApiPropertyOptional({ description: 'Partner cég ID (opcionális - privát ügyfél esetén nincs)' })
+  @IsOptional()
   @IsUUID()
-  partnerCompanyId: string;
+  partnerCompanyId?: string;
 
   @ApiProperty({ description: 'Keresztnév' })
   @IsString()
@@ -36,9 +37,9 @@ export class CreateDriverDto {
   @IsString()
   email?: string;
 
-  @ApiProperty({ description: 'PIN kód (4 számjegy)' })
+  @ApiProperty({ description: 'PIN kód (minimum 4 karakter)' })
   @IsString()
-  @Matches(/^\d{4}$/, { message: 'PIN must be exactly 4 digits' })
+  @MinLength(4, { message: 'PIN must be at least 4 characters' })
   pin: string;
 }
 
