@@ -11,6 +11,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
 import { AccountLockoutService } from '../common/security/account-lockout.service';
+import { assertValidPassword } from '../common/security/password-policy';
 import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction, CompanyDataProvider } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
@@ -182,6 +183,9 @@ export class PlatformAdminService {
       throw new ConflictException('Recovery email kötelező PLATFORM_OWNER jogosultsághoz');
     }
 
+    // SECURITY: Validate password strength
+    assertValidPassword(dto.password);
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const admin = await this.prisma.platformAdmin.create({
@@ -280,6 +284,8 @@ export class PlatformAdminService {
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
     if (dto.recoveryEmail !== undefined) updateData.recoveryEmail = dto.recoveryEmail.toLowerCase();
     if (dto.password) {
+      // SECURITY: Validate password strength
+      assertValidPassword(dto.password);
       updateData.passwordHash = await bcrypt.hash(dto.password, 10);
     }
 
@@ -419,6 +425,9 @@ export class PlatformAdminService {
     if (!admin) {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');
     }
+
+    // SECURITY: Validate password strength
+    assertValidPassword(dto.newPassword);
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
 
@@ -837,6 +846,8 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
 
     // Create network owner admin if provided
     if (dto.ownerEmail && dto.ownerPassword) {
+      // SECURITY: Validate password strength
+      assertValidPassword(dto.ownerPassword);
       const passwordHash = await bcrypt.hash(dto.ownerPassword, 10);
       await this.prisma.networkAdmin.create({
         data: {
@@ -1068,6 +1079,9 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       throw new ConflictException('Ez az email cím már regisztrálva van ebben a hálózatban');
     }
 
+    // SECURITY: Validate password strength
+    assertValidPassword(dto.password);
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const admin = await this.prisma.networkAdmin.create({
@@ -1105,6 +1119,8 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     if (dto.role !== undefined) updateData.role = dto.role;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
     if (dto.password) {
+      // SECURITY: Validate password strength
+      assertValidPassword(dto.password);
       updateData.passwordHash = await bcrypt.hash(dto.password, 10);
     }
 

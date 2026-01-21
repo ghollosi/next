@@ -12,6 +12,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
 import { AccountLockoutService } from '../common/security/account-lockout.service';
+import { assertValidPassword } from '../common/security/password-policy';
 import { SubscriptionStatus, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -336,6 +337,9 @@ export class NetworkAdminService {
       },
     });
 
+    // SECURITY: Validate password strength
+    assertValidPassword(dto.password);
+
     // Hash password and create admin
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const admin = await this.prisma.networkAdmin.create({
@@ -587,6 +591,9 @@ Vemiax csapata`;
       where: { id: resetToken.id },
       data: { usedAt: new Date() },
     });
+
+    // SECURITY: Validate password strength
+    assertValidPassword(newPassword);
 
     // Update password
     const passwordHash = await bcrypt.hash(newPassword, 10);
