@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
+import { AccountLockoutService } from '../common/security/account-lockout.service';
 import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction, CompanyDataProvider } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
@@ -47,6 +48,7 @@ export class PlatformAdminService {
     private readonly configService: ConfigService,
     private readonly auditLogService: AuditLogService,
     private readonly emailService: EmailService,
+    private readonly lockoutService: AccountLockoutService,
   ) {}
 
   // SECURITY: Get JWT secret with production check
@@ -63,16 +65,41 @@ export class PlatformAdminService {
   // =========================================================================
 
   async login(dto: PlatformLoginDto, ipAddress?: string, userAgent?: string): Promise<PlatformLoginResponseDto> {
+    const email = dto.email.toLowerCase();
+
+    // SECURITY: Check if account is locked
+    const lockStatus = this.lockoutService.isLocked(email);
+    if (lockStatus.isLocked) {
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'PLATFORM_ADMIN',
+        metadata: { email, error: 'Account locked', remainingSeconds: lockStatus.remainingSeconds },
+        ipAddress,
+        userAgent,
+      });
+      throw new UnauthorizedException(
+        `Fiók ideiglenesen zárolva. Próbálja újra ${Math.ceil((lockStatus.remainingSeconds || 0) / 60)} perc múlva.`
+      );
+    }
+
     const admin = await this.prisma.platformAdmin.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
     });
 
     if (!admin || !admin.isActive) {
+      // SECURITY: Record failed attempt
+      const lockResult = this.lockoutService.recordFailedAttempt(email);
+
       // AUDIT: Log failed login - admin not found
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
         actorType: 'PLATFORM_ADMIN',
-        metadata: { email: dto.email.toLowerCase(), error: 'Admin not found or inactive' },
+        metadata: {
+          email,
+          error: 'Admin not found or inactive',
+          attemptsRemaining: lockResult.attemptsRemaining,
+          isNowLocked: lockResult.isNowLocked,
+        },
         ipAddress,
         userAgent,
       });
@@ -81,17 +108,28 @@ export class PlatformAdminService {
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isPasswordValid) {
+      // SECURITY: Record failed attempt
+      const lockResult = this.lockoutService.recordFailedAttempt(email);
+
       // AUDIT: Log failed login - invalid password
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
         actorType: 'PLATFORM_ADMIN',
         actorId: admin.id,
-        metadata: { email: dto.email.toLowerCase(), error: 'Invalid password' },
+        metadata: {
+          email,
+          error: 'Invalid password',
+          attemptsRemaining: lockResult.attemptsRemaining,
+          isNowLocked: lockResult.isNowLocked,
+        },
         ipAddress,
         userAgent,
       });
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
+
+    // SECURITY: Clear failed attempts on successful login
+    this.lockoutService.clearFailedAttempts(email);
 
     // Update last login
     await this.prisma.platformAdmin.update({

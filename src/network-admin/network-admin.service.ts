@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
+import { AccountLockoutService } from '../common/security/account-lockout.service';
 import { SubscriptionStatus, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -40,6 +41,7 @@ export class NetworkAdminService {
     private readonly configService: ConfigService,
     private readonly auditLogService: AuditLogService,
     private readonly emailService: EmailService,
+    private readonly lockoutService: AccountLockoutService,
   ) {}
 
   // SECURITY: Get JWT secret with production check
@@ -56,17 +58,45 @@ export class NetworkAdminService {
   // =========================================================================
 
   async login(dto: NetworkAdminLoginDto, ipAddress?: string, userAgent?: string): Promise<NetworkAdminLoginResponseDto> {
+    const email = dto.email.toLowerCase();
+    const slug = dto.slug.toLowerCase();
+    const lockKey = `${slug}:${email}`; // Lock per network+email combination
+
+    // SECURITY: Check if account is locked
+    const lockStatus = this.lockoutService.isLocked(lockKey);
+    if (lockStatus.isLocked) {
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'NETWORK_ADMIN',
+        metadata: { slug, email, error: 'Account locked', remainingSeconds: lockStatus.remainingSeconds },
+        ipAddress,
+        userAgent,
+      });
+      throw new UnauthorizedException(
+        `Fiók ideiglenesen zárolva. Próbálja újra ${Math.ceil((lockStatus.remainingSeconds || 0) / 60)} perc múlva.`
+      );
+    }
+
     // Find network by slug
     const network = await this.prisma.network.findUnique({
-      where: { slug: dto.slug.toLowerCase() },
+      where: { slug },
     });
 
     if (!network || network.deletedAt || !network.isActive) {
+      // SECURITY: Record failed attempt
+      const lockResult = this.lockoutService.recordFailedAttempt(lockKey);
+
       // AUDIT: Log failed login - network not found
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
-        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Network not found or inactive' },
+        metadata: {
+          slug,
+          email,
+          error: 'Network not found or inactive',
+          attemptsRemaining: lockResult.attemptsRemaining,
+          isNowLocked: lockResult.isNowLocked,
+        },
         ipAddress,
         userAgent,
       });
@@ -77,18 +107,27 @@ export class NetworkAdminService {
     const admin = await this.prisma.networkAdmin.findFirst({
       where: {
         networkId: network.id,
-        email: dto.email.toLowerCase(),
+        email,
         deletedAt: null,
       },
     });
 
     if (!admin || !admin.isActive) {
+      // SECURITY: Record failed attempt
+      const lockResult = this.lockoutService.recordFailedAttempt(lockKey);
+
       // AUDIT: Log failed login - admin not found
       await this.auditLogService.log({
         networkId: network.id,
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
-        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Admin not found or inactive' },
+        metadata: {
+          slug,
+          email,
+          error: 'Admin not found or inactive',
+          attemptsRemaining: lockResult.attemptsRemaining,
+          isNowLocked: lockResult.isNowLocked,
+        },
         ipAddress,
         userAgent,
       });
@@ -97,13 +136,22 @@ export class NetworkAdminService {
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isPasswordValid) {
+      // SECURITY: Record failed attempt
+      const lockResult = this.lockoutService.recordFailedAttempt(lockKey);
+
       // AUDIT: Log failed login - invalid password
       await this.auditLogService.log({
         networkId: network.id,
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
         actorId: admin.id,
-        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Invalid password' },
+        metadata: {
+          slug,
+          email,
+          error: 'Invalid password',
+          attemptsRemaining: lockResult.attemptsRemaining,
+          isNowLocked: lockResult.isNowLocked,
+        },
         ipAddress,
         userAgent,
       });
@@ -112,18 +160,21 @@ export class NetworkAdminService {
 
     // Check email verification
     if (!admin.emailVerified) {
-      // AUDIT: Log failed login - email not verified
+      // AUDIT: Log failed login - email not verified (no lockout for this)
       await this.auditLogService.log({
         networkId: network.id,
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
         actorId: admin.id,
-        metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), error: 'Email not verified' },
+        metadata: { slug, email, error: 'Email not verified' },
         ipAddress,
         userAgent,
       });
       throw new UnauthorizedException('EMAIL_NOT_VERIFIED');
     }
+
+    // SECURITY: Clear failed attempts on successful login
+    this.lockoutService.clearFailedAttempts(lockKey);
 
     // Update last login
     await this.prisma.networkAdmin.update({

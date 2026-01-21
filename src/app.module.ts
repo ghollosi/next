@@ -30,6 +30,7 @@ import { BookingModule } from './modules/booking/booking.module';
 import { PlatformBillingModule } from './platform-billing/platform-billing.module';
 import { CompanyDataModule } from './company-data/company-data.module';
 import { AddressModule } from './modules/address/address.module';
+import { SecurityModule } from './common/security/security.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AddressModule } from './modules/address/address.module';
       limit: 300, // max 300 requests per minute
     }]),
     PrismaModule,
+    SecurityModule,
     SessionModule,
     HealthModule,
     NetworkModule,
