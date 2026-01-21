@@ -272,6 +272,9 @@ export class NetworkAdminService {
       throw new ConflictException('Ez az email cím már regisztrálva van');
     }
 
+    // SECURITY: Validate password strength BEFORE creating anything
+    assertValidPassword(dto.password);
+
     // Get platform settings for trial days
     const platformSettings = await this.prisma.platformSettings.findFirst();
     const trialDays = platformSettings?.defaultTrialDays || 14;
@@ -337,10 +340,7 @@ export class NetworkAdminService {
       },
     });
 
-    // SECURITY: Validate password strength
-    assertValidPassword(dto.password);
-
-    // Hash password and create admin
+    // Hash password and create admin (password already validated above)
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const admin = await this.prisma.networkAdmin.create({
       data: {
