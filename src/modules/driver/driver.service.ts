@@ -9,7 +9,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { Driver, DriverInvite, DriverInviteStatus, DriverApprovalStatus, PartnerCompany } from '@prisma/client';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 
 // SECURITY: Type for driver without sensitive pinHash field
@@ -61,11 +61,13 @@ export class DriverService {
     return this.hashPinBcrypt(pin);
   }
 
+  // SECURITY: Use cryptographically secure random generation for invite codes
   private generateInviteCode(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const randomBytesBuffer = randomBytes(6);
     let code = '';
     for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+      code += chars.charAt(randomBytesBuffer[i] % chars.length);
     }
     return code;
   }

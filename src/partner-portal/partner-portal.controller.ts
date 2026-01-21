@@ -40,9 +40,12 @@ import {
   SESSION_COOKIES,
 } from '../common/session/cookie.helper';
 
-// SECURITY: Default network ID from environment variable
-// In production, this should be set via DEFAULT_NETWORK_ID env var
-const DEFAULT_NETWORK_ID = process.env.DEFAULT_NETWORK_ID || 'cf808392-6283-4487-9fbd-e72951ca5bf8';
+// SECURITY: Default network ID MUST be set via environment variable
+// This is required for security - hardcoded UUIDs are a vulnerability
+const DEFAULT_NETWORK_ID = process.env.DEFAULT_NETWORK_ID;
+if (!DEFAULT_NETWORK_ID) {
+  console.warn('SECURITY WARNING: DEFAULT_NETWORK_ID environment variable is not set. Partner portal endpoints requiring network context will fail.');
+}
 
 @ApiTags('partner-portal')
 @Controller('partner-portal')
@@ -102,6 +105,11 @@ export class PartnerPortalController {
     const userAgent = req.get('user-agent');
 
     try {
+      // SECURITY: Validate network ID is configured
+      if (!DEFAULT_NETWORK_ID) {
+        throw new BadRequestException('Network ID is not configured. Please set DEFAULT_NETWORK_ID environment variable.');
+      }
+
       // SECURITY: Use findByCodeForAuth to get full object with pinHash for authentication
       const partner = await this.partnerCompanyService.findByCodeForAuth(
         DEFAULT_NETWORK_ID,

@@ -1,26 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * SECURITY: Account lockout service
+ * SECURITY: Account lockout service with database persistence
  *
  * Provides temporary account locking after multiple failed login attempts.
  * This is a complementary protection to rate limiting.
  *
  * - 5 failed attempts = 15 minute lockout
  * - Lockout is per-account, not per-IP
- * - Failed attempts are tracked in memory (cleared on restart)
+ * - Failed attempts are tracked in database (persists across restarts)
  * - Successful login clears the counter
  */
 @Injectable()
 export class AccountLockoutService {
-  // In-memory storage for failed attempts
-  // Key: identifier (email/phone), Value: { count, lastAttempt, lockedUntil }
-  private failedAttempts = new Map<string, {
-    count: number;
-    lastAttempt: Date;
-    lockedUntil: Date | null;
-  }>();
+  private readonly logger = new Logger(AccountLockoutService.name);
 
   // Configuration
   private readonly MAX_ATTEMPTS = 5;
@@ -28,7 +22,7 @@ export class AccountLockoutService {
   private readonly ATTEMPT_WINDOW_MS = 60 * 60 * 1000; // 1 hour window for counting attempts
 
   constructor(private readonly prisma: PrismaService) {
-    // Clean up old entries every hour
+    // Schedule cleanup every hour
     setInterval(() => this.cleanup(), 60 * 60 * 1000);
   }
 
@@ -37,9 +31,12 @@ export class AccountLockoutService {
    * @param identifier - Email or phone number
    * @returns Object with isLocked status and remaining seconds if locked
    */
-  isLocked(identifier: string): { isLocked: boolean; remainingSeconds?: number } {
+  async isLocked(identifier: string): Promise<{ isLocked: boolean; remainingSeconds?: number }> {
     const key = identifier.toLowerCase();
-    const record = this.failedAttempts.get(key);
+
+    const record = await this.prisma.accountLockout.findUnique({
+      where: { identifier: key },
+    });
 
     if (!record || !record.lockedUntil) {
       return { isLocked: false };
@@ -55,8 +52,14 @@ export class AccountLockoutService {
     }
 
     // Lockout expired, clear it
-    record.lockedUntil = null;
-    record.count = 0;
+    await this.prisma.accountLockout.update({
+      where: { identifier: key },
+      data: {
+        lockedUntil: null,
+        failedCount: 0,
+      },
+    });
+
     return { isLocked: false };
   }
 
@@ -65,34 +68,53 @@ export class AccountLockoutService {
    * @param identifier - Email or phone number
    * @returns Object with isNowLocked status and attempts remaining
    */
-  recordFailedAttempt(identifier: string): { isNowLocked: boolean; attemptsRemaining: number } {
+  async recordFailedAttempt(identifier: string): Promise<{ isNowLocked: boolean; attemptsRemaining: number }> {
     const key = identifier.toLowerCase();
     const now = new Date();
-    let record = this.failedAttempts.get(key);
+
+    // Upsert the record
+    let record = await this.prisma.accountLockout.findUnique({
+      where: { identifier: key },
+    });
 
     if (!record) {
-      record = { count: 0, lastAttempt: now, lockedUntil: null };
-      this.failedAttempts.set(key, record);
-    }
+      record = await this.prisma.accountLockout.create({
+        data: {
+          identifier: key,
+          failedCount: 1,
+          lastAttemptAt: now,
+        },
+      });
+    } else {
+      // If last attempt was more than 1 hour ago, reset counter
+      const hourAgo = new Date(now.getTime() - this.ATTEMPT_WINDOW_MS);
+      const shouldReset = record.lastAttemptAt < hourAgo;
 
-    // If last attempt was more than 1 hour ago, reset counter
-    const hourAgo = new Date(now.getTime() - this.ATTEMPT_WINDOW_MS);
-    if (record.lastAttempt < hourAgo) {
-      record.count = 0;
+      record = await this.prisma.accountLockout.update({
+        where: { identifier: key },
+        data: {
+          failedCount: shouldReset ? 1 : { increment: 1 },
+          lastAttemptAt: now,
+        },
+      });
     }
-
-    record.count++;
-    record.lastAttempt = now;
 
     // Check if should lock
-    if (record.count >= this.MAX_ATTEMPTS) {
-      record.lockedUntil = new Date(now.getTime() + this.LOCKOUT_DURATION_MS);
+    if (record.failedCount >= this.MAX_ATTEMPTS) {
+      const lockedUntil = new Date(now.getTime() + this.LOCKOUT_DURATION_MS);
+
+      await this.prisma.accountLockout.update({
+        where: { identifier: key },
+        data: { lockedUntil },
+      });
+
+      this.logger.warn(`Account locked: ${key} (${record.failedCount} failed attempts)`);
       return { isNowLocked: true, attemptsRemaining: 0 };
     }
 
     return {
       isNowLocked: false,
-      attemptsRemaining: this.MAX_ATTEMPTS - record.count,
+      attemptsRemaining: this.MAX_ATTEMPTS - record.failedCount,
     };
   }
 
@@ -100,41 +122,61 @@ export class AccountLockoutService {
    * Clear failed attempts on successful login
    * @param identifier - Email or phone number
    */
-  clearFailedAttempts(identifier: string): void {
+  async clearFailedAttempts(identifier: string): Promise<void> {
     const key = identifier.toLowerCase();
-    this.failedAttempts.delete(key);
+
+    await this.prisma.accountLockout.deleteMany({
+      where: { identifier: key },
+    });
   }
 
   /**
-   * Cleanup old entries to prevent memory leaks
+   * Cleanup old entries to prevent database bloat
    */
-  private cleanup(): void {
+  private async cleanup(): Promise<void> {
     const now = new Date();
     const cutoff = new Date(now.getTime() - this.ATTEMPT_WINDOW_MS * 2);
 
-    for (const [key, record] of this.failedAttempts.entries()) {
-      // Remove if last attempt was more than 2 hours ago and not locked
-      if (record.lastAttempt < cutoff && (!record.lockedUntil || record.lockedUntil < now)) {
-        this.failedAttempts.delete(key);
+    try {
+      const result = await this.prisma.accountLockout.deleteMany({
+        where: {
+          AND: [
+            { lastAttemptAt: { lt: cutoff } },
+            {
+              OR: [
+                { lockedUntil: null },
+                { lockedUntil: { lt: now } },
+              ],
+            },
+          ],
+        },
+      });
+
+      if (result.count > 0) {
+        this.logger.debug(`Cleaned up ${result.count} expired lockout records`);
       }
+    } catch (error) {
+      this.logger.error(`Failed to cleanup lockout records: ${error.message}`);
     }
   }
 
   /**
    * Get lockout status summary (for admin monitoring)
    */
-  getStats(): { totalTracked: number; currentlyLocked: number } {
-    let currentlyLocked = 0;
+  async getStats(): Promise<{ totalTracked: number; currentlyLocked: number }> {
     const now = new Date();
 
-    for (const record of this.failedAttempts.values()) {
-      if (record.lockedUntil && record.lockedUntil > now) {
-        currentlyLocked++;
-      }
-    }
+    const [totalTracked, currentlyLocked] = await Promise.all([
+      this.prisma.accountLockout.count(),
+      this.prisma.accountLockout.count({
+        where: {
+          lockedUntil: { gt: now },
+        },
+      }),
+    ]);
 
     return {
-      totalTracked: this.failedAttempts.size,
+      totalTracked,
       currentlyLocked,
     };
   }

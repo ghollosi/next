@@ -63,10 +63,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../modules/email/email.service';
 
-// SECURITY: Default network ID from environment variable
-// In production, this should be set via DEFAULT_NETWORK_ID env var
-// Falls back to the main VSys network for backwards compatibility
-const DEFAULT_NETWORK_ID = process.env.DEFAULT_NETWORK_ID || 'cf808392-6283-4487-9fbd-e72951ca5bf8';
+// SECURITY: Default network ID MUST be set via environment variable
+// This is required for security - hardcoded UUIDs are a vulnerability
+const DEFAULT_NETWORK_ID = process.env.DEFAULT_NETWORK_ID;
+if (!DEFAULT_NETWORK_ID) {
+  console.warn('SECURITY WARNING: DEFAULT_NETWORK_ID environment variable is not set. PWA endpoints requiring network context will fail.');
+}
 
 @ApiTags('pwa')
 @Controller('pwa')
@@ -131,6 +133,9 @@ export class PwaController {
     @Headers('x-network-id') networkId?: string,
   ) {
     const nid = networkId || DEFAULT_NETWORK_ID;
+    if (!nid) {
+      throw new BadRequestException('Network ID is required. Please provide x-network-id header or configure DEFAULT_NETWORK_ID environment variable.');
+    }
     const companies = await this.partnerCompanyService.findActive(nid);
 
     return companies.map((company) => ({
@@ -159,6 +164,9 @@ export class PwaController {
     @Headers('x-network-id') networkId?: string,
   ): Promise<SelfRegisterResponseDto> {
     const nid = networkId || DEFAULT_NETWORK_ID;
+    if (!nid) {
+      throw new BadRequestException('Network ID is required. Please provide x-network-id header or configure DEFAULT_NETWORK_ID environment variable.');
+    }
 
     // Verify at least email or phone is provided
     if (!dto.email && !dto.phone) {
@@ -306,6 +314,9 @@ export class PwaController {
     @Headers('x-network-id') networkId?: string,
   ): Promise<CheckApprovalResponseDto> {
     const nid = networkId || DEFAULT_NETWORK_ID;
+    if (!nid) {
+      throw new BadRequestException('Network ID is required. Please provide x-network-id header or configure DEFAULT_NETWORK_ID environment variable.');
+    }
 
     // Verify PIN first
     const isValid = await this.driverService.validateDriverPin(
@@ -1239,6 +1250,9 @@ export class PwaController {
     @Headers('x-network-id') networkId?: string,
   ): Promise<VerificationResponseDto> {
     const nid = networkId || DEFAULT_NETWORK_ID;
+    if (!nid) {
+      throw new BadRequestException('Network ID is required. Please provide x-network-id header or configure DEFAULT_NETWORK_ID environment variable.');
+    }
 
     // Verify PIN first
     const isValid = await this.driverService.validateDriverPin(nid, dto.driverId, dto.pin);
@@ -2162,7 +2176,6 @@ ${isHungarian ? 'Köszönjük a segítségedet!' : 'Thank you for your help!'}
           code: d.partnerCompany.code,
         } : null,
         isPrivateCustomer: d.isPrivateCustomer,
-        // Note: PIN is 1234 for all test drivers
       })),
       locations: locations.map(l => ({
         id: l.id,
@@ -2174,7 +2187,6 @@ ${isHungarian ? 'Köszönjük a segítségedet!' : 'Thank you for your help!'}
         washMode: l.washMode,
         bookingEnabled: l.bookingEnabled,
         email: l.email,
-        // Note: For operator login, use location email + 1234 PIN (if configured)
       })),
       partners: partners.map(p => ({
         id: p.id,
@@ -2183,14 +2195,15 @@ ${isHungarian ? 'Köszönjük a segítségedet!' : 'Thank you for your help!'}
         contactName: p.contactName,
         email: p.email,
         phone: p.phone,
-        // Note: PIN is 1234 for all test partners
       })),
-      // Static credentials for testing
-      testCredentials: {
-        driverPin: '1234',
-        partnerPin: '1234',
-        networkAdminPassword: 'AdminPass123',
-      },
+      // SECURITY: Test credentials only available in development mode
+      ...(process.env.NODE_ENV !== 'production' && {
+        testCredentials: {
+          driverPin: '1234',
+          partnerPin: '1234',
+          networkAdminPassword: 'AdminPass123',
+        },
+      }),
     };
   }
 }

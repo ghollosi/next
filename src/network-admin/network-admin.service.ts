@@ -65,8 +65,8 @@ export class NetworkAdminService {
     const slug = dto.slug.toLowerCase();
     const lockKey = `${slug}:${email}`; // Lock per network+email combination
 
-    // SECURITY: Check if account is locked
-    const lockStatus = this.lockoutService.isLocked(lockKey);
+    // SECURITY: Check if account is locked (now async with DB)
+    const lockStatus = await this.lockoutService.isLocked(lockKey);
     if (lockStatus.isLocked) {
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
@@ -86,8 +86,8 @@ export class NetworkAdminService {
     });
 
     if (!network || network.deletedAt || !network.isActive) {
-      // SECURITY: Record failed attempt
-      const lockResult = this.lockoutService.recordFailedAttempt(lockKey);
+      // SECURITY: Record failed attempt (now async with DB)
+      const lockResult = await this.lockoutService.recordFailedAttempt(lockKey);
 
       // AUDIT: Log failed login - network not found
       await this.auditLogService.log({
@@ -116,8 +116,8 @@ export class NetworkAdminService {
     });
 
     if (!admin || !admin.isActive) {
-      // SECURITY: Record failed attempt
-      const lockResult = this.lockoutService.recordFailedAttempt(lockKey);
+      // SECURITY: Record failed attempt (now async with DB)
+      const lockResult = await this.lockoutService.recordFailedAttempt(lockKey);
 
       // AUDIT: Log failed login - admin not found
       await this.auditLogService.log({
@@ -139,8 +139,8 @@ export class NetworkAdminService {
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isPasswordValid) {
-      // SECURITY: Record failed attempt
-      const lockResult = this.lockoutService.recordFailedAttempt(lockKey);
+      // SECURITY: Record failed attempt (now async with DB)
+      const lockResult = await this.lockoutService.recordFailedAttempt(lockKey);
 
       // AUDIT: Log failed login - invalid password
       await this.auditLogService.log({
@@ -176,8 +176,8 @@ export class NetworkAdminService {
       throw new UnauthorizedException('EMAIL_NOT_VERIFIED');
     }
 
-    // SECURITY: Clear failed attempts on successful login
-    this.lockoutService.clearFailedAttempts(lockKey);
+    // SECURITY: Clear failed attempts on successful login (now async with DB)
+    await this.lockoutService.clearFailedAttempts(lockKey);
 
     // Update last login
     await this.prisma.networkAdmin.update({

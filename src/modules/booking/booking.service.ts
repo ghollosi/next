@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException, 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { BookingStatus, PaymentStatus, DayOfWeek, Prisma, VehicleType } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import {
   CreateBookingDto,
   UpdateBookingDto,
@@ -789,6 +790,7 @@ export class BookingService {
 
   /**
    * Egyedi foglalási kód generálása
+   * SECURITY: Uses cryptographically secure random generation
    */
   private async generateBookingCode(): Promise<string> {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Kihagyjuk a félreérthető karaktereket (I, O, 0, 1)
@@ -797,8 +799,9 @@ export class BookingService {
 
     while (exists) {
       code = '';
+      const randomBytesBuffer = randomBytes(8);
       for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+        code += chars.charAt(randomBytesBuffer[i] % chars.length);
       }
 
       const existing = await this.prisma.booking.findUnique({

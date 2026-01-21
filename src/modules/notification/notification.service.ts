@@ -25,9 +25,14 @@ export class NotificationService {
     return `ev_${randomBytes(32).toString('hex')}`;
   }
 
-  // Generál egy 6 számjegyű kódot (SMS-hez)
+  // SECURITY: Generál egy 8 számjegyű kódot (SMS-hez) kriptográfiailag biztonságos módon
   private generateSmsCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    // Use 4 random bytes and convert to 8-digit number for better security
+    const randomBytesBuffer = randomBytes(4);
+    const randomNumber = randomBytesBuffer.readUInt32BE(0);
+    // Ensure 8 digits (10000000 - 99999999)
+    const code = 10000000 + (randomNumber % 90000000);
+    return code.toString();
   }
 
   // Email validációs token létrehozása és küldése

@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import * as express from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -17,6 +18,10 @@ async function bootstrap() {
 
   // SECURITY: Helmet for security headers (XSS, clickjacking, etc.)
   app.use(helmet());
+
+  // SECURITY: Request size limits to prevent DoS attacks
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // SECURITY: Cookie parser for httpOnly session cookies
   app.use(cookieParser());

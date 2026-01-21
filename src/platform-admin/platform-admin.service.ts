@@ -37,8 +37,7 @@ import {
   EmergencyLoginDto,
 } from './dto/platform-admin.dto';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+// SECURITY: Removed fs and path imports - emergency tokens are no longer written to filesystem
 
 @Injectable()
 export class PlatformAdminService {
@@ -70,8 +69,8 @@ export class PlatformAdminService {
   async login(dto: PlatformLoginDto, ipAddress?: string, userAgent?: string): Promise<PlatformLoginResponseDto> {
     const email = dto.email.toLowerCase();
 
-    // SECURITY: Check if account is locked
-    const lockStatus = this.lockoutService.isLocked(email);
+    // SECURITY: Check if account is locked (now async with DB)
+    const lockStatus = await this.lockoutService.isLocked(email);
     if (lockStatus.isLocked) {
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
@@ -90,8 +89,8 @@ export class PlatformAdminService {
     });
 
     if (!admin || !admin.isActive) {
-      // SECURITY: Record failed attempt
-      const lockResult = this.lockoutService.recordFailedAttempt(email);
+      // SECURITY: Record failed attempt (now async with DB)
+      const lockResult = await this.lockoutService.recordFailedAttempt(email);
 
       // AUDIT: Log failed login - admin not found
       await this.auditLogService.log({
@@ -111,8 +110,8 @@ export class PlatformAdminService {
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isPasswordValid) {
-      // SECURITY: Record failed attempt
-      const lockResult = this.lockoutService.recordFailedAttempt(email);
+      // SECURITY: Record failed attempt (now async with DB)
+      const lockResult = await this.lockoutService.recordFailedAttempt(email);
 
       // AUDIT: Log failed login - invalid password
       await this.auditLogService.log({
@@ -131,8 +130,8 @@ export class PlatformAdminService {
       throw new UnauthorizedException('Hibás email vagy jelszó');
     }
 
-    // SECURITY: Clear failed attempts on successful login
-    this.lockoutService.clearFailedAttempts(email);
+    // SECURITY: Clear failed attempts on successful login (now async with DB)
+    await this.lockoutService.clearFailedAttempts(email);
 
     // Update last login
     await this.prisma.platformAdmin.update({
@@ -434,7 +433,8 @@ export class PlatformAdminService {
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/platform-admin/reset-password?token=${resetToken}`;
 
-    this.logger.log(`Password reset link for ${admin.email}: ${resetLink}`);
+    // SECURITY: Never log password reset tokens - only log that a reset was requested
+    this.logger.log(`Password reset requested for ${admin.email}`);
 
     // Send password reset email
     try {
@@ -507,33 +507,14 @@ export class PlatformAdminService {
       },
     });
 
-    // Token mentése fájlba (biztonságos helyre)
-    const emergencyDir = path.join(process.cwd(), 'emergency-tokens');
-    if (!fs.existsSync(emergencyDir)) {
-      fs.mkdirSync(emergencyDir, { recursive: true });
-    }
-
-    const tokenFile = path.join(emergencyDir, `emergency-${admin.id}.txt`);
-    const tokenContent = `
-VSys Platform Emergency Access Token
-=====================================
-Admin: ${admin.name} (${admin.email})
-Token: ${emergencyToken}
-Expires: ${expiresAt.toISOString()}
-Generated: ${new Date().toISOString()}
-
-FIGYELEM: Ezt a tokent biztonságos helyen tárold!
-Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" }
-=====================================
-`;
-
-    fs.writeFileSync(tokenFile, tokenContent);
-    this.logger.warn(`Emergency token generated for ${admin.email}, saved to ${tokenFile}`);
+    // SECURITY: Emergency token is stored encrypted in database only
+    // Never write tokens to filesystem - they are returned once and must be stored securely by the admin
+    this.logger.warn(`Emergency token generated for ${admin.email} - token returned in response only, not stored in files`);
 
     return {
       token: emergencyToken,
       expiresAt,
-      message: `Emergency token generálva és mentve: ${tokenFile}`,
+      message: `Emergency token generálva. FIGYELEM: Ez a token csak egyszer jelenik meg! Mentsd biztonságos helyre!`,
     };
   }
 

@@ -2301,3 +2301,22 @@ model PostalCode {
   @@index([city])
   @@map("postal_codes")
 }
+
+// =============================================================================
+// SECURITY: ACCOUNT LOCKOUT
+// Tracks failed login attempts and account lockouts persistently in database
+// =============================================================================
+
+model AccountLockout {
+  id            String    @id @default(uuid())
+  identifier    String    @unique                   // Email or phone (lowercase)
+  failedCount   Int       @default(0) @map("failed_count")
+  lastAttemptAt DateTime  @default(now()) @map("last_attempt_at")
+  lockedUntil   DateTime? @map("locked_until")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@index([lockedUntil])
+  @@map("account_lockouts")
+}

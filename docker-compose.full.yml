@@ -59,6 +59,8 @@ services:
       # API URL for email verification links
       API_URL: https://api.vemiax.com
       FRONTEND_URL: https://app.vemiax.com
+      # SECURITY: Default Network ID for PWA endpoints (required)
+      DEFAULT_NETWORK_ID: ${DEFAULT_NETWORK_ID:?DEFAULT_NETWORK_ID is required}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
