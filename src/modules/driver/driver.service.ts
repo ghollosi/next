@@ -8,9 +8,13 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { Driver, DriverInvite, DriverInviteStatus, DriverApprovalStatus } from '@prisma/client';
+import { Driver, DriverInvite, DriverInviteStatus, DriverApprovalStatus, PartnerCompany } from '@prisma/client';
 import { createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
+
+// SECURITY: Type for driver without sensitive pinHash field
+export type SafeDriver = Omit<Driver, 'pinHash'>;
+export type SafeDriverWithPartner = SafeDriver & { partnerCompany: PartnerCompany | null };
 
 @Injectable()
 export class DriverService {
@@ -66,7 +70,19 @@ export class DriverService {
     return code;
   }
 
-  async findById(networkId: string, id: string): Promise<Driver> {
+  // SECURITY: Remove pinHash from driver object before returning to API
+  private omitPinHash<T extends { pinHash?: string }>(driver: T): Omit<T, 'pinHash'> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { pinHash, ...safeDriver } = driver;
+    return safeDriver;
+  }
+
+  // SECURITY: Remove pinHash from array of drivers
+  private omitPinHashFromArray<T extends { pinHash?: string }>(drivers: T[]): Omit<T, 'pinHash'>[] {
+    return drivers.map(driver => this.omitPinHash(driver));
+  }
+
+  async findById(networkId: string, id: string): Promise<SafeDriverWithPartner> {
     const driver = await this.prisma.driver.findFirst({
       where: {
         id,
@@ -82,14 +98,15 @@ export class DriverService {
       throw new NotFoundException(`Driver not found`);
     }
 
-    return driver;
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHash(driver) as SafeDriverWithPartner;
   }
 
   async findByPartnerCompany(
     networkId: string,
     partnerCompanyId: string,
-  ): Promise<Driver[]> {
-    return this.prisma.driver.findMany({
+  ): Promise<SafeDriver[]> {
+    const drivers = await this.prisma.driver.findMany({
       where: {
         networkId,
         partnerCompanyId,
@@ -99,10 +116,12 @@ export class DriverService {
         lastName: 'asc',
       },
     });
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHashFromArray(drivers);
   }
 
-  async findAll(networkId: string): Promise<Driver[]> {
-    return this.prisma.driver.findMany({
+  async findAll(networkId: string): Promise<SafeDriverWithPartner[]> {
+    const drivers = await this.prisma.driver.findMany({
       where: {
         networkId,
         deletedAt: null,
@@ -114,6 +133,8 @@ export class DriverService {
         lastName: 'asc',
       },
     });
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHashFromArray(drivers) as SafeDriverWithPartner[];
   }
 
   async create(
@@ -414,7 +435,17 @@ export class DriverService {
     driverId: string,
     pin: string,
   ): Promise<boolean> {
-    const driver = await this.findById(networkId, driverId);
+    // SECURITY: Internal method needs full driver with pinHash
+    const driver = await this.prisma.driver.findFirst({
+      where: {
+        id: driverId,
+        networkId,
+        deletedAt: null,
+      },
+    });
+    if (!driver) {
+      throw new NotFoundException(`Driver not found`);
+    }
     return this.verifyPin(pin, driver.pinHash);
   }
 
@@ -740,8 +771,8 @@ A sofőr azonnal használhatja az alkalmazást.
     `;
   }
 
-  async findPendingApproval(networkId: string): Promise<Driver[]> {
-    return this.prisma.driver.findMany({
+  async findPendingApproval(networkId: string): Promise<SafeDriver[]> {
+    const drivers = await this.prisma.driver.findMany({
       where: {
         networkId,
         approvalStatus: DriverApprovalStatus.PENDING,
@@ -755,6 +786,8 @@ A sofőr azonnal használhatja az alkalmazást.
         createdAt: 'desc',
       },
     });
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHashFromArray(drivers);
   }
 
   async approve(
