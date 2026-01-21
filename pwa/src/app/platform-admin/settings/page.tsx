@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { platformApi, getPlatformAdmin } from '@/lib/platform-api';
 import HelpTooltip from '@/components/ui/HelpTooltip';
+import AddressInput, { AddressData } from '@/components/address/AddressInput';
 
 interface Settings {
   id: string;
@@ -53,10 +54,12 @@ export default function PlatformSettingsPage() {
 
   // Company data (for invoicing)
   const [companyName, setCompanyName] = useState('');
-  const [companyAddress, setCompanyAddress] = useState('');
-  const [companyCity, setCompanyCity] = useState('');
-  const [companyZipCode, setCompanyZipCode] = useState('');
-  const [companyCountry, setCompanyCountry] = useState('HU');
+  const [companyAddressData, setCompanyAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [taxNumber, setTaxNumber] = useState('');
   const [euVatNumber, setEuVatNumber] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
@@ -165,10 +168,10 @@ export default function PlatformSettingsPage() {
         supportPhone: supportPhone || undefined,
         // Company data
         companyName: companyName || undefined,
-        companyAddress: companyAddress || undefined,
-        companyCity: companyCity || undefined,
-        companyZipCode: companyZipCode || undefined,
-        companyCountry: companyCountry || undefined,
+        companyAddress: companyAddressData.street || undefined,
+        companyCity: companyAddressData.city || undefined,
+        companyZipCode: companyAddressData.postalCode || undefined,
+        companyCountry: companyAddressData.country || undefined,
         taxNumber: taxNumber || undefined,
         euVatNumber: euVatNumber || undefined,
         bankAccountNumber: bankAccountNumber || undefined,
@@ -354,60 +357,23 @@ export default function PlatformSettingsPage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Irányítószám
-              </label>
-              <input
-                type="text"
-                value={companyZipCode}
-                onChange={(e) => setCompanyZipCode(e.target.value)}
-                placeholder="1234"
-                className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Város
-              </label>
-              <input
-                type="text"
-                value={companyCity}
-                onChange={(e) => setCompanyCity(e.target.value)}
-                placeholder="Budapest"
-                className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Ország
-              </label>
-              <select
-                value={companyCountry}
-                onChange={(e) => setCompanyCountry(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="HU">Magyarország</option>
-                <option value="SK">Szlovákia</option>
-                <option value="RO">Románia</option>
-                <option value="AT">Ausztria</option>
-                <option value="DE">Németország</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Utca, házszám
-            </label>
-            <input
-              type="text"
-              value={companyAddress}
-              onChange={(e) => setCompanyAddress(e.target.value)}
-              placeholder="Fő utca 1."
-              className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+
+          {/* Address Input with autocomplete */}
+          <div className="[&_label]:text-gray-300 [&_input]:bg-gray-700 [&_input]:border-gray-600 [&_input]:text-white [&_input]:placeholder-gray-400 [&_select]:bg-gray-700 [&_select]:border-gray-600 [&_select]:text-white">
+            <AddressInput
+              value={companyAddressData}
+              onChange={setCompanyAddressData}
+              defaultCountry="HU"
+              showCountry={true}
+              labels={{
+                postalCode: 'Iranyitoszam',
+                city: 'Varos',
+                street: 'Utca, hazszam',
+                country: 'Orszag',
+              }}
             />
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center gap-1.5 mb-1">

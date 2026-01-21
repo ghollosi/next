@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { networkAdminApi } from '@/lib/network-admin-api';
 import HelpTooltip from '@/components/ui/HelpTooltip';
+import { COUNTRIES } from '@/lib/countries';
 
 interface Settings {
   network: {
@@ -96,19 +97,6 @@ interface Currency {
 }
 
 type TabType = 'company' | 'regional' | 'invoicing' | 'companyData' | 'notifications' | 'business';
-
-const COUNTRIES = [
-  { code: 'HU', name: 'Magyarország' },
-  { code: 'SK', name: 'Szlovákia' },
-  { code: 'RO', name: 'Románia' },
-  { code: 'AT', name: 'Ausztria' },
-  { code: 'DE', name: 'Németország' },
-  { code: 'PL', name: 'Lengyelország' },
-  { code: 'CZ', name: 'Csehország' },
-  { code: 'HR', name: 'Horvátország' },
-  { code: 'SI', name: 'Szlovénia' },
-  { code: 'RS', name: 'Szerbia' },
-];
 
 const TIMEZONES = [
   { code: 'Europe/Budapest', name: 'Budapest (CET/CEST)' },

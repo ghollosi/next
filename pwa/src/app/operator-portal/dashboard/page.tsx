@@ -37,6 +37,9 @@ interface Statistics {
   total: number;
   byStatus: Record<string, number>;
   today: { total: number; completed: number };
+  yesterday?: { total: number; completed: number };
+  month?: { total: number; completed: number };
+  last7Days?: { date: string; count: number }[];
 }
 
 interface OperatorInfo {
@@ -310,28 +313,109 @@ export default function OperatorDashboardPage() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Statistics Cards */}
         {statistics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-3xl font-bold text-green-600">{statistics.today.total}</div>
-              <div className="text-sm text-gray-500">Mai mosások</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-3xl font-bold text-blue-600">{statistics.today.completed}</div>
-              <div className="text-sm text-gray-500">Befejezett</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-3xl font-bold text-yellow-600">
-                {queue?.inProgress.length || 0}
+          <>
+            {/* Daily Statistics */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-700 mb-3">Mai nap</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-3xl font-bold text-green-600">{statistics.today.total}</div>
+                      <div className="text-sm text-gray-500">Osszes mosas</div>
+                    </div>
+                    {statistics.yesterday && statistics.yesterday.total > 0 && (
+                      <div className={`text-xs px-2 py-1 rounded-full ${
+                        statistics.today.total >= statistics.yesterday.total
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {statistics.today.total >= statistics.yesterday.total ? '+' : ''}
+                        {statistics.today.total - statistics.yesterday.total} vs tegnap
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="text-3xl font-bold text-blue-600">{statistics.today.completed}</div>
+                  <div className="text-sm text-gray-500">Befejezett</div>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="text-3xl font-bold text-yellow-600">
+                    {queue?.inProgress.length || 0}
+                  </div>
+                  <div className="text-sm text-gray-500">Folyamatban</div>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="text-3xl font-bold text-gray-600">
+                    {(queue?.authorized.length || 0) + (queue?.created.length || 0)}
+                  </div>
+                  <div className="text-sm text-gray-500">Varakozik</div>
+                </div>
               </div>
-              <div className="text-sm text-gray-500">Folyamatban</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-3xl font-bold text-gray-600">
-                {(queue?.authorized.length || 0) + (queue?.created.length || 0)}
+
+            {/* Monthly Statistics */}
+            {statistics.month && (
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-700 mb-3">Havi osszesites</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-xl shadow-sm p-4">
+                    <div className="text-3xl font-bold text-indigo-600">{statistics.month.total}</div>
+                    <div className="text-sm text-gray-500">Osszes mosas (havi)</div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm p-4">
+                    <div className="text-3xl font-bold text-indigo-600">{statistics.month.completed}</div>
+                    <div className="text-sm text-gray-500">Befejezett (havi)</div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm p-4">
+                    <div className="text-3xl font-bold text-indigo-600">
+                      {statistics.month.total > 0
+                        ? Math.round((statistics.month.completed / statistics.month.total) * 100)
+                        : 0}%
+                    </div>
+                    <div className="text-sm text-gray-500">Befejezes arany</div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm p-4">
+                    <div className="text-3xl font-bold text-indigo-600">
+                      {Math.round(statistics.month.completed / new Date().getDate())}
+                    </div>
+                    <div className="text-sm text-gray-500">Napi atlag</div>
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-gray-500">Várakozik</div>
-            </div>
-          </div>
+            )}
+
+            {/* 7-day trend chart */}
+            {statistics.last7Days && statistics.last7Days.length > 0 && (
+              <div className="mb-6 bg-white rounded-xl shadow-sm p-4">
+                <h2 className="text-lg font-semibold text-gray-700 mb-3">Utolso 7 nap</h2>
+                <div className="flex items-end justify-between gap-2 h-32">
+                  {statistics.last7Days.map((day, index) => {
+                    const maxCount = Math.max(...statistics.last7Days!.map(d => d.count), 1);
+                    const height = (day.count / maxCount) * 100;
+                    const isToday = index === statistics.last7Days!.length - 1;
+                    const dayName = new Date(day.date).toLocaleDateString('hu-HU', { weekday: 'short' });
+
+                    return (
+                      <div key={day.date} className="flex-1 flex flex-col items-center">
+                        <div className="text-xs font-medium text-gray-700 mb-1">{day.count}</div>
+                        <div
+                          className={`w-full rounded-t-lg transition-all ${
+                            isToday ? 'bg-green-500' : 'bg-indigo-300'
+                          }`}
+                          style={{ height: `${Math.max(height, 4)}%` }}
+                        />
+                        <div className={`text-xs mt-1 ${isToday ? 'font-bold text-green-600' : 'text-gray-500'}`}>
+                          {dayName}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Error */}

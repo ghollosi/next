@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { AddressInput, AddressData } from '@/components/address';
 
 export default function NetworkAdminRegisterPage() {
   const router = useRouter();
@@ -23,9 +24,13 @@ export default function NetworkAdminRegisterPage() {
     passwordConfirm: '',
     phone: '',
     taxNumber: '',
-    companyAddress: '',
-    companyCity: '',
-    companyZipCode: '',
+  });
+
+  // Address data for company
+  const [addressData, setAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
     country: 'HU',
   });
 
@@ -126,10 +131,10 @@ export default function NetworkAdminRegisterPage() {
         password: formData.password,
         phone: formData.phone,
         taxNumber: formData.taxNumber || undefined,
-        companyAddress: formData.companyAddress || undefined,
-        companyCity: formData.companyCity || undefined,
-        companyZipCode: formData.companyZipCode || undefined,
-        country: formData.country,
+        companyAddress: addressData.street || undefined,
+        companyCity: addressData.city || undefined,
+        companyZipCode: addressData.postalCode || undefined,
+        country: addressData.country,
       });
 
       setSuccess(true);
@@ -366,48 +371,15 @@ export default function NetworkAdminRegisterPage() {
                 <h2 className="text-lg font-semibold text-white mb-4">Cím adatok (opcionális)</h2>
                 <p className="text-gray-400 text-sm mb-4">Ezeket később is megadhatja a beállításokban</p>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Utca, házszám
-                  </label>
-                  <input
-                    type="text"
-                    name="companyAddress"
-                    value={formData.companyAddress}
-                    onChange={handleChange}
-                    placeholder="Fő utca 1."
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                {/* Address Input Component with dark theme styles */}
+                <div className="[&_label]:text-gray-300 [&_input]:bg-gray-700 [&_input]:border-gray-600 [&_input]:text-white [&_input]:placeholder-gray-400 [&_select]:bg-gray-700 [&_select]:border-gray-600 [&_select]:text-white">
+                  <AddressInput
+                    value={addressData}
+                    onChange={setAddressData}
+                    defaultCountry="HU"
+                    showCountry={true}
+                    required={false}
                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Irányítószám
-                    </label>
-                    <input
-                      type="text"
-                      name="companyZipCode"
-                      value={formData.companyZipCode}
-                      onChange={handleChange}
-                      placeholder="1234"
-                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Város
-                    </label>
-                    <input
-                      type="text"
-                      name="companyCity"
-                      value={formData.companyCity}
-                      onChange={handleChange}
-                      placeholder="Budapest"
-                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
                 </div>
 
                 {/* Summary */}

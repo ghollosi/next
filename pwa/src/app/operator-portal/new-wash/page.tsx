@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import AddressInput, { AddressData } from '@/components/address/AddressInput';
 
 const API_URL = 'https://api.vemiax.com';
 
@@ -129,9 +130,12 @@ export default function NewWashPage() {
   // Ad-hoc customer fields
   const [companyName, setCompanyName] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [billingCity, setBillingCity] = useState('');
-  const [billingZipCode, setBillingZipCode] = useState('');
+  const [billingAddressData, setBillingAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [email, setEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
 
@@ -452,15 +456,15 @@ export default function NewWashPage() {
         body.isAdHoc = true;
         body.paymentMethod = paymentMethod;
         body.walkInInvoiceRequested = wantsInvoice;
-        // Only include billing data if invoice is requested
+        // Include billing data if invoice is requested (API uses these field names)
         if (wantsInvoice) {
-          body.walkInBillingName = companyName;
-          body.walkInBillingTaxNumber = taxNumber;
-          body.walkInBillingAddress = billingAddress;
-          body.walkInBillingCity = billingCity;
-          body.walkInBillingZipCode = billingZipCode;
-          body.walkInBillingCountry = 'HU';
-          body.walkInBillingEmail = email;
+          body.companyName = companyName;
+          body.taxNumber = taxNumber;
+          body.billingAddress = billingAddressData.street;
+          body.billingCity = billingAddressData.city;
+          body.billingZipCode = billingAddressData.postalCode;
+          body.billingCountry = billingAddressData.country || 'HU';
+          body.email = email;
         }
       }
 
@@ -571,9 +575,7 @@ export default function NewWashPage() {
                 setSelectedPartnerId('');
                 setCompanyName('');
                 setTaxNumber('');
-                setBillingAddress('');
-                setBillingCity('');
-                setBillingZipCode('');
+                setBillingAddressData({ postalCode: '', city: '', street: '', country: 'HU' });
                 setEmail('');
                 setPaymentMethod('CASH');
                 setCustomerType('CONTRACT');
@@ -845,38 +847,19 @@ export default function NewWashPage() {
                         placeholder="szamla@ceg.hu"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Szamlazasi cim</label>
-                      <input
-                        type="text"
-                        value={billingAddress}
-                        onChange={(e) => setBillingAddress(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        placeholder="Pelda utca 1."
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Iranyitoszam</label>
-                        <input
-                          type="text"
-                          value={billingZipCode}
-                          onChange={(e) => setBillingZipCode(e.target.value)}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                          placeholder="1234"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Varos</label>
-                        <input
-                          type="text"
-                          value={billingCity}
-                          onChange={(e) => setBillingCity(e.target.value)}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                          placeholder="Budapest"
-                        />
-                      </div>
-                    </div>
+                    {/* Address Input with autocomplete */}
+                    <AddressInput
+                      value={billingAddressData}
+                      onChange={setBillingAddressData}
+                      defaultCountry="HU"
+                      showCountry={false}
+                      labels={{
+                        postalCode: 'Iranyitoszam',
+                        city: 'Varos',
+                        street: 'Szamlazasi cim (utca, hazszam)',
+                        country: 'Orszag',
+                      }}
+                    />
                   </div>
                 )}
 

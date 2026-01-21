@@ -8,9 +8,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     // Enable raw body for Stripe webhook signature verification
     rawBody: true,
-    // Disable verbose logging in production
+    // Log level configuration - include 'log' in production for important info
     logger: process.env.NODE_ENV === 'production'
-      ? ['error', 'warn']
+      ? ['log', 'error', 'warn']
       : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 

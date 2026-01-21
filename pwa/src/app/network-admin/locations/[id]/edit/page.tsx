@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi, fetchOperatorApi, isPlatformViewMode } from '@/lib/network-admin-api';
+import { AddressInput, AddressData } from '@/components/address';
 
 type LocationVisibility = 'PUBLIC' | 'NETWORK_ONLY' | 'DEDICATED';
 
@@ -106,9 +107,6 @@ export default function LocationEditPage() {
   const [form, setForm] = useState({
     name: '',
     code: '',
-    address: '',
-    city: '',
-    zipCode: '',
     operationType: 'OWN' as 'OWN' | 'SUBCONTRACTOR',
     locationType: 'TRUCK_WASH' as 'CAR_WASH' | 'TRUCK_WASH',
     washMode: 'DRIVER_INITIATED',
@@ -121,13 +119,26 @@ export default function LocationEditPage() {
     // Alvállalkozói cégadatok
     subcontractorCompanyName: '',
     subcontractorTaxNumber: '',
-    subcontractorAddress: '',
-    subcontractorCity: '',
-    subcontractorZipCode: '',
     subcontractorContactName: '',
     subcontractorContactPhone: '',
     subcontractorContactEmail: '',
     subcontractorBankAccount: '',
+  });
+
+  // Address data for location
+  const [addressData, setAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
+
+  // Address data for subcontractor
+  const [subcontractorAddressData, setSubcontractorAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
   });
 
   // Partner companies for DEDICATED visibility
@@ -169,9 +180,6 @@ export default function LocationEditPage() {
       setForm({
         name: loc.name || '',
         code: loc.code || '',
-        address: loc.address || '',
-        city: loc.city || '',
-        zipCode: loc.zipCode || '',
         operationType: loc.operationType || 'OWN',
         locationType: loc.locationType || 'TRUCK_WASH',
         washMode: loc.washMode || 'DRIVER_INITIATED',
@@ -184,13 +192,26 @@ export default function LocationEditPage() {
         // Alvállalkozói cégadatok
         subcontractorCompanyName: loc.subcontractorCompanyName || '',
         subcontractorTaxNumber: loc.subcontractorTaxNumber || '',
-        subcontractorAddress: loc.subcontractorAddress || '',
-        subcontractorCity: loc.subcontractorCity || '',
-        subcontractorZipCode: loc.subcontractorZipCode || '',
         subcontractorContactName: loc.subcontractorContactName || '',
         subcontractorContactPhone: loc.subcontractorContactPhone || '',
         subcontractorContactEmail: loc.subcontractorContactEmail || '',
         subcontractorBankAccount: loc.subcontractorBankAccount || '',
+      });
+
+      // Set address data
+      setAddressData({
+        postalCode: loc.zipCode || '',
+        city: loc.city || '',
+        street: loc.address || '',
+        country: loc.country || 'HU',
+      });
+
+      // Set subcontractor address data
+      setSubcontractorAddressData({
+        postalCode: loc.subcontractorZipCode || '',
+        city: loc.subcontractorCity || '',
+        street: loc.subcontractorAddress || '',
+        country: 'HU',
       });
 
       // Load services, opening hours, and partner companies
@@ -228,9 +249,9 @@ export default function LocationEditPage() {
     try {
       await networkAdminApi.updateLocation(locationId, {
         name: form.name,
-        address: form.address || undefined,
-        city: form.city || undefined,
-        postalCode: form.zipCode || undefined,
+        address: addressData.street || undefined,
+        city: addressData.city || undefined,
+        postalCode: addressData.postalCode || undefined,
         phone: form.phone || undefined,
         email: form.email || undefined,
         isActive: form.isActive,
@@ -242,9 +263,9 @@ export default function LocationEditPage() {
         // Alvállalkozói cégadatok
         subcontractorCompanyName: form.subcontractorCompanyName || undefined,
         subcontractorTaxNumber: form.subcontractorTaxNumber || undefined,
-        subcontractorAddress: form.subcontractorAddress || undefined,
-        subcontractorCity: form.subcontractorCity || undefined,
-        subcontractorZipCode: form.subcontractorZipCode || undefined,
+        subcontractorAddress: subcontractorAddressData.street || undefined,
+        subcontractorCity: subcontractorAddressData.city || undefined,
+        subcontractorZipCode: subcontractorAddressData.postalCode || undefined,
         subcontractorContactName: form.subcontractorContactName || undefined,
         subcontractorContactPhone: form.subcontractorContactPhone || undefined,
         subcontractorContactEmail: form.subcontractorContactEmail || undefined,
@@ -443,46 +464,15 @@ export default function LocationEditPage() {
             <p className="text-xs text-gray-500 mt-1">A kod nem modosithato</p>
           </div>
 
-          {/* Address */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Cim
-            </label>
-            <input
-              type="text"
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="pl. Fo utca 1."
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+          {/* Address with autocomplete */}
+          <div className="md:col-span-2">
+            <AddressInput
+              value={addressData}
+              onChange={setAddressData}
+              defaultCountry="HU"
+              showCountry={true}
+              required={false}
             />
-          </div>
-
-          {/* City */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Iranyitoszam
-              </label>
-              <input
-                type="text"
-                value={form.zipCode}
-                onChange={(e) => setForm({ ...form, zipCode: e.target.value })}
-                placeholder="1234"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Varos
-              </label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-                placeholder="Budapest"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-              />
-            </div>
           </div>
 
           {/* Operation Type */}
@@ -699,46 +689,20 @@ export default function LocationEditPage() {
                 />
               </div>
 
-              {/* Székhely cím */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Szekhely cim
-                </label>
-                <input
-                  type="text"
-                  value={form.subcontractorAddress}
-                  onChange={(e) => setForm({ ...form, subcontractorAddress: e.target.value })}
-                  placeholder="Fo utca 1."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+              {/* Székhely cím - AddressInput */}
+              <div className="md:col-span-2">
+                <AddressInput
+                  value={subcontractorAddressData}
+                  onChange={setSubcontractorAddressData}
+                  defaultCountry="HU"
+                  showCountry={false}
+                  required={false}
+                  labels={{
+                    postalCode: 'Iranyitoszam',
+                    city: 'Varos',
+                    street: 'Szekhely cim',
+                  }}
                 />
-              </div>
-
-              {/* Város és irányítószám */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Iranyitoszam
-                  </label>
-                  <input
-                    type="text"
-                    value={form.subcontractorZipCode}
-                    onChange={(e) => setForm({ ...form, subcontractorZipCode: e.target.value })}
-                    placeholder="1234"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Varos
-                  </label>
-                  <input
-                    type="text"
-                    value={form.subcontractorCity}
-                    onChange={(e) => setForm({ ...form, subcontractorCity: e.target.value })}
-                    placeholder="Budapest"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-                  />
-                </div>
               </div>
 
               {/* Kapcsolattartó neve */}

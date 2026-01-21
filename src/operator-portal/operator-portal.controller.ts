@@ -711,6 +711,69 @@ export class OperatorPortalController {
       },
     });
 
+    // Get this month's stats
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const monthCount = await this.prisma.washEvent.count({
+      where: {
+        ...where,
+        createdAt: { gte: monthStart },
+      },
+    });
+
+    const monthCompleted = await this.prisma.washEvent.count({
+      where: {
+        ...where,
+        createdAt: { gte: monthStart },
+        status: 'COMPLETED',
+      },
+    });
+
+    // Get yesterday's stats for comparison
+    const yesterdayStart = new Date(today);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(today);
+    yesterdayEnd.setMilliseconds(-1);
+
+    const yesterdayCount = await this.prisma.washEvent.count({
+      where: {
+        ...where,
+        createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
+      },
+    });
+
+    const yesterdayCompleted = await this.prisma.washEvent.count({
+      where: {
+        ...where,
+        createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
+        status: 'COMPLETED',
+      },
+    });
+
+    // Get last 7 days for trend (day by day)
+    const last7Days: { date: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(today);
+      dayStart.setDate(dayStart.getDate() - i);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const count = await this.prisma.washEvent.count({
+        where: {
+          ...where,
+          createdAt: { gte: dayStart, lte: dayEnd },
+          status: 'COMPLETED',
+        },
+      });
+
+      last7Days.push({
+        date: dayStart.toISOString().split('T')[0],
+        count,
+      });
+    }
+
     return {
       total,
       byStatus: Object.fromEntries(
@@ -720,6 +783,15 @@ export class OperatorPortalController {
         total: todayCount,
         completed: todayCompleted,
       },
+      yesterday: {
+        total: yesterdayCount,
+        completed: yesterdayCompleted,
+      },
+      month: {
+        total: monthCount,
+        completed: monthCompleted,
+      },
+      last7Days,
     };
   }
 
@@ -824,6 +896,7 @@ export class OperatorPortalController {
 
       // Nem szerződéses ügyfél adatai
       isAdHoc?: boolean;
+      walkInInvoiceRequested?: boolean; // Ha true, akkor kötelező a cégnév, adószám, email
       companyName?: string;
       taxNumber?: string;
       billingAddress?: string;
@@ -875,8 +948,10 @@ export class OperatorPortalController {
 
     if (isAdHocCustomer) {
       // Nem szerződéses ügyfél - ellenőrzés és létrehozás
-      if (!body.companyName || !body.taxNumber || !body.email) {
-        throw new BadRequestException('Cégnév, adószám és email megadása kötelező nem szerződéses ügyfélnél');
+      const wantsInvoice = body.walkInInvoiceRequested === true;
+
+      if (wantsInvoice && (!body.companyName || !body.taxNumber || !body.email)) {
+        throw new BadRequestException('Számlakéréshez cégnév, adószám és email megadása kötelező');
       }
 
       // Létrehozunk egy egyedi kódot az ad-hoc partnernek
@@ -886,16 +961,16 @@ export class OperatorPortalController {
       const partner = await this.prisma.partnerCompany.create({
         data: {
           networkId: session.networkId,
-          name: body.companyName,
+          name: wantsInvoice ? body.companyName! : `Walk-in ${new Date().toISOString().split('T')[0]}`,
           code: adHocCode,
-          email: body.email,
+          email: wantsInvoice ? body.email! : null,
           billingType: 'CASH',
-          billingName: body.companyName,
+          billingName: wantsInvoice ? body.companyName! : null,
           billingAddress: body.billingAddress || '',
           billingCity: body.billingCity || '',
           billingZipCode: body.billingZipCode || '',
           billingCountry: body.billingCountry || 'HU',
-          taxNumber: body.taxNumber,
+          taxNumber: wantsInvoice ? body.taxNumber! : null,
           isActive: true,
         },
       });

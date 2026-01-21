@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { COUNTRIES } from '@/lib/countries';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -53,24 +54,6 @@ interface AddressInputProps {
     street?: string;
   };
 }
-
-// Country list for EU
-const COUNTRIES = [
-  { code: 'HU', name: 'Magyarorszag' },
-  { code: 'AT', name: 'Ausztria' },
-  { code: 'SK', name: 'Szlovakia' },
-  { code: 'RO', name: 'Romania' },
-  { code: 'SI', name: 'Szlovenia' },
-  { code: 'HR', name: 'Horvatorszag' },
-  { code: 'DE', name: 'Nemetorszag' },
-  { code: 'CZ', name: 'Csehorszag' },
-  { code: 'PL', name: 'Lengyelorszag' },
-  { code: 'IT', name: 'Olaszorszag' },
-  { code: 'FR', name: 'Franciaorszag' },
-  { code: 'NL', name: 'Hollandia' },
-  { code: 'BE', name: 'Belgium' },
-  { code: 'ES', name: 'Spanyolorszag' },
-];
 
 export function AddressInput({
   value,

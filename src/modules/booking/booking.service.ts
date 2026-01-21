@@ -134,9 +134,11 @@ export class BookingService {
     });
 
     // 7. Visszaigazoló email küldése
+    this.logger.log(`Booking created: ${bookingCode}, checking email for: ${dto.customerEmail || 'no email'}`);
     if (dto.customerEmail) {
+      this.logger.log(`Sending confirmation email to ${dto.customerEmail}...`);
       try {
-        await this.emailService.sendBookingConfirmationEmail(
+        const emailSent = await this.emailService.sendBookingConfirmationEmail(
           networkId,
           dto.customerEmail,
           dto.customerName || 'Kedves Ügyfelünk',
@@ -153,10 +155,10 @@ export class BookingService {
             currency: servicePrice.currency,
           },
         );
-        this.logger.log(`Booking confirmation email sent to ${dto.customerEmail} for booking ${bookingCode}`);
+        this.logger.log(`Booking confirmation email result: ${emailSent ? 'sent' : 'failed'} to ${dto.customerEmail} for booking ${bookingCode}`);
       } catch (error) {
         // Email küldési hiba nem akadályozza meg a foglalást
-        this.logger.error(`Failed to send booking confirmation email: ${error.message}`);
+        this.logger.error(`Failed to send booking confirmation email: ${error.message}`, error.stack);
       }
     }
 

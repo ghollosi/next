@@ -538,9 +538,11 @@ export const networkAdminApi = {
     name: string;
     taxNumber: string;
     billingAddress?: string;
+    billingCity?: string;
+    billingZipCode?: string;
+    billingCountry?: string;
     contactEmail?: string;
     contactPhone?: string;
-    billingCountry?: string;
     euVatNumber?: string;
   }): Promise<PartnerCompany> {
     return fetchWithAuth('/network-admin/partner-companies', {

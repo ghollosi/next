@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { platformApi, getPlatformAdmin } from '@/lib/platform-api';
+import AddressInput, { AddressData } from '@/components/address/AddressInput';
 
 interface NetworkDetail {
   id: string;
@@ -112,10 +113,12 @@ export default function NetworkDetailPage() {
 
   // Billing state (Platform felé irányuló számlázási adatok)
   const [billingCompanyName, setBillingCompanyName] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [billingCity, setBillingCity] = useState('');
-  const [billingZipCode, setBillingZipCode] = useState('');
-  const [billingCountry, setBillingCountry] = useState('HU');
+  const [billingAddressData, setBillingAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [billingTaxNumber, setBillingTaxNumber] = useState('');
   const [billingEuVatNumber, setBillingEuVatNumber] = useState('');
   const [billingEmail, setBillingEmail] = useState('');
@@ -170,10 +173,12 @@ export default function NetworkDetailPage() {
 
       // Initialize billing fields
       setBillingCompanyName(networkData.billingCompanyName || '');
-      setBillingAddress(networkData.billingAddress || '');
-      setBillingCity(networkData.billingCity || '');
-      setBillingZipCode(networkData.billingZipCode || '');
-      setBillingCountry(networkData.billingCountry || 'HU');
+      setBillingAddressData({
+        postalCode: networkData.billingZipCode || '',
+        city: networkData.billingCity || '',
+        street: networkData.billingAddress || '',
+        country: networkData.billingCountry || 'HU',
+      });
       setBillingTaxNumber(networkData.billingTaxNumber || '');
       setBillingEuVatNumber(networkData.billingEuVatNumber || '');
       setBillingEmail(networkData.billingEmail || '');
@@ -261,10 +266,10 @@ export default function NetworkDetailPage() {
     try {
       const updated = await platformApi.updateNetwork(networkId, {
         billingCompanyName: billingCompanyName || undefined,
-        billingAddress: billingAddress || undefined,
-        billingCity: billingCity || undefined,
-        billingZipCode: billingZipCode || undefined,
-        billingCountry: billingCountry,
+        billingAddress: billingAddressData.street || undefined,
+        billingCity: billingAddressData.city || undefined,
+        billingZipCode: billingAddressData.postalCode || undefined,
+        billingCountry: billingAddressData.country,
         billingTaxNumber: billingTaxNumber || undefined,
         billingEuVatNumber: billingEuVatNumber || undefined,
         billingEmail: billingEmail || undefined,
@@ -885,8 +890,8 @@ export default function NetworkDetailPage() {
               Ezeket az adatokat használjuk a Platform által a Network felé kiállított számlákhoz.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
+            <div className="space-y-6">
+              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
                   Cégnév <span className="text-red-400">*</span>
                 </label>
@@ -899,103 +904,64 @@ export default function NetworkDetailPage() {
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Cím <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={billingAddress}
-                  onChange={(e) => setBillingAddress(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Példa utca 1."
+              {/* Address Input with autocomplete */}
+              <div className="[&_label]:text-gray-300 [&_input]:bg-gray-700 [&_input]:border-gray-600 [&_input]:text-white [&_input]:placeholder-gray-400 [&_select]:bg-gray-700 [&_select]:border-gray-600 [&_select]:text-white">
+                <AddressInput
+                  value={billingAddressData}
+                  onChange={setBillingAddressData}
+                  defaultCountry="HU"
+                  showCountry={true}
+                  required={true}
+                  labels={{
+                    postalCode: 'Iranyitoszam',
+                    city: 'Varos',
+                    street: 'Cim (utca, hazszam)',
+                    country: 'Orszag',
+                  }}
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Város <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={billingCity}
-                  onChange={(e) => setBillingCity(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Budapest"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Adószám <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={billingTaxNumber}
+                    onChange={(e) => setBillingTaxNumber(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="12345678-1-23"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Irányítószám <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={billingZipCode}
-                  onChange={(e) => setBillingZipCode(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="1234"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    EU ÁFA szám
+                  </label>
+                  <input
+                    type="text"
+                    value={billingEuVatNumber}
+                    onChange={(e) => setBillingEuVatNumber(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="HU12345678"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Csak EU-n belüli ügyleteknél szükséges</p>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Ország
-                </label>
-                <select
-                  value={billingCountry}
-                  onChange={(e) => setBillingCountry(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="HU">Magyarország</option>
-                  <option value="AT">Ausztria</option>
-                  <option value="SK">Szlovákia</option>
-                  <option value="RO">Románia</option>
-                  <option value="DE">Németország</option>
-                  <option value="PL">Lengyelország</option>
-                  <option value="CZ">Csehország</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Adószám <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={billingTaxNumber}
-                  onChange={(e) => setBillingTaxNumber(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="12345678-1-23"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  EU ÁFA szám
-                </label>
-                <input
-                  type="text"
-                  value={billingEuVatNumber}
-                  onChange={(e) => setBillingEuVatNumber(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="HU12345678"
-                />
-                <p className="text-xs text-gray-500 mt-1">Csak EU-n belüli ügyleteknél szükséges</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Számla email
-                </label>
-                <input
-                  type="email"
-                  value={billingEmail}
-                  onChange={(e) => setBillingEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="szamla@example.com"
-                />
-                <p className="text-xs text-gray-500 mt-1">Ide küldjük a számlákat</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Számla email
+                  </label>
+                  <input
+                    type="email"
+                    value={billingEmail}
+                    onChange={(e) => setBillingEmail(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="szamla@example.com"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Ide küldjük a számlákat</p>
+                </div>
               </div>
             </div>
 

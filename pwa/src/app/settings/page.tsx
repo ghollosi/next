@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getSession, getDriver, clearSession, saveSession, DriverInfo } from '@/lib/session';
+import { AddressInput, AddressData } from '@/components/address';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -24,10 +25,12 @@ export default function SettingsPage() {
   const [editingBilling, setEditingBilling] = useState(false);
   const [savingBilling, setSavingBilling] = useState(false);
   const [billingName, setBillingName] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [billingCity, setBillingCity] = useState('');
-  const [billingZipCode, setBillingZipCode] = useState('');
-  const [billingCountry, setBillingCountry] = useState('HU');
+  const [billingAddressData, setBillingAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [billingTaxNumber, setBillingTaxNumber] = useState('');
 
   useEffect(() => {
@@ -44,10 +47,12 @@ export default function SettingsPage() {
 
     // Set billing info from driver
     if (driverInfo.billingName) setBillingName(driverInfo.billingName);
-    if (driverInfo.billingAddress) setBillingAddress(driverInfo.billingAddress);
-    if (driverInfo.billingCity) setBillingCity(driverInfo.billingCity);
-    if (driverInfo.billingZipCode) setBillingZipCode(driverInfo.billingZipCode);
-    if (driverInfo.billingCountry) setBillingCountry(driverInfo.billingCountry);
+    setBillingAddressData({
+      postalCode: driverInfo.billingZipCode || '',
+      city: driverInfo.billingCity || '',
+      street: driverInfo.billingAddress || '',
+      country: driverInfo.billingCountry || 'HU',
+    });
     if (driverInfo.billingTaxNumber) setBillingTaxNumber(driverInfo.billingTaxNumber);
 
     setLoading(false);
@@ -74,10 +79,10 @@ export default function SettingsPage() {
           pin,
           // Billing info required when detaching
           billingName,
-          billingAddress,
-          billingCity,
-          billingZipCode,
-          billingCountry,
+          billingAddress: billingAddressData.street,
+          billingCity: billingAddressData.city,
+          billingZipCode: billingAddressData.postalCode,
+          billingCountry: billingAddressData.country,
           billingTaxNumber: billingTaxNumber || undefined,
         }),
       });
@@ -96,10 +101,10 @@ export default function SettingsPage() {
         partnerCompanyName: null,
         isPrivateCustomer: true,
         billingName,
-        billingAddress,
-        billingCity,
-        billingZipCode,
-        billingCountry,
+        billingAddress: billingAddressData.street,
+        billingCity: billingAddressData.city,
+        billingZipCode: billingAddressData.postalCode,
+        billingCountry: billingAddressData.country,
         billingTaxNumber,
       };
       saveSession(sessionId!, updatedDriver);
@@ -116,7 +121,7 @@ export default function SettingsPage() {
   };
 
   const handleSaveBillingInfo = async () => {
-    if (!billingName || !billingAddress || !billingCity || !billingZipCode) {
+    if (!billingName || !billingAddressData.street || !billingAddressData.city || !billingAddressData.postalCode) {
       setError('Toltsd ki a kotelezo mezokat!');
       return;
     }
@@ -134,10 +139,10 @@ export default function SettingsPage() {
         body: JSON.stringify({
           driverId: driver!.driverId,
           billingName,
-          billingAddress,
-          billingCity,
-          billingZipCode,
-          billingCountry,
+          billingAddress: billingAddressData.street,
+          billingCity: billingAddressData.city,
+          billingZipCode: billingAddressData.postalCode,
+          billingCountry: billingAddressData.country,
           billingTaxNumber: billingTaxNumber || undefined,
         }),
       });
@@ -151,10 +156,10 @@ export default function SettingsPage() {
       const updatedDriver: DriverInfo = {
         ...driver!,
         billingName,
-        billingAddress,
-        billingCity,
-        billingZipCode,
-        billingCountry,
+        billingAddress: billingAddressData.street,
+        billingCity: billingAddressData.city,
+        billingZipCode: billingAddressData.postalCode,
+        billingCountry: billingAddressData.country,
         billingTaxNumber,
       };
       saveSession(sessionId!, updatedDriver);
@@ -258,35 +263,16 @@ export default function SettingsPage() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cim *</label>
-                  <input
-                    type="text"
-                    value={billingAddress}
-                    onChange={(e) => setBillingAddress(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Irsz. *</label>
-                    <input
-                      type="text"
-                      value={billingZipCode}
-                      onChange={(e) => setBillingZipCode(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Varos *</label>
-                    <input
-                      type="text"
-                      value={billingCity}
-                      onChange={(e) => setBillingCity(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-                    />
-                  </div>
-                </div>
+
+                {/* Address Input Component */}
+                <AddressInput
+                  value={billingAddressData}
+                  onChange={setBillingAddressData}
+                  defaultCountry="HU"
+                  showCountry={true}
+                  required={true}
+                />
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Adoszam</label>
                   <input
@@ -393,29 +379,16 @@ export default function SettingsPage() {
                   placeholder="Szamlazasi nev *"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl"
                 />
-                <input
-                  type="text"
-                  value={billingAddress}
-                  onChange={(e) => setBillingAddress(e.target.value)}
-                  placeholder="Cim *"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+
+                {/* Address Input Component */}
+                <AddressInput
+                  value={billingAddressData}
+                  onChange={setBillingAddressData}
+                  defaultCountry="HU"
+                  showCountry={true}
+                  required={true}
                 />
-                <div className="grid grid-cols-3 gap-3">
-                  <input
-                    type="text"
-                    value={billingZipCode}
-                    onChange={(e) => setBillingZipCode(e.target.value)}
-                    placeholder="Irsz. *"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-                  />
-                  <input
-                    type="text"
-                    value={billingCity}
-                    onChange={(e) => setBillingCity(e.target.value)}
-                    placeholder="Varos *"
-                    className="col-span-2 w-full px-4 py-3 border border-gray-300 rounded-xl"
-                  />
-                </div>
+
                 <input
                   type="text"
                   value={billingTaxNumber}
@@ -459,7 +432,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={handleDetachFromPartner}
-                disabled={detaching || !billingName || !billingAddress || !billingCity || !billingZipCode || pin.length !== 4}
+                disabled={detaching || !billingName || !billingAddressData.street || !billingAddressData.city || !billingAddressData.postalCode || pin.length !== 4}
                 className="flex-1 py-3 bg-amber-600 text-white font-medium rounded-xl disabled:opacity-50"
               >
                 {detaching ? 'Feldolgozas...' : 'Fuggetlenedes'}

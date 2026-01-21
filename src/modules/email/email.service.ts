@@ -91,12 +91,15 @@ export class EmailService {
    * Send email using network's configured provider
    */
   async sendNetworkEmail(networkId: string, options: SendEmailOptions): Promise<boolean> {
+    this.logger.log(`sendNetworkEmail called for network ${networkId}, to: ${options.to}, subject: ${options.subject}`);
     const config = await this.getNetworkEmailConfig(networkId);
 
     if (!config) {
       this.logger.warn(`No email config found for network ${networkId}, using platform default`);
       return this.sendEmail(options);
     }
+
+    this.logger.log(`Network email config found: provider=${config.provider}`);
 
     try {
       switch (config.provider) {
@@ -106,6 +109,7 @@ export class EmailService {
           return await this.sendViaSmtp(config, options);
         case 'PLATFORM':
         default:
+          this.logger.log(`Using platform email provider`);
           return await this.sendEmail(options);
       }
     } catch (error) {
@@ -238,18 +242,23 @@ export class EmailService {
 
   // Platform level email sending (fallback)
   async sendEmail(options: SendEmailOptions): Promise<boolean> {
+    this.logger.log(`sendEmail called: to=${options.to}, subject=${options.subject}`);
+    this.logger.log(`SMTP config: host=${this.smtpHost}, user=${this.smtpUser}, pass=${this.smtpPass ? '***set***' : 'not set'}`);
+
     // Try SMTP first if configured
     if (this.smtpHost && this.smtpUser && this.smtpPass) {
+      this.logger.log(`Using Platform SMTP to send email`);
       return this.sendViaPlatformSmtp(options);
     }
 
     // Fall back to Resend if configured
     if (this.resendApiKey) {
+      this.logger.log(`Using Platform Resend to send email`);
       return this.sendViaPlatformResend(options);
     }
 
     this.logger.warn('No email provider configured (SMTP or Resend), email sending disabled');
-    this.logger.debug(`Would send email to ${options.to}: ${options.subject}`);
+    this.logger.log(`Would send email to ${options.to}: ${options.subject}`);
     return false;
   }
 
@@ -576,90 +585,207 @@ Kérjük, ellenőrizd és hagyd jóvá a regisztrációt az admin felületen.
 
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="hu">
 <head>
   <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-    .code-box { background: white; border: 2px solid #2563eb; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
-    .code { font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #2563eb; font-family: monospace; }
-    .info-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
-    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
-    .info-row:last-child { border-bottom: none; }
-    .info-label { color: #6b7280; }
-    .info-value { font-weight: 600; text-align: right; }
-    .price-row { font-size: 18px; color: #2563eb; }
-    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-    .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 15px 0; font-size: 14px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foglalás visszaigazolás</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Foglalás visszaigazolás</h1>
-      <p>VSys Wash</p>
-    </div>
-    <div class="content">
-      <h2>Kedves ${customerName}!</h2>
-      <p>Foglalásod sikeresen rögzítettük. Az alábbi összefoglalóban találod a részleteket:</p>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f0f4f8;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
 
-      <div class="code-box">
-        <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Foglalási kód</div>
-        <div class="code">${bookingDetails.bookingCode}</div>
-      </div>
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 40px 30px; text-align: center; border-radius: 16px 16px 0 0;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="text-align: center;">
+                    <div style="width: 60px; height: 60px; background-color: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; line-height: 60px;">
+                      <span style="font-size: 28px;">&#10003;</span>
+                    </div>
+                    <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">Foglalás megerositva</h1>
+                    <p style="margin: 0; font-size: 16px; color: rgba(255,255,255,0.85);">Koszonjuk a foglalast!</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-      <div class="info-box">
-        <div class="info-row">
-          <span class="info-label">Helyszín</span>
-          <span class="info-value">${bookingDetails.locationName}</span>
-        </div>
-        ${bookingDetails.locationAddress ? `
-        <div class="info-row">
-          <span class="info-label">Cím</span>
-          <span class="info-value">${bookingDetails.locationAddress}</span>
-        </div>
-        ` : ''}
-        <div class="info-row">
-          <span class="info-label">Dátum</span>
-          <span class="info-value">${formatDate(bookingDetails.scheduledStart)}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Időpont</span>
-          <span class="info-value">${formatTime(bookingDetails.scheduledStart)} - ${formatTime(bookingDetails.scheduledEnd)}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Szolgáltatás</span>
-          <span class="info-value">${bookingDetails.serviceName}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Jármű típusa</span>
-          <span class="info-value">${vehicleTypeLabels[bookingDetails.vehicleType] || bookingDetails.vehicleType}</span>
-        </div>
-        ${bookingDetails.plateNumber ? `
-        <div class="info-row">
-          <span class="info-label">Rendszám</span>
-          <span class="info-value">${bookingDetails.plateNumber}</span>
-        </div>
-        ` : ''}
-        <div class="info-row price-row">
-          <span class="info-label">Ár</span>
-          <span class="info-value">${formatPrice(bookingDetails.price, bookingDetails.currency)}</span>
-        </div>
-      </div>
+          <!-- Body -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 40px 30px;">
 
-      <div class="warning">
-        <strong>Fontos!</strong> Kérjük, érkezz meg időben a megadott helyszínre. Ha nem tudsz megjelenni, kérjük, mondsd le a foglalást legalább 2 órával az időpont előtt.
-      </div>
+              <!-- Greeting -->
+              <p style="margin: 0 0 24px; font-size: 18px; color: #1e293b; line-height: 1.6;">
+                Kedves <strong>${customerName}</strong>,
+              </p>
+              <p style="margin: 0 0 32px; font-size: 16px; color: #475569; line-height: 1.6;">
+                A foglalasod sikeresen rogzitettuk. Az alabbi osszefoglaloban megtalald a reszleteket.
+              </p>
 
-      <p>Ha kérdésed van, keress minket bizalommal!</p>
-    </div>
-    <div class="footer">
-      <p>© ${new Date().getFullYear()} VSys Wash. Minden jog fenntartva.</p>
-    </div>
-  </div>
+              <!-- Booking Code Box -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 32px;">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #3b82f6; border-radius: 12px; padding: 24px; text-align: center;">
+                    <p style="margin: 0 0 8px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Foglalasi kod</p>
+                    <p style="margin: 0; font-size: 36px; font-weight: 800; color: #1e40af; letter-spacing: 6px; font-family: 'Courier New', monospace;">${bookingDetails.bookingCode}</p>
+                    <p style="margin: 12px 0 0; font-size: 13px; color: #64748b;">Kerjuk, orizd meg ezt a kodot!</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Details Card -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc; border-radius: 12px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <p style="margin: 0 0 16px; font-size: 14px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px;">Foglalas reszletei</p>
+
+                    <!-- Location -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Helyszin</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 600;">${bookingDetails.locationName}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    ${bookingDetails.locationAddress ? `
+                    <!-- Address -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Cim</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 600;">${bookingDetails.locationAddress}</span>
+                        </td>
+                      </tr>
+                    </table>
+                    ` : ''}
+
+                    <!-- Date -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Datum</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 600;">${formatDate(bookingDetails.scheduledStart)}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Time -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Idopont</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 600;">${formatTime(bookingDetails.scheduledStart)} - ${formatTime(bookingDetails.scheduledEnd)}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Service -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Szolgaltatas</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 600;">${bookingDetails.serviceName}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Vehicle Type -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Jarmu tipusa</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 600;">${vehicleTypeLabels[bookingDetails.vehicleType] || bookingDetails.vehicleType}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    ${bookingDetails.plateNumber ? `
+                    <!-- Plate Number -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 14px 0; width: 40%;">
+                          <span style="font-size: 14px; color: #64748b;">Rendszam</span>
+                        </td>
+                        <td style="padding: 14px 0; text-align: right;">
+                          <span style="font-size: 15px; color: #1e293b; font-weight: 700; background-color: #fef3c7; padding: 4px 10px; border-radius: 4px;">${bookingDetails.plateNumber}</span>
+                        </td>
+                      </tr>
+                    </table>
+                    ` : ''}
+
+                    <!-- Price -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding: 18px 0 4px; width: 40%;">
+                          <span style="font-size: 16px; color: #1e293b; font-weight: 600;">Osszesen</span>
+                        </td>
+                        <td style="padding: 18px 0 4px; text-align: right;">
+                          <span style="font-size: 24px; color: #1e40af; font-weight: 800;">${formatPrice(bookingDetails.price, bookingDetails.currency)}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Warning Box -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 24px;">
+                <tr>
+                  <td style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; padding: 16px 20px;">
+                    <p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.6;">
+                      <strong style="color: #78350f;">Fontos!</strong> Kerjuk, erkezz meg idoben a megadott helyszinre. Ha nem tudsz megjelenni, kerjuk, mondsd le a foglalast legalabb 2 oraval az idopont elott.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Help Text -->
+              <p style="margin: 0; font-size: 15px; color: #475569; line-height: 1.6; text-align: center;">
+                Ha kerdesed van, keress minket bizalommal!
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #1e293b; padding: 32px 30px; border-radius: 0 0 16px 16px; text-align: center;">
+              <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #ffffff;">Vemiax</p>
+              <p style="margin: 0; font-size: 13px; color: #94a3b8;">&copy; ${new Date().getFullYear()} Vemiax. Minden jog fenntartva.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
     `;

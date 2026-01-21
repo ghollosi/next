@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AddressInput, AddressData } from '@/components/address';
 
 interface PartnerCompany {
   id: string;
@@ -45,10 +46,12 @@ function RegisterContent() {
 
   // Private customer billing data
   const [billingName, setBillingName] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [billingCity, setBillingCity] = useState('');
-  const [billingZipCode, setBillingZipCode] = useState('');
-  const [billingCountry, setBillingCountry] = useState('HU');
+  const [billingAddressData, setBillingAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [billingTaxNumber, setBillingTaxNumber] = useState('');
 
   // Vehicles
@@ -119,15 +122,15 @@ function RegisterContent() {
       setError('Add meg a számlázási nevet!');
       return false;
     }
-    if (!billingAddress.trim()) {
+    if (!billingAddressData.street?.trim()) {
       setError('Add meg a számlázási címet!');
       return false;
     }
-    if (!billingCity.trim()) {
+    if (!billingAddressData.city?.trim()) {
       setError('Add meg a várost!');
       return false;
     }
-    if (!billingZipCode.trim()) {
+    if (!billingAddressData.postalCode?.trim()) {
       setError('Add meg az irányítószámot!');
       return false;
     }
@@ -222,10 +225,10 @@ function RegisterContent() {
       } else {
         // Private customer: include billing data
         requestBody.billingName = billingName;
-        requestBody.billingAddress = billingAddress;
-        requestBody.billingCity = billingCity;
-        requestBody.billingZipCode = billingZipCode;
-        requestBody.billingCountry = billingCountry;
+        requestBody.billingAddress = billingAddressData.street;
+        requestBody.billingCity = billingAddressData.city;
+        requestBody.billingZipCode = billingAddressData.postalCode;
+        requestBody.billingCountry = billingAddressData.country;
         if (billingTaxNumber.trim()) {
           requestBody.billingTaxNumber = billingTaxNumber;
         }
@@ -691,64 +694,14 @@ function RegisterContent() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Szamlazasi cim *
-                </label>
-                <input
-                  type="text"
-                  value={billingAddress}
-                  onChange={(e) => setBillingAddress(e.target.value)}
-                  placeholder="Fo utca 1."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Iranyitoszam *
-                  </label>
-                  <input
-                    type="text"
-                    value={billingZipCode}
-                    onChange={(e) => setBillingZipCode(e.target.value)}
-                    placeholder="1234"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Varos *
-                  </label>
-                  <input
-                    type="text"
-                    value={billingCity}
-                    onChange={(e) => setBillingCity(e.target.value)}
-                    placeholder="Budapest"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Orszag
-                </label>
-                <select
-                  value={billingCountry}
-                  onChange={(e) => setBillingCountry(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="HU">Magyarorszag</option>
-                  <option value="SK">Szlovakia</option>
-                  <option value="RO">Romania</option>
-                  <option value="PL">Lengyelorszag</option>
-                  <option value="CZ">Csehorszag</option>
-                  <option value="DE">Nemetorszag</option>
-                  <option value="AT">Ausztria</option>
-                </select>
-              </div>
+              {/* Address Input Component */}
+              <AddressInput
+                value={billingAddressData}
+                onChange={setBillingAddressData}
+                defaultCountry="HU"
+                showCountry={true}
+                required={true}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

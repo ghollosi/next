@@ -4,27 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchOperatorApi, networkAdminApi } from '@/lib/network-admin-api';
+import { AddressInput, AddressData } from '@/components/address';
 
 type BillingType = 'CONTRACT' | 'CASH';
 type BillingCycle = 'MONTHLY' | 'WEEKLY';
-
-const COUNTRIES = [
-  { code: 'HU', name: 'Magyarorszag', flag: '🇭🇺' },
-  { code: 'AT', name: 'Ausztria', flag: '🇦🇹' },
-  { code: 'SK', name: 'Szlovakia', flag: '🇸🇰' },
-  { code: 'RO', name: 'Romania', flag: '🇷🇴' },
-  { code: 'DE', name: 'Nemetorszag', flag: '🇩🇪' },
-  { code: 'PL', name: 'Lengyelorszag', flag: '🇵🇱' },
-  { code: 'CZ', name: 'Csehorszag', flag: '🇨🇿' },
-  { code: 'HR', name: 'Horvatorszag', flag: '🇭🇷' },
-  { code: 'SI', name: 'Szlovenia', flag: '🇸🇮' },
-  { code: 'RS', name: 'Szerbia', flag: '🇷🇸' },
-  { code: 'BG', name: 'Bulgaria', flag: '🇧🇬' },
-  { code: 'IT', name: 'Olaszorszag', flag: '🇮🇹' },
-  { code: 'FR', name: 'Franciaorszag', flag: '🇫🇷' },
-  { code: 'NL', name: 'Hollandia', flag: '🇳🇱' },
-  { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
-];
 
 export default function NetworkAdminEditPartnerPage() {
   const params = useParams();
@@ -42,10 +25,12 @@ export default function NetworkAdminEditPartnerPage() {
   const [billingType, setBillingType] = useState<BillingType>('CONTRACT');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
   const [billingName, setBillingName] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [billingCity, setBillingCity] = useState('');
-  const [billingZipCode, setBillingZipCode] = useState('');
-  const [billingCountry, setBillingCountry] = useState('HU');
+  const [addressData, setAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [taxNumber, setTaxNumber] = useState('');
   const [euVatNumber, setEuVatNumber] = useState('');
   const [paymentDueDays, setPaymentDueDays] = useState<number>(8);
@@ -76,10 +61,12 @@ export default function NetworkAdminEditPartnerPage() {
       setBillingType(data.billingType || 'CONTRACT');
       setBillingCycle(data.billingCycle || 'MONTHLY');
       setBillingName(data.billingName || '');
-      setBillingAddress(data.billingAddress || '');
-      setBillingCity(data.billingCity || '');
-      setBillingZipCode(data.billingZipCode || '');
-      setBillingCountry(data.billingCountry || 'HU');
+      setAddressData({
+        postalCode: data.billingZipCode || '',
+        city: data.billingCity || '',
+        street: data.billingAddress || '',
+        country: data.billingCountry || 'HU',
+      });
       setTaxNumber(data.taxNumber || '');
       setEuVatNumber(data.euVatNumber || '');
       setPaymentDueDays(data.paymentDueDays ?? 8);
@@ -116,6 +103,13 @@ export default function NetworkAdminEditPartnerPage() {
     setSubmitting(true);
 
     try {
+      // Build billing address from components
+      const billingAddress = addressData.street
+        ? `${addressData.postalCode} ${addressData.city}, ${addressData.street}`
+        : addressData.city
+        ? `${addressData.postalCode} ${addressData.city}`
+        : '';
+
       const body: Record<string, any> = {
         name,
         contactName: contactName || undefined,
@@ -124,9 +118,9 @@ export default function NetworkAdminEditPartnerPage() {
         billingType,
         billingName: billingName || undefined,
         billingAddress: billingAddress || undefined,
-        billingCity: billingCity || undefined,
-        billingZipCode: billingZipCode || undefined,
-        billingCountry,
+        billingCity: addressData.city || undefined,
+        billingZipCode: addressData.postalCode || undefined,
+        billingCountry: addressData.country,
         taxNumber: taxNumber || undefined,
         euVatNumber: euVatNumber || undefined,
         paymentDueDays,
@@ -379,8 +373,8 @@ export default function NetworkAdminEditPartnerPage() {
             Szamlazasi adatok
           </h2>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="space-y-4">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Szamlazasi nev
               </label>
@@ -393,87 +387,45 @@ export default function NetworkAdminEditPartnerPage() {
               />
             </div>
 
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Orszag
-              </label>
-              <select
-                value={billingCountry}
-                onChange={(e) => setBillingCountry(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {COUNTRIES.map((country) => (
-                  <option key={country.code} value={country.code}>
-                    {country.flag} {country.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Address Input Component */}
+            <AddressInput
+              value={addressData}
+              onChange={setAddressData}
+              defaultCountry="HU"
+              showCountry={true}
+              required={false}
+            />
 
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Szamlazasi cim
-              </label>
-              <input
-                type="text"
-                value={billingAddress}
-                onChange={(e) => setBillingAddress(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Adoszam
+                </label>
+                <input
+                  type="text"
+                  value={taxNumber}
+                  onChange={(e) => setTaxNumber(e.target.value)}
+                  placeholder="12345678-1-23"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Iranyitoszam
-              </label>
-              <input
-                type="text"
-                value={billingZipCode}
-                onChange={(e) => setBillingZipCode(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Varos
-              </label>
-              <input
-                type="text"
-                value={billingCity}
-                onChange={(e) => setBillingCity(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Adoszam
-              </label>
-              <input
-                type="text"
-                value={taxNumber}
-                onChange={(e) => setTaxNumber(e.target.value)}
-                placeholder="12345678-1-23"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fizetesi hatarido (nap)
-              </label>
-              <input
-                type="number"
-                value={paymentDueDays}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fizetesi hatarido (nap)
+                </label>
+                <input
+                  type="number"
+                  value={paymentDueDays}
                 onChange={(e) => setPaymentDueDays(parseInt(e.target.value) || 0)}
                 min={0}
                 max={90}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
+              </div>
             </div>
 
-            <div className="col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 EU kozossegi adoszam
               </label>

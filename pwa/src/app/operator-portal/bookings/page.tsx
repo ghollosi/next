@@ -165,7 +165,7 @@ export default function OperatorBookingsPage() {
     customerEmail: '',
     vehicleType: 'CAR',
     plateNumber: '',
-    servicePackageId: '',
+    servicePackageIds: [] as string[], // Több szolgáltatás támogatása
     scheduledStart: '',
     notes: '',
   });
@@ -404,13 +404,19 @@ export default function OperatorBookingsPage() {
     setActionLoading('new');
 
     try {
+      // Backend jelenleg csak egy szolgáltatást támogat, az elsőt küldjük
+      const bookingPayload = {
+        ...formData,
+        servicePackageId: formData.servicePackageIds[0],
+      };
+
       const response = await fetch(`${API_URL}/operator-portal/bookings/create`, {
         method: 'POST',
         headers: {
           'x-operator-session': sessionId,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(bookingPayload),
       });
 
       if (!response.ok) {
@@ -425,7 +431,7 @@ export default function OperatorBookingsPage() {
         customerEmail: '',
         vehicleType: 'TRUCK',
         plateNumber: '',
-        servicePackageId: '',
+        servicePackageIds: [],
         scheduledStart: '',
         notes: '',
       });
@@ -612,7 +618,10 @@ export default function OperatorBookingsPage() {
     ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(b.status)
   );
 
-  const selectedService = services.find(s => s.id === formData.servicePackageId);
+  const selectedServices = services.filter(s => formData.servicePackageIds.includes(s.id));
+  const totalDuration = selectedServices.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
+  const firstService = selectedServices[0]; // For currency
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1462,26 +1471,58 @@ export default function OperatorBookingsPage() {
 
                 {services.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Szolgáltatás *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Szolgáltatások * (több is kiválasztható)</label>
                     <div className="space-y-2">
-                      {services.map((service) => (
-                        <button
-                          key={service.id}
-                          onClick={() => setFormData({ ...formData, servicePackageId: service.id })}
-                          className={`w-full p-3 border rounded-lg text-left ${
-                            formData.servicePackageId === service.id
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="font-medium">{service.name}</div>
-                          <div className="flex justify-between text-sm text-gray-500">
-                            <span>{service.durationMinutes} perc</span>
-                            <span className="font-medium">{formatPrice(service.price, service.currency)}</span>
-                          </div>
-                        </button>
-                      ))}
+                      {services.map((service) => {
+                        const isSelected = formData.servicePackageIds.includes(service.id);
+                        return (
+                          <label
+                            key={service.id}
+                            className={`flex items-start gap-3 w-full p-3 border rounded-lg cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    servicePackageIds: [...formData.servicePackageIds, service.id],
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    servicePackageIds: formData.servicePackageIds.filter(id => id !== service.id),
+                                  });
+                                }
+                              }}
+                              className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium">{service.name}</div>
+                              <div className="flex justify-between text-sm text-gray-500">
+                                <span>{service.durationMinutes} perc</span>
+                                <span className="font-medium">{formatPrice(service.price, service.currency)}</span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
+                    {formData.servicePackageIds.length > 0 && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm text-blue-700">
+                        Kiválasztva: {formData.servicePackageIds.length} szolgáltatás
+                        {formData.servicePackageIds.length > 0 && (
+                          <span className="ml-2 font-medium">
+                            ({services.filter(s => formData.servicePackageIds.includes(s.id)).reduce((sum, s) => sum + s.durationMinutes, 0)} perc összesen)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1519,7 +1560,7 @@ export default function OperatorBookingsPage() {
                   </button>
                   <button
                     onClick={() => setNewBookingStep('confirm')}
-                    disabled={!formData.servicePackageId || !formData.scheduledStart}
+                    disabled={formData.servicePackageIds.length === 0 || !formData.scheduledStart}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
                     Tovább
@@ -1548,19 +1589,24 @@ export default function OperatorBookingsPage() {
                     <span className="text-gray-500">Jármű:</span>
                     <span>{vehicleTypes.find(v => v.value === formData.vehicleType)?.label} {formData.plateNumber && `(${formData.plateNumber})`}</span>
                   </div>
+                  <div>
+                    <span className="text-gray-500">Szolgáltatások:</span>
+                    <ul className="mt-1 space-y-1">
+                      {selectedServices.map(s => (
+                        <li key={s.id} className="flex justify-between text-sm">
+                          <span>{s.name}</span>
+                          <span className="text-gray-600">{s.durationMinutes} perc</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Szolgáltatás:</span>
-                    <span>{selectedService?.name}</span>
+                    <span className="text-gray-500">Időtartam:</span>
+                    <span>{totalDuration} perc összesen</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Időpont:</span>
                     <span>{formatDate(formData.scheduledStart)}, {formatTime(formData.scheduledStart)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">
-                    <span className="font-semibold">Ár:</span>
-                    <span className="font-bold text-lg text-blue-600">
-                      {selectedService && formatPrice(selectedService.price, selectedService.currency)}
-                    </span>
                   </div>
                 </div>
 

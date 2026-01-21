@@ -4,24 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
-
-const COUNTRIES = [
-  { code: 'HU', name: 'Magyarorszag', flag: '🇭🇺' },
-  { code: 'AT', name: 'Ausztria', flag: '🇦🇹' },
-  { code: 'SK', name: 'Szlovakia', flag: '🇸🇰' },
-  { code: 'RO', name: 'Romania', flag: '🇷🇴' },
-  { code: 'DE', name: 'Nemetorszag', flag: '🇩🇪' },
-  { code: 'PL', name: 'Lengyelorszag', flag: '🇵🇱' },
-  { code: 'CZ', name: 'Csehorszag', flag: '🇨🇿' },
-  { code: 'HR', name: 'Horvatorszag', flag: '🇭🇷' },
-  { code: 'SI', name: 'Szlovenia', flag: '🇸🇮' },
-  { code: 'RS', name: 'Szerbia', flag: '🇷🇸' },
-  { code: 'BG', name: 'Bulgaria', flag: '🇧🇬' },
-  { code: 'IT', name: 'Olaszorszag', flag: '🇮🇹' },
-  { code: 'FR', name: 'Franciaorszag', flag: '🇫🇷' },
-  { code: 'NL', name: 'Hollandia', flag: '🇳🇱' },
-  { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
-];
+import { AddressInput, AddressData } from '@/components/address';
 
 export default function NewPartnerPage() {
   const router = useRouter();
@@ -31,8 +14,12 @@ export default function NewPartnerPage() {
   // Form state
   const [name, setName] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [billingCountry, setBillingCountry] = useState('HU');
+  const [addressData, setAddressData] = useState<AddressData>({
+    postalCode: '',
+    city: '',
+    street: '',
+    country: 'HU',
+  });
   const [euVatNumber, setEuVatNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -76,11 +63,20 @@ export default function NewPartnerPage() {
     setSubmitting(true);
 
     try {
+      // Build billing address from components
+      const billingAddress = addressData.street
+        ? `${addressData.postalCode} ${addressData.city}, ${addressData.street}`
+        : addressData.city
+        ? `${addressData.postalCode} ${addressData.city}`
+        : '';
+
       await networkAdminApi.createPartnerCompany({
         name,
         taxNumber,
         billingAddress: billingAddress || undefined,
-        billingCountry,
+        billingCity: addressData.city || undefined,
+        billingZipCode: addressData.postalCode || undefined,
+        billingCountry: addressData.country,
         euVatNumber: euVatNumber || undefined,
         contactEmail: contactEmail || undefined,
         contactPhone: contactPhone || undefined,
@@ -128,23 +124,6 @@ export default function NewPartnerPage() {
                 placeholder="pl. Trans Kft."
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Orszag *
-              </label>
-              <select
-                value={billingCountry}
-                onChange={(e) => setBillingCountry(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {COUNTRIES.map((country) => (
-                  <option key={country.code} value={country.code}>
-                    {country.flag} {country.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div>
@@ -221,20 +200,22 @@ export default function NewPartnerPage() {
                 Kulfoldi EU-s partnerek esetén kotelezo megadni a kozossegi adoszamot az afamentes szamlazashoz.
               </p>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Szamlazasi cim
-              </label>
-              <input
-                type="text"
-                value={billingAddress}
-                onChange={(e) => setBillingAddress(e.target.value)}
-                placeholder="pl. 1234 Budapest, Fo utca 1."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
           </div>
+        </div>
+
+        {/* Billing Address */}
+        <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
+            Szamlazasi cim
+          </h2>
+
+          <AddressInput
+            value={addressData}
+            onChange={setAddressData}
+            defaultCountry="HU"
+            showCountry={true}
+            required={false}
+          />
         </div>
 
         {/* Contact Info */}
