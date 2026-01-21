@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { AddressInput, AddressData } from '@/components/address';
 
 interface DayHours {
   isOpen: boolean;
@@ -23,11 +24,7 @@ interface OpeningHours {
 
 interface LocationFormData {
   name: string;
-  address: string;
-  city: string;
-  postalCode: string;
-  latitude: string;
-  longitude: string;
+  addressData: AddressData;
   phone: string;
   email: string;
   openingHours: OpeningHours;
@@ -67,11 +64,12 @@ export default function NewLocationPage() {
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<LocationFormData>({
     name: '',
-    address: '',
-    city: '',
-    postalCode: '',
-    latitude: '',
-    longitude: '',
+    addressData: {
+      postalCode: '',
+      city: '',
+      street: '',
+      country: 'HU',
+    },
     phone: '',
     email: '',
     openingHours: defaultOpeningHours,
@@ -82,6 +80,10 @@ export default function NewLocationPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddressChange = (addressData: AddressData) => {
+    setFormData((prev) => ({ ...prev, addressData }));
   };
 
   const handleDayToggle = (day: keyof OpeningHours) => {
@@ -149,21 +151,21 @@ export default function NewLocationPage() {
     try {
       const data: any = {
         name: formData.name,
-        address: formData.address,
-        city: formData.city,
+        address: formData.addressData.street,
+        city: formData.addressData.city,
         openingHours: formData.openingHours,
         operationType: formData.operationType,
         locationType: formData.locationType,
       };
 
-      if (formData.postalCode) {
-        data.postalCode = formData.postalCode;
+      if (formData.addressData.postalCode) {
+        data.postalCode = formData.addressData.postalCode;
       }
-      if (formData.latitude) {
-        data.latitude = parseFloat(formData.latitude);
+      if (formData.addressData.latitude) {
+        data.latitude = formData.addressData.latitude;
       }
-      if (formData.longitude) {
-        data.longitude = parseFloat(formData.longitude);
+      if (formData.addressData.longitude) {
+        data.longitude = formData.addressData.longitude;
       }
       if (formData.phone) {
         data.phone = formData.phone;
@@ -227,54 +229,21 @@ export default function NewLocationPage() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Cim *
-            </label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              required
-              placeholder="pl. Fo utca 1."
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
+          {/* Address Input with autocomplete */}
+          <div className="pt-2">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Cim</h3>
+            <AddressInput
+              value={formData.addressData}
+              onChange={handleAddressChange}
+              defaultCountry="HU"
+              showCountry={true}
+              required={true}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Varos *
-              </label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                required
-                placeholder="pl. Budapest"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Iranyitoszam
-              </label>
-              <input
-                type="text"
-                name="postalCode"
-                value={formData.postalCode}
-                onChange={handleChange}
-                placeholder="pl. 1234"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
-              />
-            </div>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Üzemeltetés típusa *
+              Uzemeltetés tipusa *
             </label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -286,7 +255,7 @@ export default function NewLocationPage() {
                   onChange={(e) => setFormData((prev) => ({ ...prev, operationType: e.target.value as 'OWN' | 'SUBCONTRACTOR' }))}
                   className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
                 />
-                <span className="text-gray-900">Saját üzemeltetés</span>
+                <span className="text-gray-900">Sajat uzemeltetes</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -297,14 +266,14 @@ export default function NewLocationPage() {
                   onChange={(e) => setFormData((prev) => ({ ...prev, operationType: e.target.value as 'OWN' | 'SUBCONTRACTOR' }))}
                   className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
                 />
-                <span className="text-gray-900">Alvállalkozó</span>
+                <span className="text-gray-900">Alvallalkozo</span>
               </label>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mosó típusa *
+              Moso tipusa *
             </label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -316,8 +285,8 @@ export default function NewLocationPage() {
                   onChange={(e) => setFormData((prev) => ({ ...prev, locationType: e.target.value as 'CAR_WASH' | 'TRUCK_WASH' }))}
                   className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
                 />
-                <span className="text-gray-900">Autómosó</span>
-                <span className="text-xs text-gray-500">(1 rendszám)</span>
+                <span className="text-gray-900">Automoso</span>
+                <span className="text-xs text-gray-500">(1 rendszam)</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -328,8 +297,8 @@ export default function NewLocationPage() {
                   onChange={(e) => setFormData((prev) => ({ ...prev, locationType: e.target.value as 'CAR_WASH' | 'TRUCK_WASH' }))}
                   className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
                 />
-                <span className="text-gray-900">Kamionmosó</span>
-                <span className="text-xs text-gray-500">(vontató + pótkocsi)</span>
+                <span className="text-gray-900">Kamionmoso</span>
+                <span className="text-xs text-gray-500">(vontato + potkocsi)</span>
               </label>
             </div>
           </div>
@@ -395,43 +364,6 @@ export default function NewLocationPage() {
                 )}
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Coordinates */}
-        <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Koordinatak (opcionalis)</h2>
-          <p className="text-sm text-gray-500">GPS koordinatak a terkepen valo megjeleniteshez</p>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Szelesseg (latitude)
-              </label>
-              <input
-                type="number"
-                step="any"
-                name="latitude"
-                value={formData.latitude}
-                onChange={handleChange}
-                placeholder="pl. 47.4979"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Hosszusag (longitude)
-              </label>
-              <input
-                type="number"
-                step="any"
-                name="longitude"
-                value={formData.longitude}
-                onChange={handleChange}
-                placeholder="pl. 19.0402"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
-              />
-            </div>
           </div>
         </div>
 

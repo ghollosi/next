@@ -29,6 +29,7 @@ import { StripeModule } from './stripe/stripe.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { PlatformBillingModule } from './platform-billing/platform-billing.module';
 import { CompanyDataModule } from './company-data/company-data.module';
+import { AddressModule } from './modules/address/address.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { CompanyDataModule } from './company-data/company-data.module';
     BookingModule,
     PlatformBillingModule,
     CompanyDataModule,
+    AddressModule,
   ],
   providers: [
     // SECURITY: Apply rate limiting globally

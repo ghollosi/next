@@ -2245,3 +2245,25 @@ model LocationInvoiceItem {
   @@index([locationInvoiceId])
   @@map("location_invoice_items")
 }
+
+// =============================================================================
+// POSTAL CODE (EU irányítószám adatbázis)
+// =============================================================================
+
+model PostalCode {
+  id          String   @id @default(uuid())
+  countryCode String   @map("country_code")    // ISO 3166-1 alpha-2 (HU, SK, AT, etc.)
+  postalCode  String   @map("postal_code")     // Irányítószám
+  city        String                            // Város/település neve
+  state       String?                           // Megye/tartomány (opcionális)
+  latitude    Float?                            // GPS koordináta (opcionális)
+  longitude   Float?                            // GPS koordináta (opcionális)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([countryCode, postalCode])
+  @@index([countryCode])
+  @@index([postalCode])
+  @@index([city])
+  @@map("postal_codes")
+}
