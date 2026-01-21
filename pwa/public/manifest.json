@@ -1,6 +1,6 @@
 {
-  "name": "VSys Wash",
-  "short_name": "VSys",
+  "name": "Vemiax Wash",
+  "short_name": "Vemiax",
   "description": "Truck wash management system",
   "start_url": "/",
   "display": "standalone",
@@ -8,6 +8,16 @@
   "theme_color": "#2563eb",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
@@ -19,6 +29,11 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }
