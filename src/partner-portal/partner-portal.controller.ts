@@ -101,7 +101,8 @@ export class PartnerPortalController {
     const userAgent = req.get('user-agent');
 
     try {
-      const partner = await this.partnerCompanyService.findByCode(
+      // SECURITY: Use findByCodeForAuth to get full object with pinHash for authentication
+      const partner = await this.partnerCompanyService.findByCodeForAuth(
         DEFAULT_NETWORK_ID,
         body.code.toUpperCase(),
       );
@@ -330,7 +331,7 @@ export class PartnerPortalController {
     }
 
     // Hash new PIN and update
-    const pinHash = await bcrypt.hash(body.newPin, 10);
+    const pinHash = await bcrypt.hash(body.newPin, 12);
 
     await this.prisma.partnerCompany.update({
       where: { id: partner.id },
@@ -439,7 +440,7 @@ export class PartnerPortalController {
     }
 
     // Update driver's PIN
-    const pinHash = await bcrypt.hash(body.newPin, 10);
+    const pinHash = await bcrypt.hash(body.newPin, 12);
     await this.prisma.driver.update({
       where: { id: request.driverId },
       data: { pinHash },

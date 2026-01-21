@@ -25,9 +25,9 @@ export class DriverService {
     private readonly emailService: EmailService,
   ) {}
 
-  // SECURITY: New bcrypt hashing for new PINs
+  // SECURITY: New bcrypt hashing for new PINs (12 rounds for better security)
   private async hashPinBcrypt(pin: string): Promise<string> {
-    return bcrypt.hash(pin, 10);
+    return bcrypt.hash(pin, 12);
   }
 
   // Legacy SHA-256 hash for backward compatibility during migration

@@ -341,7 +341,7 @@ export class NetworkAdminService {
     });
 
     // Hash password and create admin (password already validated above)
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
     const admin = await this.prisma.networkAdmin.create({
       data: {
         networkId: network.id,
@@ -596,7 +596,7 @@ Vemiax csapata`;
     assertValidPassword(newPassword);
 
     // Update password
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
     await this.prisma.networkAdmin.update({
       where: { id: resetToken.networkAdminId! },
       data: { passwordHash },
@@ -2302,7 +2302,7 @@ Vemiax csapata`;
     }
 
     const bcrypt = await import('bcrypt');
-    const pinHash = await bcrypt.hash(dto.pin, 10);
+    const pinHash = await bcrypt.hash(dto.pin, 12);
 
     const operator = await this.prisma.locationOperator.create({
       data: {
@@ -2359,7 +2359,7 @@ Vemiax csapata`;
         throw new ConflictException('A PIN kódnak legalább 4 karakter hosszúnak kell lennie');
       }
       const bcrypt = await import('bcrypt');
-      updateData.pinHash = await bcrypt.hash(dto.pin, 10);
+      updateData.pinHash = await bcrypt.hash(dto.pin, 12);
     }
 
     const updated = await this.prisma.locationOperator.update({

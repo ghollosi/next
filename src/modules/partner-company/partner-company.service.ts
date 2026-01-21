@@ -3,11 +3,29 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { PartnerCompany, BillingType, BillingCycle } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+// SECURITY: Type for partner company without sensitive pinHash field
+export type SafePartnerCompany = Omit<PartnerCompany, 'pinHash'>;
+
 @Injectable()
 export class PartnerCompanyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(networkId: string, id: string): Promise<PartnerCompany> {
+  // SECURITY: Remove pinHash from partner company object before returning to API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private omitPinHash(obj: any): any {
+    if (!obj) return obj;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { pinHash, ...rest } = obj;
+    return rest;
+  }
+
+  // SECURITY: Remove pinHash from array of partner companies
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private omitPinHashFromArray(items: any[]): any[] {
+    return items.map(item => this.omitPinHash(item));
+  }
+
+  async findById(networkId: string, id: string): Promise<SafePartnerCompany> {
     const company = await this.prisma.partnerCompany.findFirst({
       where: {
         id,
@@ -20,10 +38,29 @@ export class PartnerCompanyService {
       throw new NotFoundException(`Partner company not found`);
     }
 
-    return company;
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHash(company);
   }
 
-  async findByCode(networkId: string, code: string): Promise<PartnerCompany> {
+  async findByCode(networkId: string, code: string): Promise<SafePartnerCompany> {
+    const company = await this.prisma.partnerCompany.findFirst({
+      where: {
+        code,
+        networkId,
+        deletedAt: null,
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException(`Partner company with code ${code} not found`);
+    }
+
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHash(company);
+  }
+
+  // SECURITY: Internal method for authentication - returns full object with pinHash
+  async findByCodeForAuth(networkId: string, code: string): Promise<PartnerCompany> {
     const company = await this.prisma.partnerCompany.findFirst({
       where: {
         code,
@@ -39,8 +76,8 @@ export class PartnerCompanyService {
     return company;
   }
 
-  async findAll(networkId: string): Promise<PartnerCompany[]> {
-    return this.prisma.partnerCompany.findMany({
+  async findAll(networkId: string): Promise<SafePartnerCompany[]> {
+    const companies = await this.prisma.partnerCompany.findMany({
       where: {
         networkId,
         deletedAt: null,
@@ -49,10 +86,12 @@ export class PartnerCompanyService {
         name: 'asc',
       },
     });
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHashFromArray(companies);
   }
 
-  async findActive(networkId: string): Promise<PartnerCompany[]> {
-    return this.prisma.partnerCompany.findMany({
+  async findActive(networkId: string): Promise<SafePartnerCompany[]> {
+    const companies = await this.prisma.partnerCompany.findMany({
       where: {
         networkId,
         isActive: true,
@@ -62,6 +101,8 @@ export class PartnerCompanyService {
         name: 'asc',
       },
     });
+    // SECURITY: Remove pinHash before returning
+    return this.omitPinHashFromArray(companies);
   }
 
   async create(
@@ -201,7 +242,7 @@ export class PartnerCompanyService {
     const updateData: any = { ...restData };
 
     if (pin) {
-      updateData.pinHash = await bcrypt.hash(pin, 10);
+      updateData.pinHash = await bcrypt.hash(pin, 12);
     }
 
     return this.prisma.partnerCompany.update({

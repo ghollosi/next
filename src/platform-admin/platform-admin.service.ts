@@ -186,7 +186,7 @@ export class PlatformAdminService {
     // SECURITY: Validate password strength
     assertValidPassword(dto.password);
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const admin = await this.prisma.platformAdmin.create({
       data: {
@@ -286,7 +286,7 @@ export class PlatformAdminService {
     if (dto.password) {
       // SECURITY: Validate password strength
       assertValidPassword(dto.password);
-      updateData.passwordHash = await bcrypt.hash(dto.password, 10);
+      updateData.passwordHash = await bcrypt.hash(dto.password, 12);
     }
 
     const updated = await this.prisma.platformAdmin.update({
@@ -429,7 +429,7 @@ export class PlatformAdminService {
     // SECURITY: Validate password strength
     assertValidPassword(dto.newPassword);
 
-    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
 
     await this.prisma.platformAdmin.update({
       where: { id: admin.id },
@@ -848,7 +848,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     if (dto.ownerEmail && dto.ownerPassword) {
       // SECURITY: Validate password strength
       assertValidPassword(dto.ownerPassword);
-      const passwordHash = await bcrypt.hash(dto.ownerPassword, 10);
+      const passwordHash = await bcrypt.hash(dto.ownerPassword, 12);
       await this.prisma.networkAdmin.create({
         data: {
           networkId: network.id,
@@ -1082,7 +1082,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     // SECURITY: Validate password strength
     assertValidPassword(dto.password);
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const admin = await this.prisma.networkAdmin.create({
       data: {
@@ -1121,7 +1121,7 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
     if (dto.password) {
       // SECURITY: Validate password strength
       assertValidPassword(dto.password);
-      updateData.passwordHash = await bcrypt.hash(dto.password, 10);
+      updateData.passwordHash = await bcrypt.hash(dto.password, 12);
     }
 
     const updated = await this.prisma.networkAdmin.update({

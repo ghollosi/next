@@ -330,7 +330,7 @@ export class OperatorPortalController {
     }
 
     // Hash new PIN and update
-    const pinHash = await bcrypt.hash(body.newPin, 10);
+    const pinHash = await bcrypt.hash(body.newPin, 12);
 
     await this.prisma.locationOperator.update({
       where: { id: operator.id },
