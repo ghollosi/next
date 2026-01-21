@@ -32,15 +32,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = exception.message;
     }
 
-    // Log error for debugging
+    // SECURITY: Log error details server-side only
     if (status >= 500) {
       console.error('Server Error:', exception);
     }
 
+    // SECURITY: Don't expose internal error details in production
+    const isProduction = process.env.NODE_ENV === 'production';
+
     response.status(status).json({
       statusCode: status,
       error,
-      message,
+      // In production, hide detailed error messages for 500 errors
+      message: isProduction && status >= 500 ? 'An unexpected error occurred' : message,
       timestamp: new Date().toISOString(),
     });
   }
