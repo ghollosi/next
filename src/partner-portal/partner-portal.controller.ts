@@ -40,8 +40,9 @@ import {
   SESSION_COOKIES,
 } from '../common/session/cookie.helper';
 
-// Default network ID
-const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
+// SECURITY: Default network ID from environment variable
+// In production, this should be set via DEFAULT_NETWORK_ID env var
+const DEFAULT_NETWORK_ID = process.env.DEFAULT_NETWORK_ID || 'cf808392-6283-4487-9fbd-e72951ca5bf8';
 
 @ApiTags('partner-portal')
 @Controller('partner-portal')

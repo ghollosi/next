@@ -35,8 +35,10 @@ export class NavOnlineProvider extends InvoiceProvider {
   };
 
   // Configuration - can be set per-network
+  // SECURITY: Credentials stored in memory for API calls, sourced from env vars
+  // Password is hashed (SHA-512) before being sent to NAV API
   private technicalUser: string;
-  private technicalPassword: string; // Plain password
+  private technicalPassword: string;
   private taxNumber: string;
   private signatureKey: string;
   private exchangeKey: string;
@@ -70,6 +72,16 @@ export class NavOnlineProvider extends InvoiceProvider {
     this.signatureKey = signatureKey;
     this.exchangeKey = exchangeKey;
     this.isProduction = isProduction;
+  }
+
+  /**
+   * SECURITY: Clear sensitive credentials from memory
+   * Call this after completing a batch of operations if needed
+   */
+  clearCredentials(): void {
+    this.technicalPassword = '';
+    this.signatureKey = '';
+    this.exchangeKey = '';
   }
 
   /**

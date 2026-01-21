@@ -63,9 +63,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../modules/email/email.service';
 
-// Default network ID for self-registration
-// In production, this would come from QR code or subdomain
-const DEFAULT_NETWORK_ID = 'cf808392-6283-4487-9fbd-e72951ca5bf8';
+// SECURITY: Default network ID from environment variable
+// In production, this should be set via DEFAULT_NETWORK_ID env var
+// Falls back to the main VSys network for backwards compatibility
+const DEFAULT_NETWORK_ID = process.env.DEFAULT_NETWORK_ID || 'cf808392-6283-4487-9fbd-e72951ca5bf8';
 
 @ApiTags('pwa')
 @Controller('pwa')

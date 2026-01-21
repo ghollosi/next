@@ -720,7 +720,7 @@ export class OperatorController {
     const location = await this.locationService.findById(networkId, id);
 
     // Default base URL for PWA - can be overridden via query param
-    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'https://app.vemiax.com';
     const washUrl = `${pwaBaseUrl}/wash/new?location=${location.code}`;
 
     const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
@@ -791,7 +791,7 @@ export class OperatorController {
     const location = await this.locationService.findById(networkId, id);
 
     // Default base URL for PWA
-    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'https://app.vemiax.com';
     const washUrl = `${pwaBaseUrl}/wash/new?location=${location.code}`;
 
     const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
@@ -1122,7 +1122,7 @@ export class OperatorController {
     const partnerCompany = await this.partnerCompanyService.findById(networkId, id);
 
     // Default base URL for PWA - can be overridden via query param
-    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'https://app.vemiax.com';
     const registerUrl = `${pwaBaseUrl}/register-qr/${network.slug}/${partnerCompany.code}`;
 
     const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
@@ -1202,7 +1202,7 @@ export class OperatorController {
     const partnerCompany = await this.partnerCompanyService.findById(networkId, id);
 
     // Default base URL for PWA
-    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'http://46.224.157.177:3001';
+    const pwaBaseUrl = baseUrl || process.env.PWA_BASE_URL || 'https://app.vemiax.com';
     const registerUrl = `${pwaBaseUrl}/register-qr/${network.slug}/${partnerCompany.code}`;
 
     const qrSize = Math.min(Math.max(parseInt(size) || 300, 100), 1000);
