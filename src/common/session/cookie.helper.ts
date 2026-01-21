@@ -34,7 +34,7 @@ export function setSessionCookie(
   res.cookie(cookieName, sessionId, {
     httpOnly: true,           // SECURITY: Not accessible via JavaScript
     secure: isProduction,      // SECURITY: Only send over HTTPS in production
-    sameSite: 'lax',          // SECURITY: CSRF protection
+    sameSite: 'strict',       // SECURITY: Strong CSRF protection - cookies only sent for same-site requests
     maxAge,                    // Cookie expiration
     path: '/',                 // Available for all paths
   });
@@ -47,7 +47,7 @@ export function clearSessionCookie(res: Response, cookieName: string): void {
   res.clearCookie(cookieName, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
   });
 }

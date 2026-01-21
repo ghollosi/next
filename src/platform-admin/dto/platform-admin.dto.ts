@@ -30,8 +30,14 @@ export class PlatformLoginDto {
 }
 
 export class PlatformLoginResponseDto {
-  @ApiProperty({ description: 'JWT access token' })
+  @ApiProperty({ description: 'JWT access token (expires in 15 minutes)' })
   accessToken: string;
+
+  @ApiProperty({ description: 'Refresh token for obtaining new access tokens (expires in 7 days)' })
+  refreshToken: string;
+
+  @ApiProperty({ description: 'Access token expiry time in seconds' })
+  expiresIn: number;
 
   @ApiProperty({ description: 'Admin ID' })
   adminId: string;

@@ -7,6 +7,7 @@ import { PrismaModule } from '../common/prisma/prisma.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { EmailModule } from '../modules/email/email.module';
 import { CompanyDataModule } from '../company-data/company-data.module';
+import { AuthModule } from '../common/auth/auth.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CompanyDataModule } from '../company-data/company-data.module';
     AuditLogModule,
     EmailModule,
     CompanyDataModule,
+    AuthModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -24,9 +26,8 @@ import { CompanyDataModule } from '../company-data/company-data.module';
         }
         return {
           secret: secret || 'dev-only-secret-do-not-use-in-production',
-          // SECURITY: Reduced from 24h to 8h for better security
-          // TODO: Implement refresh tokens for seamless session extension
-          signOptions: { expiresIn: '8h' },
+          // SECURITY: Access tokens now have 15min expiry with refresh token support
+          signOptions: { expiresIn: '15m' },
         };
       },
       inject: [ConfigService],

@@ -11,8 +11,9 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
 import { AccountLockoutService } from '../common/security/account-lockout.service';
+import { RefreshTokenService } from '../common/auth/refresh-token.service';
 import { assertValidPassword } from '../common/security/password-policy';
-import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction, CompanyDataProvider } from '@prisma/client';
+import { PlatformRole, SubscriptionStatus, NetworkRole, AuditAction, CompanyDataProvider, RefreshTokenType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   CreatePlatformAdminDto,
@@ -50,6 +51,7 @@ export class PlatformAdminService {
     private readonly auditLogService: AuditLogService,
     private readonly emailService: EmailService,
     private readonly lockoutService: AccountLockoutService,
+    private readonly refreshTokenService: RefreshTokenService,
   ) {}
 
   // SECURITY: Get JWT secret with production check
@@ -142,13 +144,15 @@ export class PlatformAdminService {
       sub: admin.id,
       email: admin.email,
       role: admin.role,
-      type: 'platform',
+      type: 'platform' as const,
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.getJwtSecret(),
-      expiresIn: '24h',
-    });
+    // SECURITY: Generate token pair with refresh token
+    const tokenPair = await this.refreshTokenService.createTokenPair(
+      payload,
+      RefreshTokenType.PLATFORM_ADMIN,
+      { userAgent, ipAddress },
+    );
 
     // AUDIT: Log successful login
     await this.auditLogService.log({
@@ -161,13 +165,48 @@ export class PlatformAdminService {
     });
 
     return {
-      accessToken,
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      expiresIn: tokenPair.expiresIn,
       adminId: admin.id,
       name: admin.name,
       email: admin.email,
       role: admin.role,
     };
   }
+
+  // =========================================================================
+  // REFRESH TOKEN
+  // =========================================================================
+
+  async refreshTokens(
+    refreshToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+    const tokenPair = await this.refreshTokenService.refreshTokens(refreshToken, {
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      expiresIn: tokenPair.expiresIn,
+    };
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.refreshTokenService.revokeToken(refreshToken);
+  }
+
+  async logoutAll(adminId: string): Promise<number> {
+    return this.refreshTokenService.revokeAllUserTokens(adminId, RefreshTokenType.PLATFORM_ADMIN);
+  }
+
+  // =========================================================================
+  // ADMIN MANAGEMENT
+  // =========================================================================
 
   async createAdmin(dto: CreatePlatformAdminDto, createdByAdminId?: string): Promise<{ id: string; email: string }> {
     const existing = await this.prisma.platformAdmin.findUnique({
@@ -527,17 +566,20 @@ Használat: POST /platform-admin/emergency-login { "token": "${emergencyToken}" 
       sub: admin.id,
       email: admin.email,
       role: admin.role,
-      type: 'platform',
-      emergency: true, // Jelöljük, hogy emergency login volt
+      type: 'platform' as const,
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.getJwtSecret(),
-      expiresIn: '4h', // Rövidebb érvényesség emergency esetén
-    });
+    // SECURITY: Emergency login also uses refresh tokens but with shorter expiry
+    const tokenPair = await this.refreshTokenService.createTokenPair(
+      payload,
+      RefreshTokenType.PLATFORM_ADMIN,
+      { userAgent: 'emergency-login' },
+    );
 
     return {
-      accessToken,
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      expiresIn: tokenPair.expiresIn,
       adminId: admin.id,
       name: admin.name,
       email: admin.email,

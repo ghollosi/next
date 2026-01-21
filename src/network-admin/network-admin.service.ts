@@ -12,8 +12,9 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
 import { AccountLockoutService } from '../common/security/account-lockout.service';
+import { RefreshTokenService } from '../common/auth/refresh-token.service';
 import { assertValidPassword } from '../common/security/password-policy';
-import { SubscriptionStatus, AuditAction } from '@prisma/client';
+import { SubscriptionStatus, AuditAction, RefreshTokenType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import {
@@ -43,6 +44,7 @@ export class NetworkAdminService {
     private readonly auditLogService: AuditLogService,
     private readonly emailService: EmailService,
     private readonly lockoutService: AccountLockoutService,
+    private readonly refreshTokenService: RefreshTokenService,
   ) {}
 
   // SECURITY: Get JWT secret with production check
@@ -188,13 +190,15 @@ export class NetworkAdminService {
       email: admin.email,
       role: admin.role,
       networkId: network.id,
-      type: 'network',
+      type: 'network' as const,
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.getJwtSecret(),
-      expiresIn: '24h',
-    });
+    // SECURITY: Generate token pair with refresh token
+    const tokenPair = await this.refreshTokenService.createTokenPair(
+      payload,
+      RefreshTokenType.NETWORK_ADMIN,
+      { userAgent, ipAddress },
+    );
 
     // AUDIT: Log successful login
     await this.auditLogService.log({
@@ -208,7 +212,9 @@ export class NetworkAdminService {
     });
 
     return {
-      accessToken,
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      expiresIn: tokenPair.expiresIn,
       adminId: admin.id,
       name: admin.name,
       email: admin.email,
@@ -241,6 +247,35 @@ export class NetworkAdminService {
     } catch {
       return null;
     }
+  }
+
+  // =========================================================================
+  // REFRESH TOKEN
+  // =========================================================================
+
+  async refreshTokens(
+    refreshToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+    const tokenPair = await this.refreshTokenService.refreshTokens(refreshToken, {
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      expiresIn: tokenPair.expiresIn,
+    };
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.refreshTokenService.revokeToken(refreshToken);
+  }
+
+  async logoutAll(adminId: string): Promise<number> {
+    return this.refreshTokenService.revokeAllUserTokens(adminId, RefreshTokenType.NETWORK_ADMIN);
   }
 
   // =========================================================================

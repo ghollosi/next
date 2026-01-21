@@ -1747,6 +1747,40 @@ model ExchangeRateCache {
 }
 
 // =============================================================================
+// REFRESH TOKEN (JWT token megújítás)
+// =============================================================================
+
+enum RefreshTokenType {
+  PLATFORM_ADMIN
+  NETWORK_ADMIN
+}
+
+model RefreshToken {
+  id          String           @id @default(uuid())
+  token       String           @unique
+  type        RefreshTokenType
+  userId      String           @map("user_id")  // platformAdminId or networkAdminId
+  networkId   String?          @map("network_id")  // Only for NETWORK_ADMIN
+
+  // Token lifecycle
+  expiresAt   DateTime         @map("expires_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  revokedAt   DateTime?        @map("revoked_at")
+
+  // Security metadata
+  userAgent   String?          @map("user_agent")
+  ipAddress   String?          @map("ip_address")
+
+  // Token chain for rotation
+  replacedBy  String?          @map("replaced_by")  // New token ID after rotation
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// =============================================================================
 // BOOKING SYSTEM MODELS
 // =============================================================================
 

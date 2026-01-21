@@ -200,6 +200,45 @@ export class NetworkAdminController {
     return this.networkAdminService.login(dto, ipAddress, userAgent);
   }
 
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token using refresh token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tokens refreshed successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  async refreshTokens(
+    @Body() body: { refreshToken: string },
+    @Req() req: Request,
+  ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+    const ipAddress = req.ip || req.socket?.remoteAddress;
+    const userAgent = req.get('user-agent');
+    return this.networkAdminService.refreshTokens(body.refreshToken, ipAddress, userAgent);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout and revoke refresh token' })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
+  async logout(@Body() body: { refreshToken: string }): Promise<{ success: boolean }> {
+    await this.networkAdminService.logout(body.refreshToken);
+    return { success: true };
+  }
+
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout from all devices (revoke all refresh tokens)' })
+  @ApiResponse({ status: 200, description: 'All sessions terminated' })
+  async logoutAll(
+    @Headers('authorization') authHeader: string,
+  ): Promise<{ success: boolean; revokedCount: number }> {
+    const { adminId } = await this.validateAuth(authHeader);
+    const revokedCount = await this.networkAdminService.logoutAll(adminId);
+    return { success: true, revokedCount };
+  }
+
   // =========================================================================
   // REGISTRATION
   // =========================================================================

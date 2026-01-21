@@ -8,6 +8,7 @@ import { EmailModule } from '../modules/email/email.module';
 import { BookingModule } from '../modules/booking/booking.module';
 import { CompanyDataModule } from '../company-data/company-data.module';
 import { PlatformAdminModule } from '../platform-admin/platform-admin.module';
+import { AuthModule } from '../common/auth/auth.module';
 import { NetworkAdminController } from './network-admin.controller';
 import { NetworkAdminService } from './network-admin.service';
 
@@ -20,6 +21,7 @@ import { NetworkAdminService } from './network-admin.service';
     EmailModule,
     BookingModule,
     CompanyDataModule,
+    AuthModule,
     forwardRef(() => PlatformAdminModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -30,9 +32,8 @@ import { NetworkAdminService } from './network-admin.service';
         }
         return {
           secret: secret || 'dev-only-secret-do-not-use-in-production',
-          // SECURITY: Reduced from 24h to 8h for better security
-          // TODO: Implement refresh tokens for seamless session extension
-          signOptions: { expiresIn: '8h' },
+          // SECURITY: Access tokens now have 15min expiry with refresh token support
+          signOptions: { expiresIn: '15m' },
         };
       },
       inject: [ConfigService],
