@@ -637,7 +637,9 @@ Vemiax csapata`;
       data: { passwordHash },
     });
 
-    this.logger.log(`Password reset successful for admin ${resetToken.networkAdminId}`);
+    // SECURITY: Invalidate all existing sessions after password change
+    await this.refreshTokenService.revokeAllUserTokens(resetToken.networkAdminId!, RefreshTokenType.NETWORK_ADMIN);
+    this.logger.log(`Password reset successful for admin ${resetToken.networkAdminId}, all sessions invalidated`);
 
     return {
       success: true,

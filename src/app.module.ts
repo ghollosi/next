@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { UserThrottlerGuard } from './common/throttler/user-throttle.guard';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { SessionModule } from './common/session/session.module';
 import { HealthModule } from './common/health/health.module';
@@ -74,10 +75,11 @@ import { SecurityModule } from './common/security/security.module';
     AddressModule,
   ],
   providers: [
-    // SECURITY: Apply rate limiting globally
+    // SECURITY: Apply user-aware rate limiting globally
+    // Tracks both IP and user/session ID to prevent VPN rotation attacks
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: UserThrottlerGuard,
     },
   ],
 })

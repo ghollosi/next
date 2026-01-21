@@ -17,7 +17,23 @@ async function bootstrap() {
   });
 
   // SECURITY: Helmet for security headers (XSS, clickjacking, etc.)
-  app.use(helmet());
+  // Including Content-Security-Policy for additional protection
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://api.stripe.com", "https://api.vemiax.com"],
+        frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
+        fontSrc: ["'self'", "https:", "data:"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Required for Stripe
+  }));
 
   // SECURITY: Request size limits to prevent DoS attacks
   app.use(express.json({ limit: '10mb' }));

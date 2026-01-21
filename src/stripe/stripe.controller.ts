@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { StripeService } from './stripe.service';
 import { PublishableKeyResponseDto, WebhookResponseDto } from './dto/stripe.dto';
+import { SkipCsrf } from '../common/security/csrf.guard';
 
 @ApiTags('Stripe')
 @Controller('stripe')
@@ -19,6 +20,7 @@ export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
 
   @Post('webhook')
+  @SkipCsrf() // SECURITY: Webhooks use signature verification instead of CSRF
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Handle Stripe webhooks' })
   @ApiResponse({ status: 200, description: 'Webhook received', type: WebhookResponseDto })

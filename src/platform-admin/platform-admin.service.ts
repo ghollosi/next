@@ -479,6 +479,10 @@ export class PlatformAdminService {
       },
     });
 
+    // SECURITY: Invalidate all existing sessions after password change
+    await this.refreshTokenService.revokeAllUserTokens(admin.id, RefreshTokenType.PLATFORM_ADMIN);
+    this.logger.log(`All sessions invalidated for admin ${admin.email} after password reset`);
+
     return { message: 'Jelszó sikeresen megváltoztatva' };
   }
 
