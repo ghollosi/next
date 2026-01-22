@@ -246,7 +246,7 @@ export default function NetworkAdminLayout({
         <EmiChatWidget
           userRole="network_admin"
           userId={admin.email}
-          networkId={getNetworkAdmin()?.networkId || undefined}
+          networkId={getPlatformViewData()?.networkId || undefined}
           token={getNetworkAdminToken() || undefined}
           language="hu"
           position="bottom-right"

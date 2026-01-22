@@ -23,7 +23,7 @@ export default function NewDriverPage() {
     phone: '',
     email: '',
     partnerCompanyId: '',
-    pin: '',
+    password: '',
   });
 
   useEffect(() => {
@@ -51,14 +51,20 @@ export default function NewDriverPage() {
       return;
     }
 
-    if (!form.email && !form.phone) {
-      setError('Legalább egy elérhetőséget (email vagy telefon) meg kell adni');
+    if (!form.email.includes('@')) {
+      setError('Érvényes email cím megadása kötelező');
       setSaving(false);
       return;
     }
 
-    if (!form.pin || form.pin.length < 4) {
-      setError('A PIN kód legalább 4 karakter hosszú kell legyen');
+    if (!form.email) {
+      setError('Az email cím megadása kötelező');
+      setSaving(false);
+      return;
+    }
+
+    if (!form.password || form.password.length < 6) {
+      setError('A jelszónak legalább 6 karakter hosszúnak kell lennie');
       setSaving(false);
       return;
     }
@@ -70,9 +76,9 @@ export default function NewDriverPage() {
           firstName: form.firstName,
           lastName: form.lastName,
           phone: form.phone || undefined,
-          email: form.email || undefined,
+          email: form.email.trim(),
           partnerCompanyId: form.partnerCompanyId || undefined,
-          pin: form.pin,
+          password: form.password,
         }),
       });
       router.push('/network-admin/drivers');
@@ -155,19 +161,6 @@ export default function NewDriverPage() {
             />
           </div>
 
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email cím
-            </label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
-              placeholder="pl. kovacs.janos@example.com"
-            />
-          </div>
 
           {/* Partner Company */}
           <div className="md:col-span-2">
@@ -188,22 +181,37 @@ export default function NewDriverPage() {
             </select>
           </div>
 
-          {/* PIN */}
+          {/* Email (required) */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              PIN kód <span className="text-red-500">*</span>
+              Email cím <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
+              placeholder="pl. kovacs.janos@example.com"
+              required
+            />
+          </div>
+
+          {/* Password */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Jelszó <span className="text-red-500">*</span>
             </label>
             <input
               type="password"
-              value={form.pin}
-              onChange={(e) => setForm({ ...form, pin: e.target.value })}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
               className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 focus:outline-none"
-              placeholder="Minimum 4 karakter"
-              minLength={4}
+              placeholder="Minimum 6 karakter"
+              minLength={6}
               required
             />
             <p className="mt-1 text-sm text-gray-500">
-              A sofőr ezzel a PIN kóddal tud majd bejelentkezni
+              A sofőr ezzel az email címmel és jelszóval tud majd bejelentkezni
             </p>
           </div>
         </div>
@@ -211,8 +219,8 @@ export default function NewDriverPage() {
         {/* Info */}
         <div className="bg-blue-50 rounded-lg p-4">
           <p className="text-sm text-blue-700">
-            <strong>Megjegyzés:</strong> Legalább egy elérhetőséget (email vagy telefon) meg kell adni.
-            A sofőr automatikusan jóváhagyott státuszt kap.
+            <strong>Megjegyzés:</strong> A sofőr az email címmel és jelszóval tud bejelentkezni a Driver Portálra.
+            Automatikusan jóváhagyott státuszt kap.
           </p>
         </div>
 

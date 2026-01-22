@@ -2315,6 +2315,7 @@ Vemiax csapata`;
       id: o.id,
       locationId: o.locationId,
       name: o.name,
+      email: o.email || '',
       isActive: o.isActive,
       createdAt: o.createdAt,
     }));
@@ -2323,7 +2324,7 @@ Vemiax csapata`;
   async createLocationOperator(
     networkId: string,
     locationId: string,
-    dto: { name: string; pin: string },
+    dto: { name: string; email: string; password: string },
   ): Promise<any> {
     // Verify location belongs to this network
     const location = await this.prisma.location.findFirst({
@@ -2334,19 +2335,33 @@ Vemiax csapata`;
       throw new NotFoundException('Helyszín nem található');
     }
 
-    if (!dto.pin || dto.pin.length < 4) {
-      throw new ConflictException('A PIN kódnak legalább 4 karakter hosszúnak kell lennie');
+    if (!dto.email || !dto.email.includes('@')) {
+      throw new ConflictException('Érvényes email cím megadása kötelező');
+    }
+
+    if (!dto.password || dto.password.length < 6) {
+      throw new ConflictException('A jelszónak legalább 6 karakter hosszúnak kell lennie');
+    }
+
+    // Check for duplicate email within this network
+    const existingOperator = await this.prisma.locationOperator.findFirst({
+      where: { email: dto.email, networkId, deletedAt: null },
+    });
+
+    if (existingOperator) {
+      throw new ConflictException('Ezzel az email címmel már létezik operátor ebben a hálózatban');
     }
 
     const bcrypt = await import('bcrypt');
-    const pinHash = await bcrypt.hash(dto.pin, 12);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const operator = await this.prisma.locationOperator.create({
       data: {
         networkId,
         locationId,
         name: dto.name,
-        pinHash,
+        email: dto.email,
+        passwordHash,
       },
     });
 
@@ -2363,6 +2378,7 @@ Vemiax csapata`;
       id: operator.id,
       locationId: operator.locationId,
       name: operator.name,
+      email: operator.email || '',
       isActive: operator.isActive,
       createdAt: operator.createdAt,
     };
@@ -2371,7 +2387,7 @@ Vemiax csapata`;
   async updateOperator(
     networkId: string,
     operatorId: string,
-    dto: { name?: string; pin?: string; isActive?: boolean },
+    dto: { name?: string; email?: string; password?: string; isActive?: boolean },
   ): Promise<any> {
     const operator = await this.prisma.locationOperator.findFirst({
       where: { id: operatorId, networkId, deletedAt: null },
@@ -2391,12 +2407,26 @@ Vemiax csapata`;
       updateData.isActive = dto.isActive;
     }
 
-    if (dto.pin) {
-      if (dto.pin.length < 4) {
-        throw new ConflictException('A PIN kódnak legalább 4 karakter hosszúnak kell lennie');
+    if (dto.email !== undefined) {
+      if (!dto.email.includes('@')) {
+        throw new ConflictException('Érvényes email cím megadása kötelező');
+      }
+      // Check for duplicate email (exclude current operator)
+      const existingOperator = await this.prisma.locationOperator.findFirst({
+        where: { email: dto.email, networkId, deletedAt: null, id: { not: operatorId } },
+      });
+      if (existingOperator) {
+        throw new ConflictException('Ezzel az email címmel már létezik operátor ebben a hálózatban');
+      }
+      updateData.email = dto.email;
+    }
+
+    if (dto.password) {
+      if (dto.password.length < 6) {
+        throw new ConflictException('A jelszónak legalább 6 karakter hosszúnak kell lennie');
       }
       const bcrypt = await import('bcrypt');
-      updateData.pinHash = await bcrypt.hash(dto.pin, 12);
+      updateData.passwordHash = await bcrypt.hash(dto.password, 12);
     }
 
     const updated = await this.prisma.locationOperator.update({
@@ -2418,6 +2448,7 @@ Vemiax csapata`;
       id: updated.id,
       locationId: updated.locationId,
       name: updated.name,
+      email: updated.email || '',
       isActive: updated.isActive,
       createdAt: updated.createdAt,
     };

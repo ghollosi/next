@@ -106,7 +106,7 @@ describe('DriverService', () => {
         partnerCompanyId,
         firstName: 'Jane',
         lastName: 'Smith',
-        pin: '1234',
+        password: '123456',
       });
 
       expect(result.id).toBe('new-driver-id');
