@@ -364,7 +364,7 @@ SPECIAL FEATURES:
 
       const response = await this.anthropic.messages.create({
         model: 'claude-3-haiku-20240307', // Using Haiku for fast, cheap responses
-        max_tokens: 500, // Keep responses concise
+        max_tokens: 1024, // Allow detailed responses for data-rich queries
         system: systemPrompt,
         messages,
       });
@@ -504,11 +504,11 @@ SPECIAL FEATURES:
         let locationDetails = '';
         if (locationBreakdown.length > 0) {
           const locationIds = locationBreakdown.map(l => l.locationId);
-          const locations = await this.prisma.location.findMany({
+          const locationsForBreakdown = await this.prisma.location.findMany({
             where: { id: { in: locationIds } },
             select: { id: true, name: true },
           });
-          const locationMap = new Map(locations.map(l => [l.id, l.name]));
+          const locationMap = new Map(locationsForBreakdown.map(l => [l.id, l.name]));
 
           locationDetails = locationBreakdown
             .map(l => {
@@ -520,6 +520,96 @@ SPECIAL FEATURES:
             })
             .join('\n');
         }
+
+        // Fetch ALL locations with full details for the network
+        const allLocations = await this.prisma.location.findMany({
+          where: { networkId: context.networkId, isActive: true },
+          select: {
+            name: true,
+            code: true,
+            address: true,
+            city: true,
+            zipCode: true,
+            country: true,
+            locationType: true,
+            washMode: true,
+            operationType: true,
+            visibility: true,
+            bookingEnabled: true,
+            parallelSlots: true,
+            phone: true,
+            email: true,
+            openingHoursStructured: {
+              select: { dayOfWeek: true, openTime: true, closeTime: true, isClosed: true },
+              orderBy: { dayOfWeek: 'asc' },
+            },
+          },
+          orderBy: { name: 'asc' },
+        });
+
+        const dayNames: Record<string, { hu: string; en: string }> = {
+          MONDAY: { hu: 'Hétfő', en: 'Monday' },
+          TUESDAY: { hu: 'Kedd', en: 'Tuesday' },
+          WEDNESDAY: { hu: 'Szerda', en: 'Wednesday' },
+          THURSDAY: { hu: 'Csütörtök', en: 'Thursday' },
+          FRIDAY: { hu: 'Péntek', en: 'Friday' },
+          SATURDAY: { hu: 'Szombat', en: 'Saturday' },
+          SUNDAY: { hu: 'Vasárnap', en: 'Sunday' },
+        };
+
+        const locationFullDetails = allLocations.map(loc => {
+          const typeLabel = isHungarian
+            ? (loc.locationType === 'TRUCK_WASH' ? 'Kamionmosó' : 'Autómosó')
+            : (loc.locationType === 'TRUCK_WASH' ? 'Truck Wash' : 'Car Wash');
+          const modeLabel = isHungarian
+            ? (loc.washMode === 'MANUAL' ? 'Személyzetes' : 'Automata')
+            : (loc.washMode === 'MANUAL' ? 'Manual (staffed)' : 'Automatic');
+          const operationLabel = isHungarian
+            ? (loc.operationType === 'OWN' ? 'Saját üzemeltetés' : 'Alvállalkozó')
+            : (loc.operationType === 'OWN' ? 'Own operation' : 'Subcontractor');
+          const visibilityLabel = isHungarian
+            ? (loc.visibility === 'PUBLIC' ? 'Publikus' : loc.visibility === 'NETWORK_ONLY' ? 'Csak hálózat' : 'Dedikált')
+            : (loc.visibility === 'PUBLIC' ? 'Public' : loc.visibility === 'NETWORK_ONLY' ? 'Network only' : 'Dedicated');
+
+          const address = [loc.zipCode, loc.city, loc.address].filter(Boolean).join(', ');
+
+          let openingHoursStr = '';
+          if (loc.openingHoursStructured && loc.openingHoursStructured.length > 0) {
+            openingHoursStr = loc.openingHoursStructured
+              .map(oh => {
+                const dayName = isHungarian ? dayNames[oh.dayOfWeek]?.hu : dayNames[oh.dayOfWeek]?.en;
+                if (oh.isClosed) return `    ${dayName}: ${isHungarian ? 'Zárva' : 'Closed'}`;
+                return `    ${dayName}: ${oh.openTime} - ${oh.closeTime}`;
+              })
+              .join('\n');
+          } else {
+            openingHoursStr = isHungarian ? '    Nincs megadva' : '    Not specified';
+          }
+
+          if (isHungarian) {
+            return `  ${loc.name} (${loc.code}):\n` +
+              `    Cím: ${address || 'Nincs megadva'}\n` +
+              `    Típus: ${typeLabel}\n` +
+              `    Üzemmód: ${modeLabel}\n` +
+              `    Üzemeltetés: ${operationLabel}\n` +
+              `    Láthatóság: ${visibilityLabel}\n` +
+              `    Foglalás: ${loc.bookingEnabled ? `Engedélyezve (${loc.parallelSlots} párhuzamos)` : 'Nincs'}\n` +
+              (loc.phone ? `    Telefon: ${loc.phone}\n` : '') +
+              (loc.email ? `    Email: ${loc.email}\n` : '') +
+              `    Nyitvatartás:\n${openingHoursStr}`;
+          } else {
+            return `  ${loc.name} (${loc.code}):\n` +
+              `    Address: ${address || 'Not specified'}\n` +
+              `    Type: ${typeLabel}\n` +
+              `    Mode: ${modeLabel}\n` +
+              `    Operation: ${operationLabel}\n` +
+              `    Visibility: ${visibilityLabel}\n` +
+              `    Booking: ${loc.bookingEnabled ? `Enabled (${loc.parallelSlots} parallel)` : 'Disabled'}\n` +
+              (loc.phone ? `    Phone: ${loc.phone}\n` : '') +
+              (loc.email ? `    Email: ${loc.email}\n` : '') +
+              `    Opening hours:\n${openingHoursStr}`;
+          }
+        }).join('\n\n');
 
         const currency = network?.defaultCurrency || 'HUF';
         const todayRev = todayRevenue._sum?.finalPrice ? Number(todayRevenue._sum.finalPrice).toLocaleString() : '0';
@@ -533,13 +623,15 @@ SPECIAL FEATURES:
               `MAI STATISZTIKA:\n- Mai mosások: ${todayWashes}\n- Befejezett ma: ${todayCompleted}\n- Folyamatban: ${todayInProgress}\n- Mai bevétel: ${todayRev} ${currency}\n\n` +
               `HAVI STATISZTIKA (aktuális hónap):\n- Havi mosások: ${monthlyWashes}\n- Befejezett: ${monthlyCompleted}\n- Havi bevétel: ${monthlyRev} ${currency}\n\n` +
               `ÖSSZESÍTÉS (minden idők):\n- Összes mosás: ${totalWashes}\n- Összes befejezett: ${totalCompleted}\n- Összes bevétel: ${totalRev} ${currency}` +
-              (locationDetails ? `\n\nHELYSZÍNEK HAVI BONTÁSBAN (TOP 5):\n${locationDetails}` : '')
+              (locationDetails ? `\n\nHELYSZÍNEK HAVI BONTÁSBAN (TOP 5):\n${locationDetails}` : '') +
+              `\n\nHELYSZÍNEK RÉSZLETES ADATAI:\n${locationFullDetails}`
             : `\n\nYOUR NETWORK DATA (${network.name}):\n` +
               `GENERAL:\n- Locations: ${locationCount}\n- Active drivers: ${driverCount}\n- Partners: ${partnerCount}\n- Currency: ${currency}\n\n` +
               `TODAY'S STATS:\n- Today's washes: ${todayWashes}\n- Completed today: ${todayCompleted}\n- In progress: ${todayInProgress}\n- Today's revenue: ${todayRev} ${currency}\n\n` +
               `MONTHLY STATS (current month):\n- Monthly washes: ${monthlyWashes}\n- Completed: ${monthlyCompleted}\n- Monthly revenue: ${monthlyRev} ${currency}\n\n` +
               `ALL-TIME TOTALS:\n- Total washes: ${totalWashes}\n- Total completed: ${totalCompleted}\n- Total revenue: ${totalRev} ${currency}` +
-              (locationDetails ? `\n\nLOCATION BREAKDOWN (TOP 5 THIS MONTH):\n${locationDetails}` : '');
+              (locationDetails ? `\n\nLOCATION BREAKDOWN (TOP 5 THIS MONTH):\n${locationDetails}` : '') +
+              `\n\nLOCATION DETAILS:\n${locationFullDetails}`;
         }
       }
 
@@ -653,8 +745,8 @@ SPECIAL FEATURES:
         : 'Hi! I\'m Amy, the vSys Wash assistant. How can I help you? 🚗✨';
     }
 
-    // Pricing question
-    if (lowerMessage.match(/(mennyi|ár|árak|price|pricing|cost)/)) {
+    // Pricing question (only match when asking about prices specifically, not "mennyi sofőr" etc.)
+    if (lowerMessage.match(/(mennyibe|ár|árak|árlista|price|pricing|cost|díj|tarifa)/) && !lowerMessage.match(/(sofőr|driver|mosás|wash|helyszín|location|partner)/)) {
       return isHu
         ? 'Az árak a hálózattól és mosótípustól függnek. Általában a szolgáltatók határozzák meg. Ha sofőr vagy, az alkalmazásban látod az aktuális árakat a helyszín kiválasztása után!'
         : 'Prices depend on the network and wash type. Generally set by service providers. If you\'re a driver, you can see current prices in the app after selecting a location!';

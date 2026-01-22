@@ -130,14 +130,8 @@ export class AiChatController {
 
     const language = body.language || 'hu';
 
-    // Try quick response first
-    const quickResponse = this.aiChatService.getQuickResponse(body.message, language);
-    if (quickResponse) {
-      return {
-        message: quickResponse,
-        isQuickResponse: true,
-      };
-    }
+    // Authenticated users always use full AI with dynamic context
+    // No quick responses - they have role-specific data access
 
     const context: ChatContext = {
       role: userRole as UserRole,
