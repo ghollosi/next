@@ -7,6 +7,7 @@ import { getNetworkAdminToken, getNetworkAdmin, clearNetworkAdminSession } from 
 import TrialBanner from '@/components/TrialBanner';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
+import EmiChatWidget from '@/components/EmiChatWidget';
 
 // Platform View storage key
 const PLATFORM_VIEW_KEY = 'vsys_platform_view';
@@ -239,6 +240,19 @@ export default function NetworkAdminLayout({
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {children}
       </main>
+
+      {/* Émi Chat Widget - Network Admin context */}
+      {admin && !isPlatformView && (
+        <EmiChatWidget
+          userRole="network_admin"
+          userId={admin.email}
+          networkId={getPlatformViewData()?.networkId || undefined}
+          token={getNetworkAdminToken() || undefined}
+          language="hu"
+          position="bottom-right"
+          primaryColor="#6366f1" // Indigo - Network Admin color
+        />
+      )}
     </div>
   );
 }

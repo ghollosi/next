@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getPlatformToken, getPlatformAdmin, clearPlatformSession } from '@/lib/platform-api';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
+import EmiChatWidget from '@/components/EmiChatWidget';
 
 // Storage key for sidebar collapsed state
 const SIDEBAR_COLLAPSED_KEY = 'vsys_platform_sidebar_collapsed';
@@ -232,6 +233,18 @@ export default function PlatformAdminLayout({
           {children}
         </main>
       </div>
+
+      {/* Émi Chat Widget - Platform Admin context (full access) */}
+      {admin && (
+        <EmiChatWidget
+          userRole="platform_admin"
+          userId={admin.email}
+          token={getPlatformToken() || undefined}
+          language="hu"
+          position="bottom-right"
+          primaryColor="#7c3aed" // Purple - Platform Admin color
+        />
+      )}
     </div>
   );
 }

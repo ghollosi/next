@@ -125,28 +125,208 @@ RESTRICTIONS:
         break;
       case 'driver':
         roleContext = isHungarian
-          ? '\n\nA FELHASZNÁLÓ: Bejelentkezett sofőr. Segíthetsz a mosófoglalással, QR kód használattal, autók kezelésével kapcsolatban.'
-          : '\n\nUSER: Logged in driver. Help with wash booking, QR code usage, vehicle management.';
+          ? `\n\nA FELHASZNÁLÓ: Bejelentkezett sofőr.
+SEGÍTHETSZ:
+- Mosófoglalás, QR kód használat
+- Autók kezelése (hozzáadás, törlés)
+- Mosási előzmények megtekintése
+- Profil beállítások
+- Számlázási adatok módosítása
+
+FONTOS OLDALAK:
+- Dashboard: /dashboard - áttekintés, aktív mosások
+- Új mosás: /wash/new - QR kód szkennelése
+- Járművek: /vehicles - autók kezelése
+- Előzmények: /history - korábbi mosások
+- Profil: /profile - adatok módosítása`
+          : `\n\nUSER: Logged in driver.
+CAN HELP WITH:
+- Wash booking, QR code usage
+- Vehicle management (add, remove)
+- Viewing wash history
+- Profile settings
+- Billing information updates
+
+KEY PAGES:
+- Dashboard: /dashboard - overview, active washes
+- New wash: /wash/new - scan QR code
+- Vehicles: /vehicles - manage cars
+- History: /history - past washes
+- Profile: /profile - update details`;
         break;
       case 'operator':
         roleContext = isHungarian
-          ? '\n\nA FELHASZNÁLÓ: Operátor egy mosóhelyszínen. Segíthetsz a mosások rögzítésével, sofőrök ellenőrzésével kapcsolatban.'
-          : '\n\nUSER: Operator at a wash location. Help with recording washes, verifying drivers.';
+          ? `\n\nA FELHASZNÁLÓ: Operátor egy mosóhelyszínen.
+SEGÍTHETSZ:
+- Mosások kezelése (indítás, befejezés, elutasítás)
+- Sofőr QR kódok ellenőrzése
+- Foglalások megtekintése
+- Napi/havi statisztikák értelmezése
+- Kézi mosás rögzítés (ha engedélyezett)
+
+FONTOS OLDALAK:
+- Dashboard: /operator-portal/dashboard - sor, statisztikák
+- Új mosás: /operator-portal/new-wash - kézi rögzítés
+- Foglalások: /operator-portal/bookings - mai foglalások
+- Számlázás: /operator-portal/billing/* - alvállalkozói számlázás (ha van)
+
+TIPPEK:
+- A sárga kártya = folyamatban lévő mosás
+- Kék = engedélyezett, várakozik
+- Szürke = jóváhagyásra vár`
+          : `\n\nUSER: Operator at a wash location.
+CAN HELP WITH:
+- Managing washes (start, complete, reject)
+- Verifying driver QR codes
+- Viewing bookings
+- Understanding daily/monthly statistics
+- Manual wash recording (if enabled)
+
+KEY PAGES:
+- Dashboard: /operator-portal/dashboard - queue, stats
+- New wash: /operator-portal/new-wash - manual entry
+- Bookings: /operator-portal/bookings - today's bookings
+- Billing: /operator-portal/billing/* - subcontractor invoicing (if applicable)
+
+TIPS:
+- Yellow card = wash in progress
+- Blue = authorized, waiting
+- Gray = awaiting approval`;
         break;
       case 'partner_admin':
         roleContext = isHungarian
-          ? '\n\nA FELHASZNÁLÓ: Partner admin (flottakezelő). Segíthetsz sofőrök kezelésével, számlák megtekintésével kapcsolatban.'
-          : '\n\nUSER: Partner admin (fleet manager). Help with driver management, invoice viewing.';
+          ? `\n\nA FELHASZNÁLÓ: Partner admin (flottakezelő).
+SEGÍTHETSZ:
+- Sofőrök kezelése, hozzáadása
+- PIN visszaállítási kérések kezelése
+- Mosási statisztikák, kimutatások
+- Számlák megtekintése, letöltése
+- Exportálás (Excel)
+
+FONTOS OLDALAK:
+- Dashboard: /partner/dashboard - áttekintés, mosások listája
+- Számlák: /partner/invoices - havi kimutatások
+
+TIPPEK:
+- PIN visszaállítási kérelem: ha sofőr elfelejti PIN-jét, kérelmet küld neked
+- Szűrés dátum és státusz szerint működik a dashboardon
+- Excel export a kijelölt időszakra`
+          : `\n\nUSER: Partner admin (fleet manager).
+CAN HELP WITH:
+- Managing drivers, adding new ones
+- Handling PIN reset requests
+- Wash statistics, reports
+- Viewing and downloading invoices
+- Export to Excel
+
+KEY PAGES:
+- Dashboard: /partner/dashboard - overview, wash list
+- Invoices: /partner/invoices - monthly statements
+
+TIPS:
+- PIN reset request: if driver forgets PIN, they request from you
+- Dashboard filtering by date and status works
+- Excel export for selected period`;
         break;
       case 'network_admin':
         roleContext = isHungarian
-          ? '\n\nA FELHASZNÁLÓ: Network Admin. Segíthetsz a hálózat kezelésével, helyszínek, partnerek, árak beállításával.'
-          : '\n\nUSER: Network Admin. Help with network management, locations, partners, pricing setup.';
+          ? `\n\nA FELHASZNÁLÓ: Network Admin (hálózat üzemeltetője).
+SEGÍTHETSZ:
+- Hálózat teljes kezelése
+- Helyszínek (mosók) létrehozása, módosítása
+- Partnerek és sofőrök kezelése
+- Árlisták, szolgáltatáscsomagok beállítása
+- Számlázási beállítások
+- Operátorok létrehozása
+- Riportok és statisztikák
+- Előfizetés kezelése
+
+FONTOS OLDALAK:
+- Dashboard: /network-admin/dashboard - áttekintés
+- Helyszínek: /network-admin/locations - mosók kezelése
+- Partnerek: /network-admin/partners - partnerek
+- Sofőrök: /network-admin/drivers - sofőrök jóváhagyása
+- Árlista: /network-admin/prices - árak beállítása
+- Riportok: /network-admin/reports - statisztikák
+- Beállítások: /network-admin/settings - hálózat beállítások
+- Előfizetés: /network-admin/subscription - terv kezelése
+
+TIPPEK:
+- Új helyszín: Helyszínek -> Új helyszín gomb
+- Sofőr jóváhagyás: Sofőrök menüben "Függőben" státuszúak
+- Trial: 14 napos próbaidőszak, utána előfizetés szükséges
+- QR kód: minden helyszínhez generálható egyedi QR`
+          : `\n\nUSER: Network Admin (network operator).
+CAN HELP WITH:
+- Full network management
+- Creating and modifying locations (washes)
+- Managing partners and drivers
+- Setting up price lists, service packages
+- Billing settings
+- Creating operators
+- Reports and statistics
+- Subscription management
+
+KEY PAGES:
+- Dashboard: /network-admin/dashboard - overview
+- Locations: /network-admin/locations - wash management
+- Partners: /network-admin/partners - partners
+- Drivers: /network-admin/drivers - driver approval
+- Prices: /network-admin/prices - pricing setup
+- Reports: /network-admin/reports - statistics
+- Settings: /network-admin/settings - network settings
+- Subscription: /network-admin/subscription - plan management
+
+TIPS:
+- New location: Locations -> New location button
+- Driver approval: In Drivers menu, "Pending" status
+- Trial: 14-day trial, subscription required after
+- QR code: unique QR can be generated for each location`;
         break;
       case 'platform_admin':
         roleContext = isHungarian
-          ? '\n\nA FELHASZNÁLÓ: Platform Admin. Teljes hozzáférés - segíthetsz bármilyen admin funkcióval.'
-          : '\n\nUSER: Platform Admin. Full access - help with any admin function.';
+          ? `\n\nA FELHASZNÁLÓ: Platform Admin (teljes rendszer felett).
+SEGÍTHETSZ:
+- Minden hálózat áttekintése és kezelése
+- Új hálózatok létrehozása
+- Globális beállítások
+- Audit napló megtekintése
+- Platform szintű számlázás
+- Adminisztrátorok kezelése
+
+FONTOS OLDALAK:
+- Dashboard: /platform-admin/dashboard - globális áttekintés
+- Hálózatok: /platform-admin/networks - összes hálózat
+- Audit napló: /platform-admin/audit-logs - rendszer események
+- Számlázás: /platform-admin/billing - platform számlázás
+- Adminok: /platform-admin/admins - platform adminok
+- Beállítások: /platform-admin/settings - globális config
+
+SPECIÁLIS FUNKCIÓK:
+- "View as Network" gomb: bármely hálózat megtekintése Network Admin nézetben
+- Trial meghosszabbítás: Networks -> hálózat kiválasztása
+- Hálózat deaktiválás/aktiválás: Networks oldalon`
+          : `\n\nUSER: Platform Admin (full system access).
+CAN HELP WITH:
+- Viewing and managing all networks
+- Creating new networks
+- Global settings
+- Viewing audit logs
+- Platform-level billing
+- Managing administrators
+
+KEY PAGES:
+- Dashboard: /platform-admin/dashboard - global overview
+- Networks: /platform-admin/networks - all networks
+- Audit logs: /platform-admin/audit-logs - system events
+- Billing: /platform-admin/billing - platform billing
+- Admins: /platform-admin/admins - platform admins
+- Settings: /platform-admin/settings - global config
+
+SPECIAL FEATURES:
+- "View as Network" button: view any network as Network Admin
+- Trial extension: Networks -> select network
+- Network activate/deactivate: on Networks page`;
         break;
     }
 
@@ -256,6 +436,86 @@ RESTRICTIONS:
         dynamicInfo = isHungarian
           ? `\n\nA TE ADATAID:\n- Összes mosásod: ${washCount}`
           : `\n\nYOUR DATA:\n- Total washes: ${washCount}`;
+      }
+
+      // For operator - their location's data
+      if (context.role === 'operator' && context.locationId) {
+        const location = await this.prisma.location.findUnique({
+          where: { id: context.locationId },
+          select: { name: true, code: true, washMode: true },
+        });
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayWashes = await this.prisma.washEvent.count({
+          where: {
+            locationId: context.locationId,
+            createdAt: { gte: todayStart },
+          },
+        });
+
+        const completedToday = await this.prisma.washEvent.count({
+          where: {
+            locationId: context.locationId,
+            createdAt: { gte: todayStart },
+            status: 'COMPLETED',
+          },
+        });
+
+        if (location) {
+          dynamicInfo = isHungarian
+            ? `\n\nHELYSZÍNED ADATAI (${location.name}):\n- Kód: ${location.code}\n- Üzemmód: ${location.washMode === 'MANUAL' ? 'Személyzetes' : 'Automata'}\n- Mai mosások: ${todayWashes}\n- Befejezett ma: ${completedToday}`
+            : `\n\nYOUR LOCATION DATA (${location.name}):\n- Code: ${location.code}\n- Mode: ${location.washMode === 'MANUAL' ? 'Manual' : 'Automatic'}\n- Today's washes: ${todayWashes}\n- Completed today: ${completedToday}`;
+        }
+      }
+
+      // For partner admin - their company's data
+      if (context.role === 'partner_admin' && context.partnerId) {
+        const partner = await this.prisma.partnerCompany.findUnique({
+          where: { id: context.partnerId },
+          select: { name: true, code: true },
+        });
+
+        const driverCount = await this.prisma.driver.count({
+          where: { partnerCompanyId: context.partnerId, isActive: true, deletedAt: null },
+        });
+
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        const monthlyWashes = await this.prisma.washEvent.count({
+          where: {
+            driver: { partnerCompanyId: context.partnerId },
+            createdAt: { gte: monthStart },
+            status: 'COMPLETED',
+          },
+        });
+
+        if (partner) {
+          dynamicInfo = isHungarian
+            ? `\n\nCÉGED ADATAI (${partner.name}):\n- Kód: ${partner.code}\n- Aktív sofőrök: ${driverCount}\n- Havi mosások: ${monthlyWashes}`
+            : `\n\nYOUR COMPANY DATA (${partner.name}):\n- Code: ${partner.code}\n- Active drivers: ${driverCount}\n- Monthly washes: ${monthlyWashes}`;
+        }
+      }
+
+      // For platform admin - global stats
+      if (context.role === 'platform_admin') {
+        const networkCount = await this.prisma.network.count({ where: { isActive: true } });
+        const locationCount = await this.prisma.location.count({ where: { isActive: true } });
+        const driverCount = await this.prisma.driver.count({ where: { isActive: true, deletedAt: null } });
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayWashes = await this.prisma.washEvent.count({
+          where: { createdAt: { gte: todayStart } },
+        });
+
+        dynamicInfo = isHungarian
+          ? `\n\nPLATFORM ADATOK:\n- Aktív hálózatok: ${networkCount}\n- Helyszínek: ${locationCount}\n- Sofőrök: ${driverCount}\n- Mai mosások (globális): ${todayWashes}`
+          : `\n\nPLATFORM DATA:\n- Active networks: ${networkCount}\n- Locations: ${locationCount}\n- Drivers: ${driverCount}\n- Today's washes (global): ${todayWashes}`;
       }
 
     } catch (error) {
