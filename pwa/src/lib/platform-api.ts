@@ -11,6 +11,8 @@ function getApiUrl(): string {
 
 interface PlatformLoginResponse {
   accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
   adminId: string;
   name: string;
   email: string;
@@ -215,12 +217,30 @@ interface UsagePreview {
 
 // Session management
 const PLATFORM_TOKEN_KEY = 'vsys_platform_token';
+const PLATFORM_REFRESH_TOKEN_KEY = 'vsys_platform_refresh_token';
+const PLATFORM_TOKEN_EXPIRY_KEY = 'vsys_platform_token_expiry';
 const PLATFORM_ADMIN_KEY = 'vsys_platform_admin';
 
-export function savePlatformSession(token: string, admin: { id: string; name: string; email: string; role: string }) {
+// Token refresh margin - refresh 2 minutes before expiry
+const TOKEN_REFRESH_MARGIN_MS = 2 * 60 * 1000;
+
+export function savePlatformSession(
+  token: string,
+  admin: { id: string; name: string; email: string; role: string },
+  refreshToken?: string,
+  expiresIn?: number
+) {
   if (typeof window !== 'undefined') {
     localStorage.setItem(PLATFORM_TOKEN_KEY, token);
     localStorage.setItem(PLATFORM_ADMIN_KEY, JSON.stringify(admin));
+    if (refreshToken) {
+      localStorage.setItem(PLATFORM_REFRESH_TOKEN_KEY, refreshToken);
+    }
+    if (expiresIn) {
+      // Store expiry timestamp
+      const expiryTime = Date.now() + (expiresIn * 1000);
+      localStorage.setItem(PLATFORM_TOKEN_EXPIRY_KEY, String(expiryTime));
+    }
   }
 }
 
@@ -229,6 +249,27 @@ export function getPlatformToken(): string | null {
     return localStorage.getItem(PLATFORM_TOKEN_KEY);
   }
   return null;
+}
+
+export function getPlatformRefreshToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(PLATFORM_REFRESH_TOKEN_KEY);
+  }
+  return null;
+}
+
+export function getTokenExpiry(): number | null {
+  if (typeof window !== 'undefined') {
+    const expiry = localStorage.getItem(PLATFORM_TOKEN_EXPIRY_KEY);
+    return expiry ? parseInt(expiry, 10) : null;
+  }
+  return null;
+}
+
+export function isTokenExpiringSoon(): boolean {
+  const expiry = getTokenExpiry();
+  if (!expiry) return true; // No expiry info, assume expired
+  return Date.now() > (expiry - TOKEN_REFRESH_MARGIN_MS);
 }
 
 export function getPlatformAdmin(): { id: string; name: string; email: string; role: string } | null {
@@ -248,23 +289,109 @@ export function getPlatformAdmin(): { id: string; name: string; email: string; r
 export function clearPlatformSession() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(PLATFORM_TOKEN_KEY);
+    localStorage.removeItem(PLATFORM_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(PLATFORM_TOKEN_EXPIRY_KEY);
     localStorage.removeItem(PLATFORM_ADMIN_KEY);
   }
 }
 
+// Token refresh state to prevent concurrent refreshes
+let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
+
+// Refresh the access token using refresh token
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = getPlatformRefreshToken();
+  if (!refreshToken) {
+    clearPlatformSession();
+    throw new Error('Nincs refresh token, újra be kell jelentkezni');
+  }
+
+  const response = await fetch(`${getApiUrl()}/platform-admin/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!response.ok) {
+    clearPlatformSession();
+    throw new Error('Token frissítés sikertelen, újra be kell jelentkezni');
+  }
+
+  const data = await response.json();
+
+  // Update stored tokens
+  const admin = getPlatformAdmin();
+  if (admin) {
+    savePlatformSession(data.accessToken, admin, data.refreshToken, data.expiresIn);
+  }
+
+  return data.accessToken;
+}
+
+// Get valid token, refreshing if necessary
+async function getValidToken(): Promise<string | null> {
+  const token = getPlatformToken();
+  if (!token) return null;
+
+  // Check if token is expiring soon
+  if (isTokenExpiringSoon()) {
+    // Prevent concurrent refresh attempts
+    if (isRefreshing && refreshPromise) {
+      return refreshPromise;
+    }
+
+    isRefreshing = true;
+    refreshPromise = refreshAccessToken()
+      .finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+
+    try {
+      return await refreshPromise;
+    } catch {
+      // If refresh fails, return original token (will fail with 401)
+      return token;
+    }
+  }
+
+  return token;
+}
+
 // API helpers
 async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getPlatformToken();
+  let token = await getValidToken();
 
-  const response = await fetch(`${getApiUrl()}${endpoint}`, {
-    ...options,
-    credentials: 'include', // SECURITY: Send cookies with cross-origin requests
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  const makeRequest = async (authToken: string | null) => {
+    return fetch(`${getApiUrl()}${endpoint}`, {
+      ...options,
+      credentials: 'include', // SECURITY: Send cookies with cross-origin requests
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...options.headers,
+      },
+    });
+  };
+
+  let response = await makeRequest(token);
+
+  // If 401, try to refresh token and retry once
+  if (response.status === 401 && getPlatformRefreshToken()) {
+    try {
+      token = await refreshAccessToken();
+      response = await makeRequest(token);
+    } catch {
+      clearPlatformSession();
+      // Redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/platform-admin';
+      }
+      throw new Error('Session lejárt, kérjük jelentkezz be újra');
+    }
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Hiba történt' }));

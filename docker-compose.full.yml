@@ -47,7 +47,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       LOG_LEVEL: info
-      CORS_ORIGIN: https://app.vemiax.com,https://vsys.vemiax.com,https://api.vemiax.com
+      CORS_ORIGIN: https://app.vemiax.com,https://vsys.vemiax.com,https://api.vemiax.com,https://www.vemiax.com,https://vemiax.com
       # Sensitive values loaded from .env
       SMTP_HOST: ${SMTP_HOST:-smtp.websupport.hu}
       SMTP_PORT: ${SMTP_PORT:-587}

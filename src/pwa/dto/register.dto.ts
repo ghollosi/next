@@ -64,10 +64,17 @@ export class SelfRegisterDto {
   @IsString()
   email?: string;
 
-  @ApiProperty({ description: '4-digit PIN code' })
+  @ApiPropertyOptional({ description: '4-digit PIN code (optional if password is provided)' })
+  @IsOptional()
   @IsString()
   @Matches(/^\d{4}$/, { message: 'PIN must be exactly 4 digits' })
-  pin: string;
+  pin?: string;
+
+  @ApiPropertyOptional({ description: 'Password (min 8 characters, alternative to PIN)' })
+  @IsOptional()
+  @IsString()
+  @MinLength(8, { message: 'A jelszónak legalább 8 karakter hosszúnak kell lennie' })
+  password?: string;
 
   @ApiPropertyOptional({
     description: 'Vehicles to register',

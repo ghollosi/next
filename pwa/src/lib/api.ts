@@ -83,6 +83,32 @@ export interface VehiclesResponse {
   trailers: Vehicle[];
 }
 
+export interface RegisterData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  // Számlázási adatok (privát ügyfélnek kötelező)
+  billingName: string;
+  billingAddress: string;
+  billingCity: string;
+  billingZipCode: string;
+  billingCountry?: string;
+  billingTaxNumber?: string;
+}
+
+export interface RegisterResponse {
+  driverId: string;
+  firstName: string;
+  lastName: string;
+  approvalStatus: string;
+  inviteCode?: string;
+  verificationRequired?: 'EMAIL' | 'PHONE' | 'BOTH';
+  message: string;
+  isPrivateCustomer: boolean;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -410,6 +436,73 @@ class ApiClient {
       const error = await response.json();
       throw new Error(error.message || 'Nem sikerult torolni a jarmut');
     }
+  }
+
+  // Self-registration for new drivers/private customers
+  async register(data: RegisterData): Promise<RegisterResponse> {
+    const response = await fetch(`${this.baseUrl}/pwa/register`, this.fetchOptions({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        password: data.password,  // Email + jelszó alapú regisztráció
+        // Privát ügyfél számlázási adatok
+        billingName: data.billingName,
+        billingAddress: data.billingAddress,
+        billingCity: data.billingCity,
+        billingZipCode: data.billingZipCode,
+        billingCountry: data.billingCountry || 'HU',
+        billingTaxNumber: data.billingTaxNumber,
+      }),
+    }));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Regisztráció sikertelen');
+    }
+
+    return response.json();
+  }
+
+  // Request password reset
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const response = await fetch(`${this.baseUrl}/pwa/request-password-reset`, this.fetchOptions({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    }));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Hiba történt');
+    }
+
+    return response.json();
+  }
+
+  // Reset password with token
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const response = await fetch(`${this.baseUrl}/pwa/reset-password`, this.fetchOptions({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token, newPassword }),
+    }));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Jelszó visszaállítás sikertelen');
+    }
+
+    return response.json();
   }
 }
 

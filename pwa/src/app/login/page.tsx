@@ -178,10 +178,17 @@ function LoginContent() {
           <a href="/forgot-password" className="text-sm text-primary-600 hover:underline block">
             Elfelejtetted a jelszavad?
           </a>
-          <div className="pt-2 border-t border-gray-100">
-            <p className="text-sm text-gray-500 pt-3">
-              Nincs még fiókod? Kérd a diszpécsereddel!
+          <div className="pt-4 border-t border-gray-100">
+            <p className="text-sm text-gray-500 mb-3">
+              Nincs meg fiokod?
             </p>
+            <a
+              href="/register"
+              className="inline-block w-full py-3 px-6 bg-gray-100 text-gray-700 font-semibold rounded-xl
+                         hover:bg-gray-200 transition-colors text-center"
+            >
+              Regisztralas
+            </a>
           </div>
         </div>
       </div>

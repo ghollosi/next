@@ -41,8 +41,10 @@ function RegisterContent() {
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
+
+  // NEW: Password-based authentication (replaces PIN)
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Private customer billing data
   const [billingName, setBillingName] = useState('');
@@ -67,11 +69,6 @@ function RegisterContent() {
     verificationRequired?: 'EMAIL' | 'PHONE' | 'BOTH';
   } | null>(null);
 
-  // Verification state
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const [resending, setResending] = useState(false);
-
   useEffect(() => {
     loadPartners();
   }, []);
@@ -93,7 +90,7 @@ function RegisterContent() {
   const validateStep1 = () => {
     // Fleet driver must select a company
     if (registrationType === 'fleet' && !partnerCompanyId) {
-      setError('Válassz céget!');
+      setError('Valassz ceget!');
       return false;
     }
     if (!firstName.trim() || firstName.length < 2) {
@@ -101,17 +98,21 @@ function RegisterContent() {
       return false;
     }
     if (!lastName.trim() || lastName.length < 2) {
-      setError('Add meg a vezetékneved!');
+      setError('Add meg a vezetekneved!');
       return false;
     }
-    // At least email OR phone is required
-    if (!email.trim() && !phone.trim()) {
-      setError('Email cím VAGY telefonszám megadása kötelező!');
+    // Email is mandatory for password-based auth
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Ervenyes email cim megadasa kotelezo!');
       return false;
     }
-    // Validate email format if provided
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Érvénytelen email cím formátum!');
+    // Password validation
+    if (!password || password.length < 8) {
+      setError('A jelszonak legalabb 8 karakter hosszunak kell lennie!');
+      return false;
+    }
+    if (password !== confirmPassword) {
+      setError('A jelszavak nem egyeznek!');
       return false;
     }
     return true;
@@ -119,61 +120,37 @@ function RegisterContent() {
 
   const validateBillingStep = () => {
     if (!billingName.trim()) {
-      setError('Add meg a számlázási nevet!');
+      setError('Add meg a szamlazasi nevet!');
       return false;
     }
     if (!billingAddressData.street?.trim()) {
-      setError('Add meg a számlázási címet!');
+      setError('Add meg a szamlazasi cimet!');
       return false;
     }
     if (!billingAddressData.city?.trim()) {
-      setError('Add meg a várost!');
+      setError('Add meg a varost!');
       return false;
     }
     if (!billingAddressData.postalCode?.trim()) {
-      setError('Add meg az irányítószámot!');
-      return false;
-    }
-    // Email is mandatory for private customers (for invoice)
-    if (registrationType === 'private' && !email.trim()) {
-      setError('Privát ügyfélként az email cím megadása kötelező a számlázáshoz!');
+      setError('Add meg az iranyitoszamot!');
       return false;
     }
     return true;
   };
 
-  const validateStep2 = () => {
-    if (!tractorPlate.trim()) {
-      setError('Add meg a vontató rendszámát!');
-      return false;
-    }
-    return true;
-  };
-
-  const validateStep3 = () => {
-    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      setError('A PIN kód pontosan 4 számjegyből kell álljon!');
-      return false;
-    }
-    if (pin !== confirmPin) {
-      setError('A PIN kódok nem egyeznek!');
-      return false;
-    }
+  const validateVehicleStep = () => {
+    // Vehicles are optional for private customers
     return true;
   };
 
   const getTotalSteps = () => {
-    return registrationType === 'private' ? 4 : 3; // Private: personal + billing + vehicles + pin
+    return registrationType === 'private' ? 3 : 3; // Private: personal + billing + vehicles, Fleet: personal + vehicles + confirm
   };
 
   const handleNextStep = () => {
     setError('');
     if (step === 1 && validateStep1()) {
-      if (registrationType === 'private') {
-        setStep(2); // Go to billing step for private
-      } else {
-        setStep(2); // Go to vehicles for fleet (was step 2)
-      }
+      setStep(2);
     } else if (step === 2) {
       if (registrationType === 'private') {
         // Validate billing, then go to vehicles
@@ -181,25 +158,31 @@ function RegisterContent() {
           setStep(3);
         }
       } else {
-        // Fleet: validate vehicles, go to PIN
-        if (validateStep2()) {
+        // Fleet: go to vehicles/confirmation
+        if (validateVehicleStep()) {
           setStep(3);
         }
       }
-    } else if (step === 3 && registrationType === 'private' && validateStep2()) {
-      setStep(4); // Private: vehicles -> PIN
     }
   };
 
   const handleSubmit = async () => {
     setError('');
-    if (!validateStep3()) return;
+
+    // Final validation
+    if (registrationType === 'private' && !validateVehicleStep()) return;
 
     setSubmitting(true);
 
-    const vehicles: VehicleInput[] = [
-      { type: 'TRACTOR', plateNumber: tractorPlate.toUpperCase(), plateState: tractorState },
-    ];
+    const vehicles: VehicleInput[] = [];
+
+    if (tractorPlate.trim()) {
+      vehicles.push({
+        type: 'TRACTOR',
+        plateNumber: tractorPlate.toUpperCase(),
+        plateState: tractorState,
+      });
+    }
 
     if (trailerPlate.trim()) {
       vehicles.push({
@@ -214,9 +197,9 @@ function RegisterContent() {
         firstName,
         lastName,
         phone: phone || undefined,
-        email: email || undefined,
-        pin,
-        vehicles,
+        email: email.toLowerCase().trim(),
+        password, // Email + jelszó alapú regisztráció
+        vehicles: vehicles.length > 0 ? vehicles : undefined,
       };
 
       // Fleet driver: include partnerCompanyId
@@ -242,94 +225,20 @@ function RegisterContent() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.message || 'Nem sikerült a regisztráció');
+        throw new Error(data.message || 'Nem sikerult a regisztracio');
       }
 
       const result = await response.json();
       setRegistrationResult(result);
     } catch (err: any) {
-      setError(err.message || 'Hiba történt');
+      setError(err.message || 'Hiba tortent');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Verification handlers
-  const handleVerifyPhone = async () => {
-    if (verificationCode.length !== 6) {
-      setError('A kód 6 számjegyből kell álljon!');
-      return;
-    }
-
-    setVerifying(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${API_URL}/pwa/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: verificationCode,
-          type: 'PHONE',
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        setRegistrationResult({
-          ...registrationResult!,
-          verificationRequired: registrationResult?.verificationRequired === 'BOTH' ? 'EMAIL' : undefined,
-          message: 'Telefonszám megerősítve! ' + (registrationResult?.verificationRequired === 'BOTH'
-            ? 'Még az email címed megerősítése van hátra.'
-            : 'A fiókod jóváhagyásra vár.'),
-        });
-        setVerificationCode('');
-      } else {
-        setError(result.message || 'Hibás kód');
-      }
-    } catch {
-      setError('Hiba történt a megerősítés során');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleResendVerification = async (type: 'EMAIL' | 'PHONE') => {
-    setResending(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${API_URL}/pwa/resend-verification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          driverId: registrationResult!.driverId,
-          type,
-          pin,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        setError(''); // Clear error
-        alert(result.message);
-      } else {
-        setError(result.message || 'Nem sikerült újraküldeni');
-      }
-    } catch {
-      setError('Hiba történt az újraküldés során');
-    } finally {
-      setResending(false);
-    }
-  };
-
-  // Success screen with verification
+  // Success screen
   if (registrationResult) {
-    const needsPhoneVerification = registrationResult.verificationRequired === 'PHONE' || registrationResult.verificationRequired === 'BOTH';
-    const needsEmailVerification = registrationResult.verificationRequired === 'EMAIL' || registrationResult.verificationRequired === 'BOTH';
-
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
@@ -340,85 +249,28 @@ function RegisterContent() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            {registrationResult.verificationRequired ? 'Megerősítés szükséges!' : 'Regisztráció sikeres!'}
+            Sikeres regisztracio!
           </h1>
           <p className="text-gray-600 mb-6">
             {registrationResult.message}
           </p>
 
           {/* Email verification notice */}
-          {needsEmailVerification && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-left">
-              <h3 className="font-medium text-blue-900 mb-1">Email megerősítés</h3>
+          {registrationResult.verificationRequired && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-left">
+              <h3 className="font-medium text-blue-900 mb-1">Email megerosites</h3>
               <p className="text-sm text-blue-800">
-                Küldtünk egy linket az email címedre. Kattints rá a megerősítéshez!
-              </p>
-              <button
-                onClick={() => handleResendVerification('EMAIL')}
-                disabled={resending}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
-              >
-                {resending ? 'Küldés...' : 'Link újraküldése'}
-              </button>
-            </div>
-          )}
-
-          {/* Phone verification form */}
-          {needsPhoneVerification && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4 text-left">
-              <h3 className="font-medium text-orange-900 mb-1">SMS megerősítés</h3>
-              <p className="text-sm text-orange-800 mb-3">
-                Add meg a telefonodra küldött 6 számjegyű kódot:
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  maxLength={6}
-                  inputMode="numeric"
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-center text-xl font-mono tracking-widest"
-                />
-                <button
-                  onClick={handleVerifyPhone}
-                  disabled={verifying || verificationCode.length !== 6}
-                  className="px-4 py-3 bg-orange-600 text-white font-medium rounded-xl hover:bg-orange-700 disabled:opacity-50"
-                >
-                  {verifying ? '...' : 'OK'}
-                </button>
-              </div>
-              <button
-                onClick={() => handleResendVerification('PHONE')}
-                disabled={resending}
-                className="mt-2 text-sm text-orange-600 hover:text-orange-800 underline disabled:opacity-50"
-              >
-                {resending ? 'Küldés...' : 'Kód újraküldése'}
-              </button>
-            </div>
-          )}
-
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm mb-4">
-              {error}
-            </div>
-          )}
-
-          {/* Approval waiting notice */}
-          {!registrationResult.verificationRequired && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-              <p className="text-sm text-yellow-800">
-                <strong>Figyelem:</strong> A fiókod aktiválásra vár. Amint a cég jóváhagyta a regisztrációdat, értesítünk.
+                Kuldtunk egy linket az <strong>{email}</strong> email cimedre.
+                Kattints ra a megerositeshez, es utana bejelentkezhetsz!
               </p>
             </div>
           )}
 
           <Link
-            href={`/check-status?driverId=${registrationResult.driverId}`}
+            href="/login"
             className="block w-full py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors"
           >
-            Státusz ellenőrzése
+            Tovabb a bejelentkezeshez
           </Link>
         </div>
       </div>
@@ -428,7 +280,7 @@ function RegisterContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Betöltés...</p>
+        <p className="text-gray-500">Betoltes...</p>
       </div>
     );
   }
@@ -438,8 +290,8 @@ function RegisterContent() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-primary-600 text-white p-6 pb-12">
-          <Link href="/download" className="text-white/80 text-sm">
-            &larr; Vissza
+          <Link href="/login" className="text-white/80 text-sm">
+            &larr; Vissza a bejelentkezeshez
           </Link>
           <h1 className="text-2xl font-bold mt-4">Regisztracio</h1>
           <p className="text-white/80 mt-1">Valaszd ki a regisztracio tipusat</p>
@@ -466,7 +318,6 @@ function RegisterContent() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">Ceg fizet</span>
                     <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">Flotta kedvezmenyek</span>
-                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">Ceg jovahagyasa kell</span>
                   </div>
                 </div>
                 <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -507,7 +358,7 @@ function RegisterContent() {
           {/* Info box */}
           <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
             <p className="text-sm text-amber-800">
-              <strong>Nem tudod melyiket valaszd?</strong> Ha a munkaltatod fizeti a mosasokat, valaszd a "Ceges sofor" lehetoseget. Ha magad fizetsz, valaszd a "Privat ugyfel" opciót.
+              <strong>Nem tudod melyiket valaszd?</strong> Ha a munkaltatod fizeti a mosasokat, valaszd a "Ceges sofor" lehetoseget. Ha magad fizetsz, valaszd a "Privat ugyfel" opciot.
             </p>
           </div>
         </div>
@@ -520,23 +371,21 @@ function RegisterContent() {
       switch (step) {
         case 1: return 'Szemelyes adatok';
         case 2: return 'Szamlazasi adatok';
-        case 3: return 'Jarmuvek';
-        case 4: return 'PIN kod beallitasa';
+        case 3: return 'Jarmuvek (opcionalis)';
         default: return '';
       }
     } else {
       switch (step) {
         case 1: return 'Szemelyes adatok';
         case 2: return 'Jarmuvek';
-        case 3: return 'PIN kod beallitasa';
+        case 3: return 'Osszegzes';
         default: return '';
       }
     }
   };
 
   const totalSteps = getTotalSteps();
-  const isPinStep = (registrationType === 'private' && step === 4) || (registrationType === 'fleet' && step === 3);
-  const isVehicleStep = (registrationType === 'private' && step === 3) || (registrationType === 'fleet' && step === 2);
+  const isLastStep = step === totalSteps;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -628,17 +477,9 @@ function RegisterContent() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-2">
-                <p className="text-sm text-blue-800">
-                  <strong>Fontos:</strong> {registrationType === 'private'
-                    ? 'Email cim megadasa kotelezo a szamlazashoz!'
-                    : 'Email cim VAGY telefonszam megadasa kotelezo a regisztracio megerositesehez.'}
-                </p>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email cim {registrationType === 'private' && '*'}
+                  Email cim *
                 </label>
                 <input
                   type="email"
@@ -648,15 +489,13 @@ function RegisterContent() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {registrationType === 'private'
-                    ? 'Ide kuldjuk a szamlakat es az ertesiteseket.'
-                    : 'Megerosito linket kuldunk az email cimedre.'}
+                  Ezzel az email cimmel fogsz bejelentkezni.
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefonszam
+                  Telefonszam (opcionalis)
                 </label>
                 <input
                   type="tel"
@@ -665,9 +504,35 @@ function RegisterContent() {
                   placeholder="+36 30 123 4567"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Megerosito kodot kuldunk SMS-ben.
-                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Jelszo *
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimum 8 karakter"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Jelszo megerositese *
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ird be ujra a jelszot"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                {password && confirmPassword && password !== confirmPassword && (
+                  <p className="text-red-600 text-xs mt-1">A jelszavak nem egyeznek!</p>
+                )}
               </div>
             </div>
           )}
@@ -721,12 +586,12 @@ function RegisterContent() {
             </div>
           )}
 
-          {/* Vehicles Step */}
-          {isVehicleStep && (
+          {/* Step 2 for Fleet: Vehicles */}
+          {step === 2 && registrationType === 'fleet' && (
             <div className="space-y-6">
               <div>
                 <h3 className="font-medium text-gray-900 mb-3">
-                  Vontató (kamion) *
+                  Vontato (kamion) *
                 </h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
@@ -758,7 +623,7 @@ function RegisterContent() {
 
               <div>
                 <h3 className="font-medium text-gray-900 mb-3">
-                  Pótkocsi (opcionális)
+                  Potkocsi (opcionalis)
                 </h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
@@ -787,52 +652,124 @@ function RegisterContent() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Ha nincs pótkocsi, hagyd üresen. Később is hozzáadhatod.
+                  Ha nincs potkocsi, hagyd uresen. Kesobb is hozzaadhatod.
                 </p>
               </div>
             </div>
           )}
 
-          {/* PIN Setup Step */}
-          {isPinStep && (
+          {/* Step 3 for Private: Vehicles (Optional) */}
+          {step === 3 && registrationType === 'private' && (
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Jarmu hozzaadasa opcionalis.</strong> Kesobb is hozzaadhatsz jarmuveket a profilodban.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">
+                  Vontato / Jarmu
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={tractorPlate}
+                      onChange={(e) => setTractorPlate(e.target.value.toUpperCase())}
+                      placeholder="ABC-123"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 uppercase"
+                    />
+                  </div>
+                  <div>
+                    <select
+                      value={tractorState}
+                      onChange={(e) => setTractorState(e.target.value)}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="HU">HU</option>
+                      <option value="SK">SK</option>
+                      <option value="RO">RO</option>
+                      <option value="PL">PL</option>
+                      <option value="CZ">CZ</option>
+                      <option value="DE">DE</option>
+                      <option value="AT">AT</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">
+                  Potkocsi (opcionalis)
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={trailerPlate}
+                      onChange={(e) => setTrailerPlate(e.target.value.toUpperCase())}
+                      placeholder="XYZ-789"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 uppercase"
+                    />
+                  </div>
+                  <div>
+                    <select
+                      value={trailerState}
+                      onChange={(e) => setTrailerState(e.target.value)}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="HU">HU</option>
+                      <option value="SK">SK</option>
+                      <option value="RO">RO</option>
+                      <option value="PL">PL</option>
+                      <option value="CZ">CZ</option>
+                      <option value="DE">DE</option>
+                      <option value="AT">AT</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3 for Fleet: Summary */}
+          {step === 3 && registrationType === 'fleet' && (
             <div className="space-y-4">
-              <p className="text-gray-600 text-sm mb-4">
-                Adj meg egy 4 számjegyű PIN kódot, amivel később be tudsz lépni az alkalmazásba.
-              </p>
+              <h3 className="font-medium text-gray-900">Ellenorizd az adataidat</h3>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  PIN kód *
-                </label>
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  maxLength={4}
-                  placeholder="••••"
-                  inputMode="numeric"
-                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-center text-3xl tracking-widest font-mono"
-                />
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Nev:</span>
+                  <span className="font-medium">{lastName} {firstName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Email:</span>
+                  <span className="font-medium">{email}</span>
+                </div>
+                {phone && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Telefon:</span>
+                    <span className="font-medium">{phone}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Ceg:</span>
+                  <span className="font-medium">{partners.find(p => p.id === partnerCompanyId)?.name}</span>
+                </div>
+                {tractorPlate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Vontato:</span>
+                    <span className="font-medium">{tractorPlate} ({tractorState})</span>
+                  </div>
+                )}
+                {trailerPlate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Potkocsi:</span>
+                    <span className="font-medium">{trailerPlate} ({trailerState})</span>
+                  </div>
+                )}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  PIN megerősítése *
-                </label>
-                <input
-                  type="password"
-                  value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  maxLength={4}
-                  placeholder="••••"
-                  inputMode="numeric"
-                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-center text-3xl tracking-widest font-mono"
-                />
-              </div>
-
-              {pin && confirmPin && pin !== confirmPin && (
-                <p className="text-red-600 text-sm">A PIN kódok nem egyeznek!</p>
-              )}
             </div>
           )}
 
@@ -857,7 +794,7 @@ function RegisterContent() {
               </button>
             )}
 
-            {!isPinStep ? (
+            {!isLastStep ? (
               <button
                 onClick={handleNextStep}
                 className="flex-1 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors"
@@ -867,13 +804,23 @@ function RegisterContent() {
             ) : (
               <button
                 onClick={handleSubmit}
-                disabled={submitting || pin.length !== 4 || pin !== confirmPin}
+                disabled={submitting}
                 className="flex-1 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
               >
                 {submitting ? 'Kuldes...' : 'Regisztracio befejezese'}
               </button>
             )}
           </div>
+        </div>
+
+        {/* Login link */}
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-500">
+            Mar van fiokod?{' '}
+            <Link href="/login" className="text-primary-600 font-medium hover:underline">
+              Jelentkezz be!
+            </Link>
+          </p>
         </div>
       </div>
     </div>
@@ -884,7 +831,7 @@ export default function RegisterPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Betöltés...</p>
+        <p className="text-gray-500">Betoltes...</p>
       </div>
     }>
       <RegisterContent />

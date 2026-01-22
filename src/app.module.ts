@@ -33,6 +33,7 @@ import { CompanyDataModule } from './company-data/company-data.module';
 import { AddressModule } from './modules/address/address.module';
 import { SecurityModule } from './common/security/security.module';
 import { TestPortalModule } from './test-portal/test-portal.module';
+import { AiChatModule } from './ai-chat/ai-chat.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { TestPortalModule } from './test-portal/test-portal.module';
     CompanyDataModule,
     AddressModule,
     TestPortalModule,
+    AiChatModule,
   ],
   providers: [
     // SECURITY: Apply user-aware rate limiting globally

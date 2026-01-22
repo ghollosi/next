@@ -11,8 +11,10 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  BadRequestException,
   Res,
   Req,
+  Logger,
 } from '@nestjs/common';
 import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
 import { Request, Response } from 'express';
@@ -28,6 +30,9 @@ import { StripeService } from '../stripe/stripe.service';
 import { BookingService } from '../modules/booking/booking.service';
 import { CompanyDataService } from '../company-data/company-data.service';
 import { PlatformAdminService } from '../platform-admin/platform-admin.service';
+import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { AuditAction } from '@prisma/client';
+import { PrismaService } from '../common/prisma/prisma.service';
 import {
   CreateBookingDto,
   UpdateBookingDto,
@@ -70,6 +75,8 @@ import {
 @ApiTags('Network Admin')
 @Controller('network-admin')
 export class NetworkAdminController {
+  private readonly logger = new Logger(NetworkAdminController.name);
+
   constructor(
     private readonly networkAdminService: NetworkAdminService,
     private readonly stripeService: StripeService,
@@ -77,7 +84,15 @@ export class NetworkAdminController {
     private readonly bookingService: BookingService,
     private readonly companyDataService: CompanyDataService,
     private readonly platformAdminService: PlatformAdminService,
+    private readonly auditLogService: AuditLogService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  // SECURITY: Validate UUID format
+  private isValidUuid(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
 
   private async validateAuth(
     authHeader: string | undefined,
@@ -129,12 +144,14 @@ export class NetworkAdminController {
    * - x-platform-view: 'true'
    * - x-network-id: network ID to view
    *
-   * SECURITY: No audit logging for Platform View mode
+   * SECURITY: Includes UUID validation, network existence check, and audit logging
    */
   private async validateAuthWithPlatformView(
     authHeader: string | undefined,
     platformViewHeader: string | undefined,
     networkIdHeader: string | undefined,
+    req?: Request,
+    endpoint?: string,
   ): Promise<{
     adminId: string;
     role: string;
@@ -149,6 +166,12 @@ export class NetworkAdminController {
 
     // Check if this is Platform View mode
     if (platformViewHeader === 'true' && networkIdHeader) {
+      // SECURITY: Validate UUID format
+      if (!this.isValidUuid(networkIdHeader)) {
+        this.logger.warn(`Platform View: Invalid UUID format: ${networkIdHeader}`);
+        throw new BadRequestException('Érvénytelen network ID formátum');
+      }
+
       // Validate Platform Admin token
       const platformResult = await this.platformAdminService.validateToken(token);
 
@@ -156,7 +179,39 @@ export class NetworkAdminController {
         throw new UnauthorizedException('Érvénytelen vagy lejárt token');
       }
 
-      // Return Platform View context - no audit logging needed
+      // SECURITY: Verify the network actually exists
+      const network = await this.prisma.network.findUnique({
+        where: { id: networkIdHeader },
+        select: { id: true, name: true },
+      });
+
+      if (!network) {
+        this.logger.warn(`Platform View: Network not found: ${networkIdHeader}`);
+        throw new BadRequestException('A megadott network nem létezik');
+      }
+
+      // SECURITY: Audit log Platform View access
+      const ipAddress = req?.ip || req?.headers?.['x-forwarded-for']?.toString()?.split(',')[0];
+      const userAgent = req?.headers?.['user-agent'];
+
+      await this.auditLogService.log({
+        networkId: networkIdHeader,
+        action: AuditAction.VIEW,
+        actorType: 'PLATFORM_ADMIN',
+        actorId: platformResult.adminId,
+        metadata: {
+          type: 'PLATFORM_VIEW_ACCESS',
+          endpoint: endpoint || 'unknown',
+          networkName: network.name,
+          platformRole: platformResult.role,
+        },
+        ipAddress,
+        userAgent,
+      });
+
+      this.logger.log(`Platform View: Admin ${platformResult.adminId} accessing network ${network.name} (${networkIdHeader})`);
+
+      // Return Platform View context
       return {
         adminId: platformResult.adminId,
         role: 'platform_view',

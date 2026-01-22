@@ -539,7 +539,8 @@ export class DriverService {
       lastName: string;
       phone?: string;
       email?: string;
-      pin: string;
+      pin?: string;  // Opcionális ha jelszó van megadva
+      password?: string;  // Email+jelszó alapú regisztráció
       // Privát ügyfél számlázási adatai (kötelező ha nincs partner)
       billingName?: string;
       billingAddress?: string;
@@ -596,8 +597,34 @@ export class DriverService {
       }
     }
 
+    // Validáció: PIN vagy jelszó kötelező
+    if (!data.pin && !data.password) {
+      throw new BadRequestException('PIN kód vagy jelszó megadása kötelező');
+    }
+
+    // Jelszavas regisztrációhoz kötelező az email
+    if (data.password && !data.email) {
+      throw new BadRequestException('Email cím megadása kötelező jelszavas regisztrációhoz');
+    }
+
     // Create driver with AUTO-APPROVED status (bcrypt hash)
-    const pinHash = await this.hashPin(data.pin);
+    // Ha jelszó van, generálunk random PIN-t (csak backup, email+jelszó lesz a fő)
+    let pinHash: string;
+    let passwordHash: string | null = null;
+
+    if (data.password) {
+      passwordHash = await bcrypt.hash(data.password, 12);
+      // Random 4 számjegyű PIN generálása backup-nak (kötelező mező)
+      const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+      pinHash = await this.hashPin(randomPin);
+    } else if (data.pin) {
+      pinHash = await this.hashPin(data.pin);
+    } else {
+      // Fallback: generálunk random PIN-t ha se PIN se jelszó nincs (nem kellene ideérni)
+      const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+      pinHash = await this.hashPin(randomPin);
+    }
+
     const driver = await this.prisma.driver.create({
       data: {
         networkId,
@@ -605,8 +632,9 @@ export class DriverService {
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone,
-        email: data.email,
+        email: data.email?.toLowerCase().trim(),
         pinHash,
+        passwordHash,
         approvalStatus: DriverApprovalStatus.APPROVED,
         approvedAt: new Date(),
         isActive: true, // Auto-approved, immediately active
@@ -661,7 +689,7 @@ export class DriverService {
    */
   private async sendNewDriverNotificationToNetworkAdmins(
     networkId: string,
-    driver: Driver & { partnerCompany: { name: string } | null },
+    driver: Driver & { partnerCompany: PartnerCompany | null },
   ): Promise<void> {
     // Get all network admins
     const networkAdmins = await this.prisma.networkAdmin.findMany({

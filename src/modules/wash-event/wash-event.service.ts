@@ -286,19 +286,48 @@ export class WashEventService {
       throw new BadRequestException('Driver not found or inactive');
     }
 
-    // Validate location exists
-    const location = await this.prisma.location.findFirst({
-      where: {
-        id: input.locationId,
-        networkId,
-        isActive: true,
-        deletedAt: null,
-      },
-    });
+    // Validate location exists and check visibility rules
+    // Privát ügyfél: bármely PUBLIC helyszínt elérheti (cross-network)
+    // Flottás sofőr: csak saját network helyszíneit, visibility szabályok szerint
+    const isPrivateCustomer = driver.isPrivateCustomer || !driver.partnerCompanyId;
+
+    let location;
+    if (isPrivateCustomer) {
+      // Privát ügyfél: ÖSSZES network PUBLIC helyszíneit elérheti
+      location = await this.prisma.location.findFirst({
+        where: {
+          id: input.locationId,
+          visibility: 'PUBLIC',
+          isActive: true,
+          deletedAt: null,
+        },
+      });
+    } else {
+      // Flottás sofőr: csak saját network helyszínei, visibility szabályok szerint
+      location = await this.prisma.location.findFirst({
+        where: {
+          id: input.locationId,
+          networkId,
+          isActive: true,
+          deletedAt: null,
+          OR: [
+            { visibility: 'PUBLIC' },
+            { visibility: 'NETWORK_ONLY' },
+            {
+              visibility: 'DEDICATED',
+              dedicatedPartnerIds: { has: driver.partnerCompanyId },
+            },
+          ],
+        },
+      });
+    }
 
     if (!location) {
-      throw new BadRequestException('Location not found or inactive');
+      throw new BadRequestException('Location not found, inactive, or not accessible');
     }
+
+    // Use the location's networkId for the wash event (may differ for private customers)
+    const washEventNetworkId = location.networkId;
 
     // Determine services to use (new or legacy format)
     const hasMultipleServices = input.services && input.services.length > 0;
@@ -311,10 +340,11 @@ export class WashEventService {
     }
 
     // Validate primary service package is available at location
+    // Use the location's networkId for cross-network support
     const serviceAvailability =
       await this.prisma.locationServiceAvailability.findFirst({
         where: {
-          networkId,
+          networkId: washEventNetworkId,
           locationId: input.locationId,
           servicePackageId: primaryServicePackageId,
           isActive: true,
@@ -335,12 +365,16 @@ export class WashEventService {
     }
 
     // If tractor vehicle ID provided, validate it
+    // Járművek a sofőr networkjében vannak (nem a helyszín networkjében)
     if (input.tractorVehicleId) {
       const tractorVehicle = await this.prisma.vehicle.findFirst({
         where: {
           id: input.tractorVehicleId,
-          networkId,
-          partnerCompanyId: driver.partnerCompanyId,
+          networkId, // Driver's networkId (from session)
+          // Privát ügyfélnél nincs partnerCompanyId, így ő saját járművet használ
+          ...(driver.partnerCompanyId
+            ? { partnerCompanyId: driver.partnerCompanyId }
+            : { driverId: driver.id }),
           category: { in: ['TRACTOR', 'SOLO'] }, // Allow TRACTOR or SOLO vehicles as primary vehicle
           isActive: true,
           deletedAt: null,
@@ -357,8 +391,11 @@ export class WashEventService {
       const trailerVehicle = await this.prisma.vehicle.findFirst({
         where: {
           id: input.trailerVehicleId,
-          networkId,
-          partnerCompanyId: driver.partnerCompanyId,
+          networkId, // Driver's networkId (from session)
+          // Privát ügyfélnél nincs partnerCompanyId, így ő saját járművet használ
+          ...(driver.partnerCompanyId
+            ? { partnerCompanyId: driver.partnerCompanyId }
+            : { driverId: driver.id }),
           isActive: true,
           deletedAt: null,
         },
@@ -387,9 +424,10 @@ export class WashEventService {
       : undefined;
 
     // Create the wash event
+    // Privát ügyfélnél a wash event a helyszín networkjébe kerül (cross-network támogatás)
     const washEvent = await this.prisma.washEvent.create({
       data: {
-        networkId,
+        networkId: washEventNetworkId,
         locationId: input.locationId,
         partnerCompanyId: driver.partnerCompanyId,
         servicePackageId: primaryServicePackageId,
@@ -419,7 +457,7 @@ export class WashEventService {
 
     // Audit log
     await this.auditLogService.log({
-      networkId,
+      networkId: washEventNetworkId,
       washEventId: washEvent.id,
       action: 'CREATE',
       actorType: context.actorType,

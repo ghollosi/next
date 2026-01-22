@@ -194,6 +194,11 @@ export class PwaController {
       };
     }
 
+    // Validáció: PIN vagy jelszó kötelező
+    if (!dto.pin && !dto.password) {
+      throw new BadRequestException('PIN kód vagy jelszó megadása kötelező');
+    }
+
     // Create driver with pending status
     const driver = await this.driverService.selfRegister(nid, {
       partnerCompanyId: dto.partnerCompanyId,
@@ -202,6 +207,7 @@ export class PwaController {
       phone: dto.phone,
       email: dto.email,
       pin: dto.pin,
+      password: dto.password,
       // Privát ügyfél számlázási adatok
       billingName: dto.billingName,
       billingAddress: dto.billingAddress,
@@ -813,20 +819,22 @@ export class PwaController {
       return { message: successMessage };
     }
 
-    // Generate reset token
+    // SECURITY: Generate reset token and hash it before storing
     const crypto = await import('crypto');
+    const bcrypt = await import('bcrypt');
     const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = await bcrypt.hash(resetToken, 10); // Hash the token before storing
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
 
     await this.prisma.driver.update({
       where: { id: driver.id },
       data: {
-        pinResetToken: resetToken,
+        pinResetToken: resetTokenHash, // SECURITY: Store hashed token, not plaintext
         pinResetExpires: resetExpires,
       },
     });
 
-    // Send email
+    // Send email with the original (unhashed) token
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/reset-password?token=${resetToken}`;
 
@@ -893,22 +901,33 @@ export class PwaController {
       throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
     }
 
-    // Find driver by reset token
-    const driver = await this.prisma.driver.findFirst({
+    // SECURITY: Find drivers with non-expired tokens and compare hashes
+    const bcrypt = await import('bcrypt');
+
+    // Get all drivers with non-expired reset tokens
+    const driversWithTokens = await this.prisma.driver.findMany({
       where: {
-        pinResetToken: body.token,
+        pinResetToken: { not: null },
         pinResetExpires: { gt: new Date() },
         isActive: true,
         deletedAt: null,
       },
     });
 
+    // SECURITY: Compare the provided token against all hashed tokens
+    let driver = null;
+    for (const d of driversWithTokens) {
+      if (d.pinResetToken && await bcrypt.compare(body.token, d.pinResetToken)) {
+        driver = d;
+        break;
+      }
+    }
+
     if (!driver) {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');
     }
 
     // Hash new password and update
-    const bcrypt = await import('bcrypt');
     const passwordHash = await bcrypt.hash(body.newPassword, 12);
 
     await this.prisma.driver.update({

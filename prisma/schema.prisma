@@ -238,6 +238,7 @@ enum AuditAction {
   REJECT
   AUTHORIZE
   LOCK
+  VIEW
   // Security events
   LOGIN_SUCCESS
   LOGIN_FAILED

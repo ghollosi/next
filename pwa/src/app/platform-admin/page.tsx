@@ -29,12 +29,17 @@ export default function PlatformAdminLoginPage() {
 
     try {
       const response = await platformApi.login(email, password);
-      savePlatformSession(response.accessToken, {
-        id: response.adminId,
-        name: response.name,
-        email: response.email,
-        role: response.role,
-      });
+      savePlatformSession(
+        response.accessToken,
+        {
+          id: response.adminId,
+          name: response.name,
+          email: response.email,
+          role: response.role,
+        },
+        response.refreshToken,
+        response.expiresIn
+      );
       router.push('/platform-admin/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bejelentkezés sikertelen');

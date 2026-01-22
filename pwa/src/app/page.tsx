@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { isLoggedIn, savePendingLocation, getPendingLocation } from '@/lib/session';
 import Link from 'next/link';
 import Image from 'next/image';
+import EmiChatWidget from '@/components/EmiChatWidget';
 
 function HomeContent() {
   const router = useRouter();
@@ -177,10 +178,13 @@ function HomeContent() {
             © {new Date().getFullYear()} VEMIAX. Minden jog fenntartva.
           </p>
           <p className="text-blue-300/40 text-xs mt-2">
-            Verzió: 1.1.0-booking-email
+            Verzió: 1.2.0-emi-assistant
           </p>
         </div>
       </footer>
+
+      {/* Émi AI Chat Widget */}
+      <EmiChatWidget language="hu" primaryColor="#3b82f6" />
     </div>
   );
 }
