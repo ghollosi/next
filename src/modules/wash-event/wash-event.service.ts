@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { WashEvent, WashEventStatus, WashEntryMode } from '@prisma/client';
+import { WashEvent, WashEventStatus, WashEntryMode, VehicleType } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import {
   VALID_STATE_TRANSITIONS,
@@ -40,6 +40,45 @@ export class WashEventService {
       status === WashEventStatus.COMPLETED ||
       status === WashEventStatus.LOCKED
     );
+  }
+
+  /**
+   * Look up the price for a service package + vehicle type.
+   * First checks PartnerCustomPrice, then falls back to ServicePrice.
+   */
+  private async lookupPrice(
+    networkId: string,
+    servicePackageId: string,
+    vehicleType: VehicleType,
+    partnerCompanyId?: string | null,
+  ): Promise<number> {
+    // Check partner custom price first
+    if (partnerCompanyId) {
+      const customPrice = await this.prisma.partnerCustomPrice.findFirst({
+        where: {
+          networkId,
+          partnerCompanyId,
+          servicePackageId,
+          vehicleType,
+          isActive: true,
+        },
+      });
+      if (customPrice) {
+        return Number(customPrice.price);
+      }
+    }
+
+    // Fall back to base service price
+    const basePrice = await this.prisma.servicePrice.findFirst({
+      where: {
+        networkId,
+        servicePackageId,
+        vehicleType,
+        isActive: true,
+      },
+    });
+
+    return basePrice ? Number(basePrice.price) : 0;
   }
 
   async findById(networkId: string, id: string): Promise<WashEvent> {
@@ -406,22 +445,48 @@ export class WashEventService {
       }
     }
 
-    // Prepare services data if using multiple services
-    const servicesData = hasMultipleServices
-      ? input.services!.map((svc) => ({
+    // Prepare services data if using multiple services - with pricing lookup
+    let servicesData: any[] | undefined;
+    let calculatedTotalPrice = 0;
+
+    if (hasMultipleServices) {
+      servicesData = [];
+      for (const svc of input.services!) {
+        const vType = (svc.vehicleType || 'SEMI_TRUCK') as VehicleType;
+        const qty = svc.quantity || 1;
+        const unitPrice = await this.lookupPrice(
+          washEventNetworkId,
+          svc.servicePackageId,
+          vType,
+          driver.partnerCompanyId,
+        );
+        const svcTotal = unitPrice * qty;
+        calculatedTotalPrice += svcTotal;
+        servicesData.push({
           servicePackageId: svc.servicePackageId,
-          vehicleType: (svc.vehicleType || 'SEMI_TRUCK') as any,
-          unitPrice: 0, // Will be calculated by billing
-          quantity: svc.quantity || 1,
-          totalPrice: 0, // Will be calculated by billing
+          vehicleType: vType,
+          unitPrice,
+          quantity: qty,
+          totalPrice: svcTotal,
           vehicleRole: svc.vehicleRole || null,
           plateNumber: svc.plateNumber?.toUpperCase() ||
             (svc.vehicleRole === 'TRAILER'
               ? input.trailerPlateManual?.toUpperCase()
               : input.tractorPlateManual?.toUpperCase()) ||
             null,
-        }))
-      : undefined;
+        });
+      }
+    } else {
+      // Single service - look up price for the primary service
+      const vType = 'SEMI_TRUCK' as VehicleType;
+      const unitPrice = await this.lookupPrice(
+        washEventNetworkId,
+        primaryServicePackageId,
+        vType,
+        driver.partnerCompanyId,
+      );
+      calculatedTotalPrice = unitPrice;
+    }
 
     // Create the wash event
     // Privát ügyfélnél a wash event a helyszín networkjébe kerül (cross-network támogatás)
@@ -433,6 +498,8 @@ export class WashEventService {
         servicePackageId: primaryServicePackageId,
         entryMode: WashEntryMode.QR_DRIVER,
         status: WashEventStatus.CREATED,
+        totalPrice: calculatedTotalPrice,
+        finalPrice: calculatedTotalPrice,
         driverId: input.driverId,
         tractorVehicleId: input.tractorVehicleId,
         tractorPlateManual: input.tractorPlateManual?.toUpperCase(),
@@ -520,6 +587,14 @@ export class WashEventService {
       );
     }
 
+    // Look up price for the service
+    const operatorPrice = await this.lookupPrice(
+      networkId,
+      input.servicePackageId,
+      'SEMI_TRUCK' as VehicleType,
+      input.partnerCompanyId,
+    );
+
     // Create the wash event
     const washEvent = await this.prisma.washEvent.create({
       data: {
@@ -529,6 +604,8 @@ export class WashEventService {
         servicePackageId: input.servicePackageId,
         entryMode: WashEntryMode.MANUAL_OPERATOR,
         status: WashEventStatus.CREATED,
+        totalPrice: operatorPrice,
+        finalPrice: operatorPrice,
         driverNameManual: input.driverNameManual,
         tractorPlateManual: input.tractorPlateManual.toUpperCase(),
         trailerPlateManual: input.trailerPlateManual?.toUpperCase(),

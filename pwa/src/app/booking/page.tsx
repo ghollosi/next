@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 const API_URL = 'https://api.vemiax.com';
 
@@ -639,6 +640,9 @@ export default function BookingPage() {
 
       {/* Bottom Safe Area */}
       <div className="safe-area-bottom" />
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   );
 }

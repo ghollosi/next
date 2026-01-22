@@ -35,14 +35,15 @@ export class DriverService {
     return createHash('sha256').update(pin).digest('hex');
   }
 
-  // SECURITY: Verify PIN with both bcrypt and legacy SHA-256
-  private async verifyPin(pin: string, storedHash: string): Promise<boolean> {
+  // SECURITY: Verify password/PIN with bcrypt, or legacy SHA-256 fallback
+  private async verifyPassword(password: string, storedHash: string | null): Promise<boolean> {
+    if (!storedHash) return false;
     // Check if it's a bcrypt hash (starts with $2b$)
     if (storedHash.startsWith('$2b$') || storedHash.startsWith('$2a$')) {
-      return bcrypt.compare(pin, storedHash);
+      return bcrypt.compare(password, storedHash);
     }
     // Fallback to legacy SHA-256 for old hashes
-    const legacyHash = this.hashPinLegacy(pin);
+    const legacyHash = this.hashPinLegacy(password);
     return storedHash === legacyHash;
   }
 
@@ -159,7 +160,7 @@ export class DriverService {
       lastName: string;
       phone?: string;
       email?: string;
-      pin: string;
+      password: string;
     },
   ): Promise<Driver & { invite: DriverInvite }> {
     // Check for duplicate email
@@ -199,8 +200,9 @@ export class DriverService {
       }
     }
 
-    // Create driver with hashed PIN (bcrypt)
-    const pinHash = await this.hashPin(data.pin);
+    // Create driver with hashed password (bcrypt)
+    const bcrypt = await import('bcrypt');
+    const passwordHash = await bcrypt.hash(data.password, 12);
     const driver = await this.prisma.driver.create({
       data: {
         networkId,
@@ -209,7 +211,7 @@ export class DriverService {
         lastName: data.lastName,
         phone: data.phone,
         email: data.email,
-        pinHash,
+        passwordHash,
         approvalStatus: 'APPROVED',
         approvedAt: new Date(),
         isActive: true,
@@ -325,15 +327,17 @@ export class DriverService {
       throw new BadRequestException('A regisztrációd el lett utasítva');
     }
 
-    // Verify PIN (supports both bcrypt and legacy SHA-256)
-    const isValidPin = await this.verifyPin(pin, driver.pinHash);
-    if (!isValidPin) {
-      throw new UnauthorizedException('Hibás PIN kód');
+    // Verify password (passwordHash first, pinHash fallback)
+    const isValid = await this.verifyPassword(pin, driver.passwordHash) ||
+                    await this.verifyPassword(pin, driver.pinHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Hibás jelszó');
     }
 
-    // SECURITY: Migrate legacy SHA-256 to bcrypt on successful login
-    if (!driver.pinHash.startsWith('$2b$') && !driver.pinHash.startsWith('$2a$')) {
-      await this.migrateToBcrypt(driver.id, pin);
+    // SECURITY: Migrate legacy hash to bcrypt passwordHash on successful login
+    if (!driver.passwordHash || (!driver.passwordHash.startsWith('$2b$') && !driver.passwordHash.startsWith('$2a$'))) {
+      const newHash = await bcrypt.hash(pin, 12);
+      await this.prisma.driver.update({ where: { id: driver.id }, data: { passwordHash: newHash } });
     }
 
     return driver;
@@ -375,15 +379,17 @@ export class DriverService {
       throw new BadRequestException('A regisztrációd el lett utasítva');
     }
 
-    // Verify PIN (supports both bcrypt and legacy SHA-256)
-    const isValidPin = await this.verifyPin(pin, driver.pinHash);
-    if (!isValidPin) {
-      throw new UnauthorizedException('Hibás PIN kód');
+    // Verify password (passwordHash first, pinHash fallback)
+    const isValid = await this.verifyPassword(pin, driver.passwordHash) ||
+                    await this.verifyPassword(pin, driver.pinHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Hibás jelszó');
     }
 
-    // SECURITY: Migrate legacy SHA-256 to bcrypt on successful login
-    if (!driver.pinHash.startsWith('$2b$') && !driver.pinHash.startsWith('$2a$')) {
-      await this.migrateToBcrypt(driver.id, pin);
+    // SECURITY: Migrate legacy hash to bcrypt passwordHash on successful login
+    if (!driver.passwordHash || (!driver.passwordHash.startsWith('$2b$') && !driver.passwordHash.startsWith('$2a$'))) {
+      const newHash = await bcrypt.hash(pin, 12);
+      await this.prisma.driver.update({ where: { id: driver.id }, data: { passwordHash: newHash } });
     }
 
     return driver;
@@ -419,15 +425,17 @@ export class DriverService {
       throw new BadRequestException('Invite code has been revoked');
     }
 
-    // Verify PIN (supports both bcrypt and legacy SHA-256)
-    const isValidPin = await this.verifyPin(pin, invite.driver.pinHash);
-    if (!isValidPin) {
-      throw new UnauthorizedException('Invalid PIN');
+    // Verify password (passwordHash first, pinHash fallback)
+    const isValid = await this.verifyPassword(pin, invite.driver.passwordHash) ||
+                    await this.verifyPassword(pin, invite.driver.pinHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Hibás jelszó');
     }
 
-    // SECURITY: Migrate legacy SHA-256 to bcrypt on successful login
-    if (!invite.driver.pinHash.startsWith('$2b$') && !invite.driver.pinHash.startsWith('$2a$')) {
-      await this.migrateToBcrypt(invite.driver.id, pin);
+    // SECURITY: Migrate legacy hash to bcrypt passwordHash on successful login
+    if (!invite.driver.passwordHash || (!invite.driver.passwordHash.startsWith('$2b$') && !invite.driver.passwordHash.startsWith('$2a$'))) {
+      const newHash = await bcrypt.hash(pin, 12);
+      await this.prisma.driver.update({ where: { id: invite.driver.id }, data: { passwordHash: newHash } });
     }
 
     // Activate the invite if not already activated
@@ -460,7 +468,10 @@ export class DriverService {
     if (!driver) {
       throw new NotFoundException(`Driver not found`);
     }
-    return this.verifyPin(pin, driver.pinHash);
+    // Check passwordHash first, then pinHash fallback
+    const valid = await this.verifyPassword(pin, driver.passwordHash) ||
+                  await this.verifyPassword(pin, driver.pinHash);
+    return valid;
   }
 
   async getInvite(driverId: string): Promise<DriverInvite | null> {

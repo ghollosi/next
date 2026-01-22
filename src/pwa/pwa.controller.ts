@@ -52,7 +52,7 @@ import {
   CheckApprovalDto,
   CheckApprovalResponseDto,
 } from './dto/register.dto';
-import { CreateVehicleDto } from './dto/vehicle.dto';
+import { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto';
 import {
   VerifyTokenDto,
   ResendVerificationDto,
@@ -1278,6 +1278,39 @@ export class PwaController {
       }
       throw error;
     }
+  }
+
+  @Put('vehicles/:id')
+  @ApiOperation({ summary: 'Update a vehicle (nickname, category)' })
+  @ApiParam({ name: 'id', description: 'Vehicle ID' })
+  @ApiBody({ type: UpdateVehicleDto })
+  @ApiResponse({ status: 200, description: 'Vehicle updated successfully' })
+  @HttpCode(HttpStatus.OK)
+  async updateVehicle(
+    @Param('id') id: string,
+    @Body() dto: UpdateVehicleDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.getDriverSession(req);
+
+    // Verify the vehicle belongs to this driver
+    const vehicle = await this.vehicleService.findById(session.networkId, id);
+
+    if (!vehicle || vehicle.driverId !== session.driverId) {
+      throw new BadRequestException('Jarmu nem talalhato vagy nem a tied');
+    }
+
+    const updated = await this.vehicleService.update(session.networkId, id, {
+      category: dto.category,
+      nickname: dto.nickname,
+    });
+
+    return {
+      id: updated.id,
+      category: updated.category,
+      plateNumber: updated.plateNumber,
+      nickname: updated.nickname,
+    };
   }
 
   @Delete('vehicles/:id')

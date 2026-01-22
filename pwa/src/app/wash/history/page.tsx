@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import { api, WashEvent } from '@/lib/api';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 type WashStatus = 'CREATED' | 'AUTHORIZED' | 'IN_PROGRESS' | 'COMPLETED' | 'LOCKED' | 'REJECTED';
 
@@ -182,6 +183,9 @@ export default function WashHistoryPage() {
 
       {/* Bottom Safe Area */}
       <div className="safe-area-bottom" />
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   );
 }

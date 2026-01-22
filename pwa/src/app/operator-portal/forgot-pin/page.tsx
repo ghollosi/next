@@ -5,9 +5,8 @@ import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-export default function OperatorForgotPinPage() {
-  const [locationCode, setLocationCode] = useState('');
-  const [operatorName, setOperatorName] = useState('');
+export default function OperatorForgotPasswordPage() {
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -18,13 +17,10 @@ export default function OperatorForgotPinPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/operator-portal/request-pin-reset`, {
+      const response = await fetch(`${API_URL}/operator-portal/request-password-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          locationCode: locationCode.toUpperCase(),
-          operatorName
-        }),
+        body: JSON.stringify({ email: email.trim() }),
       });
 
       const data = await response.json();
@@ -51,8 +47,8 @@ export default function OperatorForgotPinPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Elfelejtetted a PIN kodot?</h1>
-          <p className="text-slate-400 mt-1">Add meg a helyszin kodot es az operator neved</p>
+          <h1 className="text-2xl font-bold text-white">Elfelejtett jelszo</h1>
+          <p className="text-slate-400 mt-1">Add meg az email cimet a jelszo visszaallitashoz</p>
         </div>
 
         {/* Form */}
@@ -66,7 +62,7 @@ export default function OperatorForgotPinPage() {
               </div>
               <h2 className="text-xl font-semibold text-white mb-2">Email elkuldve!</h2>
               <p className="text-slate-400 mb-4">
-                Ha a helyszin es az operator helyes, a PIN visszaallito linket elkuldtuk a helyszin email cimere.
+                Ha az email cim helyes, a jelszo visszaallito linket elkuldtuk.
               </p>
               <Link
                 href="/operator-portal/login"
@@ -79,28 +75,14 @@ export default function OperatorForgotPinPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Helyszin kod
+                  Email cim
                 </label>
                 <input
-                  type="text"
-                  value={locationCode}
-                  onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="pl. BP01"
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Operator nev
-                </label>
-                <input
-                  type="text"
-                  value={operatorName}
-                  onChange={(e) => setOperatorName(e.target.value)}
-                  required
-                  placeholder="pl. Jozsi"
+                  placeholder="operator@example.com"
                   className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -111,16 +93,12 @@ export default function OperatorForgotPinPage() {
                 </div>
               )}
 
-              <p className="text-slate-500 text-xs">
-                A PIN visszaallito linket a helyszin email cimere kuldjuk.
-              </p>
-
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               >
-                {loading ? 'Kuldes...' : 'PIN visszaallitas kerese'}
+                {loading ? 'Kuldes...' : 'Jelszo visszaallitas kerese'}
               </button>
             </form>
           )}

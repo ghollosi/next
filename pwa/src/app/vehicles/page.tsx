@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import { api, Vehicle, VehicleCategory } from '@/lib/api';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -21,6 +22,11 @@ export default function VehiclesPage() {
   const [newPlateNumber, setNewPlateNumber] = useState('');
   const [newNickname, setNewNickname] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Szerkesztés
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [editCategory, setEditCategory] = useState<VehicleCategory>('SOLO');
+  const [editNickname, setEditNickname] = useState('');
 
   useEffect(() => {
     const session = getSession();
@@ -90,6 +96,33 @@ export default function VehiclesPage() {
       await loadVehicles(sessionId);
     } catch (err: any) {
       setError(err.message || 'Nem sikerult torolni a jarmut');
+    }
+  };
+
+  const handleStartEdit = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setEditCategory(vehicle.category);
+    setEditNickname(vehicle.nickname || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!sessionId || !editingVehicle) return;
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      await api.updateVehicle(sessionId, editingVehicle.id, {
+        category: editCategory,
+        nickname: editNickname.trim() || undefined,
+      });
+
+      await loadVehicles(sessionId);
+      setEditingVehicle(null);
+    } catch (err: any) {
+      setError(err.message || 'Nem sikerult modositani a jarmut');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -252,6 +285,89 @@ export default function VehiclesPage() {
         </div>
       )}
 
+      {/* Edit Vehicle Modal */}
+      {editingVehicle && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+          <div className="bg-white w-full rounded-t-2xl p-6 animate-slide-up">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Jarmu szerkesztese</h2>
+              <button
+                onClick={() => setEditingVehicle(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Plate (read-only) */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Rendszam
+              </label>
+              <div className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 font-mono text-lg text-gray-600">
+                {editingVehicle.plateNumber}
+              </div>
+            </div>
+
+            {/* Category Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Kategoria
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['SOLO', 'TRACTOR', 'TRAILER'] as VehicleCategory[]).map((cat) => {
+                  const colors = getCategoryColor(cat);
+                  const isSelected = editCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setEditCategory(cat)}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? `border-primary-500 ${colors.bg}`
+                          : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <span className="text-2xl block mb-1">{getCategoryIcon(cat)}</span>
+                      <span className={`text-xs font-medium ${isSelected ? colors.text : 'text-gray-600'}`}>
+                        {getCategoryLabel(cat)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Nickname */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Becenev (opcionalis)
+              </label>
+              <input
+                type="text"
+                value={editNickname}
+                onChange={(e) => setEditNickname(e.target.value)}
+                placeholder="pl. Kek Scania"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+              className="w-full py-4 bg-primary-600 text-white rounded-xl font-semibold
+                       disabled:bg-gray-300 disabled:cursor-not-allowed
+                       hover:bg-primary-700 active:bg-primary-800 transition-colors"
+            >
+              {isSaving ? 'Mentes...' : 'Modositasok mentese'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 px-4 py-6 overflow-auto">
         {isLoading ? (
@@ -287,6 +403,7 @@ export default function VehiclesPage() {
                 icon="🚗"
                 vehicles={solos}
                 colorClass="green"
+                onEdit={handleStartEdit}
                 onDelete={handleDeleteVehicle}
               />
             )}
@@ -298,6 +415,7 @@ export default function VehiclesPage() {
                 icon="🚛"
                 vehicles={tractors}
                 colorClass="blue"
+                onEdit={handleStartEdit}
                 onDelete={handleDeleteVehicle}
               />
             )}
@@ -309,6 +427,7 @@ export default function VehiclesPage() {
                 icon="🚚"
                 vehicles={trailers}
                 colorClass="orange"
+                onEdit={handleStartEdit}
                 onDelete={handleDeleteVehicle}
               />
             )}
@@ -335,6 +454,9 @@ export default function VehiclesPage() {
 
       {/* Bottom Safe Area */}
       <div className="safe-area-bottom" />
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   );
 }
@@ -345,12 +467,14 @@ function VehicleSection({
   icon,
   vehicles,
   colorClass,
+  onEdit,
   onDelete,
 }: {
   title: string;
   icon: string;
   vehicles: Vehicle[];
   colorClass: 'green' | 'blue' | 'orange';
+  onEdit: (vehicle: Vehicle) => void;
   onDelete: (id: string) => void;
 }) {
   const colors = {
@@ -385,6 +509,14 @@ function VehicleSection({
                   </p>
                 )}
               </div>
+              <button
+                onClick={() => onEdit(vehicle)}
+                className="p-2 text-primary-500 hover:bg-primary-50 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
               <button
                 onClick={() => onDelete(vehicle.id)}
                 className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"

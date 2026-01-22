@@ -592,7 +592,7 @@ model Driver {
   lastName         String   @map("last_name")
   phone            String?
   email            String?
-  pinHash          String   @map("pin_hash") // Hashed PIN for PWA authentication
+  pinHash          String?  @map("pin_hash") // Hashed PIN (legacy, opcionális)
   passwordHash     String?  @map("password_hash") // Jelszó hash (email+jelszó authhoz)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
@@ -1627,7 +1627,7 @@ model LocationOperator {
   locationId String   @map("location_id")
   name       String                        // Operátor neve
   email      String?                       // Email cím (opcionális, majd kötelező lesz)
-  pinHash    String   @map("pin_hash")     // Hashelt PIN kód
+  pinHash    String?  @map("pin_hash")     // Hashelt PIN kód (legacy, opcionális)
   passwordHash String? @map("password_hash") // Jelszó hash (email+jelszó authhoz)
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")

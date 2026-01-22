@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import { api, Location, WashService, Vehicle, VehicleCategory, LocationType } from '@/lib/api';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 interface SelectedService {
   service: WashService;
@@ -42,6 +43,14 @@ function NewWashContent() {
   const [manualTrailerPlate, setManualTrailerPlate] = useState('');
   const [vehicleMode, setVehicleMode] = useState<'solo' | 'combo'>('combo');
   const [useManualPlates, setUseManualPlates] = useState(false);
+  const [saveManualPlates, setSaveManualPlates] = useState(false);
+
+  // Add new vehicle inline
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [addVehicleCategory, setAddVehicleCategory] = useState<VehicleCategory>('SOLO');
+  const [addVehiclePlate, setAddVehiclePlate] = useState('');
+  const [addVehicleNickname, setAddVehicleNickname] = useState('');
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -151,6 +160,48 @@ function NewWashContent() {
     setError('');
   };
 
+  const handleAddVehicleInline = async () => {
+    if (!sessionId || !addVehiclePlate.trim()) return;
+
+    setIsAddingVehicle(true);
+    setError('');
+
+    try {
+      const newVehicle = await api.createVehicle(sessionId, {
+        category: addVehicleCategory,
+        plateNumber: addVehiclePlate.trim(),
+        nickname: addVehicleNickname.trim() || undefined,
+      });
+
+      // Refresh vehicle list
+      const vehicleData = await api.getVehicles(sessionId);
+      setSolos(vehicleData.solos || []);
+      setTractors(vehicleData.tractors || []);
+      setTrailers(vehicleData.trailers || []);
+
+      // Auto-select the new vehicle
+      if (addVehicleCategory === 'SOLO') {
+        setSelectedSolo(newVehicle);
+      } else if (addVehicleCategory === 'TRACTOR') {
+        setSelectedTractor(newVehicle);
+      } else if (addVehicleCategory === 'TRAILER') {
+        setSelectedTrailer(newVehicle);
+      }
+
+      // Switch to saved vehicles mode
+      setUseManualPlates(false);
+
+      // Reset form
+      setShowAddVehicle(false);
+      setAddVehiclePlate('');
+      setAddVehicleNickname('');
+    } catch (err: any) {
+      setError(err.message || 'Nem sikerult menteni a jarmut');
+    } finally {
+      setIsAddingVehicle(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!sessionId || !driver || !selectedLocation || selectedServices.length === 0) {
       return;
@@ -189,6 +240,22 @@ function NewWashContent() {
     setError('');
 
     try {
+      // Save manual plates as vehicles if option is checked
+      if (saveManualPlates && (useManualPlates || selectedLocation.locationType === 'CAR_WASH')) {
+        if (selectedLocation.locationType === 'CAR_WASH' && manualSoloPlate.trim()) {
+          try { await api.createVehicle(sessionId, { category: 'SOLO', plateNumber: manualSoloPlate.trim() }); } catch {}
+        } else if (vehicleMode === 'solo' && manualSoloPlate.trim()) {
+          try { await api.createVehicle(sessionId, { category: 'SOLO', plateNumber: manualSoloPlate.trim() }); } catch {}
+        } else {
+          if (manualTractorPlate.trim()) {
+            try { await api.createVehicle(sessionId, { category: 'TRACTOR', plateNumber: manualTractorPlate.trim() }); } catch {}
+          }
+          if (manualTrailerPlate.trim()) {
+            try { await api.createVehicle(sessionId, { category: 'TRAILER', plateNumber: manualTrailerPlate.trim() }); } catch {}
+          }
+        }
+      }
+
       // Build services array for API
       const servicesData = selectedServices.map(s => ({
         servicePackageId: s.service.id,
@@ -521,6 +588,16 @@ function NewWashContent() {
                   autoCapitalize="characters"
                   autoComplete="off"
                 />
+                {/* Save as vehicle option */}
+                <label className="flex items-center gap-3 mt-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={saveManualPlates}
+                    onChange={(e) => setSaveManualPlates(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-gray-600">Mentes a jarmuveim koze</span>
+                </label>
               </div>
             ) : !useManualPlates && hasVehicles ? (
               /* Saved Vehicles Selection - TRUCK_WASH only */
@@ -534,7 +611,7 @@ function NewWashContent() {
                     <div className="space-y-2">
                       {solos.length === 0 ? (
                         <p className="text-gray-500 text-sm py-4 text-center">
-                          Nincs mentett szolo jarmu. Haszналj kezi megadast!
+                          Nincs mentett szolo jarmu.
                         </p>
                       ) : (
                         solos.map((vehicle) => (
@@ -560,7 +637,7 @@ function NewWashContent() {
                       <div className="space-y-2">
                         {tractors.length === 0 ? (
                           <p className="text-gray-500 text-sm py-4 text-center">
-                            Nincs mentett vontato. Haszналj kezi megadast!
+                            Nincs mentett vontato.
                           </p>
                         ) : (
                           tractors.map((vehicle) => (
@@ -605,38 +682,35 @@ function NewWashContent() {
                     </div>
                   </>
                 )}
+
+                {/* Add New Vehicle Button */}
+                <button
+                  onClick={() => {
+                    setAddVehicleCategory(vehicleMode === 'solo' ? 'SOLO' : 'TRACTOR');
+                    setShowAddVehicle(true);
+                  }}
+                  className="w-full py-3 border-2 border-dashed border-primary-300 text-primary-600 rounded-xl
+                           font-medium hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Uj jarmu hozzaadasa
+                </button>
               </div>
             ) : (
               /* Manual Plate Input */
-              <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
-                {vehicleMode === 'solo' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Szolo jarmu rendszama *
-                    </label>
-                    <input
-                      type="text"
-                      value={manualSoloPlate}
-                      onChange={(e) => setManualSoloPlate(e.target.value.toUpperCase())}
-                      placeholder="ABC-123"
-                      className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
-                                 border-2 border-gray-200 rounded-xl
-                                 focus:border-primary-500 focus:ring-4 focus:ring-primary-100
-                                 transition-all uppercase"
-                      autoCapitalize="characters"
-                      autoComplete="off"
-                    />
-                  </div>
-                ) : (
-                  <>
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+                  {vehicleMode === 'solo' ? (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Vontato rendszama *
+                        Szolo jarmu rendszama *
                       </label>
                       <input
                         type="text"
-                        value={manualTractorPlate}
-                        onChange={(e) => setManualTractorPlate(e.target.value.toUpperCase())}
+                        value={manualSoloPlate}
+                        onChange={(e) => setManualSoloPlate(e.target.value.toUpperCase())}
                         placeholder="ABC-123"
                         className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
                                    border-2 border-gray-200 rounded-xl
@@ -646,26 +720,152 @@ function NewWashContent() {
                         autoComplete="off"
                       />
                     </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Vontato rendszama *
+                        </label>
+                        <input
+                          type="text"
+                          value={manualTractorPlate}
+                          onChange={(e) => setManualTractorPlate(e.target.value.toUpperCase())}
+                          placeholder="ABC-123"
+                          className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
+                                     border-2 border-gray-200 rounded-xl
+                                     focus:border-primary-500 focus:ring-4 focus:ring-primary-100
+                                     transition-all uppercase"
+                          autoCapitalize="characters"
+                          autoComplete="off"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Vontatmany rendszama (opcionalis)
-                      </label>
-                      <input
-                        type="text"
-                        value={manualTrailerPlate}
-                        onChange={(e) => setManualTrailerPlate(e.target.value.toUpperCase())}
-                        placeholder="XYZ-789"
-                        className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
-                                   border-2 border-gray-200 rounded-xl
-                                   focus:border-primary-500 focus:ring-4 focus:ring-primary-100
-                                   transition-all uppercase"
-                        autoCapitalize="characters"
-                        autoComplete="off"
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Vontatmany rendszama (opcionalis)
+                        </label>
+                        <input
+                          type="text"
+                          value={manualTrailerPlate}
+                          onChange={(e) => setManualTrailerPlate(e.target.value.toUpperCase())}
+                          placeholder="XYZ-789"
+                          className="w-full px-4 py-4 text-xl text-center font-mono tracking-wider
+                                     border-2 border-gray-200 rounded-xl
+                                     focus:border-primary-500 focus:ring-4 focus:ring-primary-100
+                                     transition-all uppercase"
+                          autoCapitalize="characters"
+                          autoComplete="off"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Save as vehicle option */}
+                  <label className="flex items-center gap-3 cursor-pointer pt-2 border-t border-gray-100">
+                    <input
+                      type="checkbox"
+                      checked={saveManualPlates}
+                      onChange={(e) => setSaveManualPlates(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-600">Mentes a jarmuveim koze</span>
+                  </label>
+                </div>
+
+                {/* Add New Vehicle Button */}
+                <button
+                  onClick={() => {
+                    setAddVehicleCategory(vehicleMode === 'solo' ? 'SOLO' : 'TRACTOR');
+                    setShowAddVehicle(true);
+                  }}
+                  className="w-full py-3 border-2 border-dashed border-primary-300 text-primary-600 rounded-xl
+                           font-medium hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Uj jarmu hozzaadasa
+                </button>
+              </div>
+            )}
+
+            {/* Add Vehicle Inline Modal */}
+            {showAddVehicle && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+                <div className="bg-white w-full rounded-t-2xl p-6 animate-slide-up">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold">Uj jarmu hozzaadasa</h2>
+                    <button
+                      onClick={() => setShowAddVehicle(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Category */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Kategoria</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['SOLO', 'TRACTOR', 'TRAILER'] as VehicleCategory[]).map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => setAddVehicleCategory(cat)}
+                          className={`p-3 rounded-xl border-2 transition-all ${
+                            addVehicleCategory === cat
+                              ? 'border-primary-500 bg-primary-50'
+                              : 'border-gray-200 bg-white'
+                          }`}
+                        >
+                          <span className="text-2xl block mb-1">
+                            {cat === 'SOLO' ? '🚗' : cat === 'TRACTOR' ? '🚛' : '🚚'}
+                          </span>
+                          <span className={`text-xs font-medium ${addVehicleCategory === cat ? 'text-primary-700' : 'text-gray-600'}`}>
+                            {cat === 'SOLO' ? 'Szolo' : cat === 'TRACTOR' ? 'Vontato' : 'Vontatmany'}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  {/* Plate Number */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rendszam *</label>
+                    <input
+                      type="text"
+                      value={addVehiclePlate}
+                      onChange={(e) => setAddVehiclePlate(e.target.value.toUpperCase())}
+                      placeholder="ABC-123"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono text-lg"
+                      autoCapitalize="characters"
+                    />
+                  </div>
+
+                  {/* Nickname */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Becenev (opcionalis)</label>
+                    <input
+                      type="text"
+                      value={addVehicleNickname}
+                      onChange={(e) => setAddVehicleNickname(e.target.value)}
+                      placeholder="pl. Kek Scania"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+
+                  {/* Save Button */}
+                  <button
+                    onClick={handleAddVehicleInline}
+                    disabled={!addVehiclePlate.trim() || isAddingVehicle}
+                    className="w-full py-4 bg-primary-600 text-white rounded-xl font-semibold
+                             disabled:bg-gray-300 disabled:cursor-not-allowed
+                             hover:bg-primary-700 active:bg-primary-800 transition-colors"
+                  >
+                    {isAddingVehicle ? 'Mentes...' : 'Jarmu mentese es kivalasztasa'}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -764,6 +964,7 @@ export default function NewWashPage() {
       </div>
     }>
       <NewWashContent />
+      <DriverEmiWrapper />
     </Suspense>
   );
 }

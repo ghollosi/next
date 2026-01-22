@@ -424,6 +424,28 @@ class ApiClient {
     return response.json();
   }
 
+  async updateVehicle(
+    sessionId: string,
+    vehicleId: string,
+    data: { category?: VehicleCategory; nickname?: string }
+  ): Promise<Vehicle> {
+    const response = await fetch(`${this.baseUrl}/pwa/vehicles/${vehicleId}`, this.fetchOptions({
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-driver-session': sessionId,
+      },
+      body: JSON.stringify(data),
+    }));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Nem sikerult modositani a jarmut');
+    }
+
+    return response.json();
+  }
+
   async deleteVehicle(sessionId: string, vehicleId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/pwa/vehicles/${vehicleId}`, this.fetchOptions({
       method: 'DELETE',

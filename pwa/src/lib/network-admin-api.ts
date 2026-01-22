@@ -795,6 +795,7 @@ export const networkAdminApi = {
   async listLocationOperators(locationId: string): Promise<{
     id: string;
     name: string;
+    email: string;
     isActive: boolean;
     createdAt: string;
   }[]> {
@@ -803,8 +804,9 @@ export const networkAdminApi = {
 
   async createLocationOperator(locationId: string, data: {
     name: string;
-    pin: string;
-  }): Promise<{ id: string; name: string; isActive: boolean }> {
+    email: string;
+    password: string;
+  }): Promise<{ id: string; name: string; email: string; isActive: boolean }> {
     return fetchWithAuth(`/network-admin/locations/${locationId}/operators`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -813,9 +815,10 @@ export const networkAdminApi = {
 
   async updateLocationOperator(operatorId: string, data: {
     name?: string;
-    pin?: string;
+    email?: string;
+    password?: string;
     isActive?: boolean;
-  }): Promise<{ id: string; name: string; isActive: boolean }> {
+  }): Promise<{ id: string; name: string; email: string; isActive: boolean }> {
     return fetchWithAuth(`/network-admin/operators/${operatorId}`, {
       method: 'PUT',
       body: JSON.stringify(data),

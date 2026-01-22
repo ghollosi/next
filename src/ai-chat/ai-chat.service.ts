@@ -364,7 +364,7 @@ SPECIAL FEATURES:
 
       const response = await this.anthropic.messages.create({
         model: 'claude-3-haiku-20240307', // Using Haiku for fast, cheap responses
-        max_tokens: 500, // Keep responses concise
+        max_tokens: 1024, // Allow detailed responses for data-rich queries
         system: systemPrompt,
         messages,
       });
@@ -404,7 +404,7 @@ SPECIAL FEATURES:
           : `\n\nCURRENT PLATFORM DATA:\n- Active networks: ${networkCount}\n- Wash locations: ${locationCount}`;
       }
 
-      // For network admin - their network's data
+      // For network admin - their network's data including wash stats and financials
       if (context.role === 'network_admin' && context.networkId) {
         const network = await this.prisma.network.findUnique({
           where: { id: context.networkId },
@@ -420,10 +420,218 @@ SPECIAL FEATURES:
           where: { networkId: context.networkId, isActive: true },
         });
 
+        // Today's wash stats
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayWashes = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: todayStart } },
+        });
+        const todayCompleted = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: todayStart }, status: 'COMPLETED' },
+        });
+        const todayInProgress = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: todayStart }, status: 'IN_PROGRESS' },
+        });
+
+        // Monthly wash stats
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        const monthlyWashes = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: monthStart } },
+        });
+        const monthlyCompleted = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: monthStart }, status: 'COMPLETED' },
+        });
+
+        // Monthly revenue (sum of finalPrice for completed washes)
+        const monthlyRevenue = await this.prisma.washEvent.aggregate({
+          where: {
+            networkId: context.networkId,
+            createdAt: { gte: monthStart },
+            status: 'COMPLETED',
+            finalPrice: { not: null },
+          },
+          _sum: { finalPrice: true },
+        });
+
+        // Today's revenue
+        const todayRevenue = await this.prisma.washEvent.aggregate({
+          where: {
+            networkId: context.networkId,
+            createdAt: { gte: todayStart },
+            status: 'COMPLETED',
+            finalPrice: { not: null },
+          },
+          _sum: { finalPrice: true },
+        });
+
+        // All-time total washes
+        const totalWashes = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId },
+        });
+        const totalCompleted = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, status: 'COMPLETED' },
+        });
+
+        // All-time revenue
+        const totalRevenue = await this.prisma.washEvent.aggregate({
+          where: {
+            networkId: context.networkId,
+            status: 'COMPLETED',
+            finalPrice: { not: null },
+          },
+          _sum: { finalPrice: true },
+        });
+
+        // Per-location breakdown (top locations this month)
+        const locationBreakdown = await this.prisma.washEvent.groupBy({
+          by: ['locationId'],
+          where: {
+            networkId: context.networkId,
+            createdAt: { gte: monthStart },
+            status: 'COMPLETED',
+          },
+          _count: true,
+          _sum: { finalPrice: true },
+          orderBy: { _count: { locationId: 'desc' } },
+          take: 5,
+        });
+
+        // Get location names for breakdown
+        let locationDetails = '';
+        if (locationBreakdown.length > 0) {
+          const locationIds = locationBreakdown.map(l => l.locationId);
+          const locationsForBreakdown = await this.prisma.location.findMany({
+            where: { id: { in: locationIds } },
+            select: { id: true, name: true },
+          });
+          const locationMap = new Map(locationsForBreakdown.map(l => [l.id, l.name]));
+
+          locationDetails = locationBreakdown
+            .map(l => {
+              const name = locationMap.get(l.locationId) || 'Ismeretlen';
+              const revenue = l._sum?.finalPrice ? Number(l._sum.finalPrice).toLocaleString() : '0';
+              return isHungarian
+                ? `  - ${name}: ${l._count} mosás, ${revenue} ${network?.defaultCurrency || 'HUF'} bevétel`
+                : `  - ${name}: ${l._count} washes, ${revenue} ${network?.defaultCurrency || 'HUF'} revenue`;
+            })
+            .join('\n');
+        }
+
+        // Fetch ALL locations with full details for the network
+        const allLocations = await this.prisma.location.findMany({
+          where: { networkId: context.networkId, isActive: true },
+          select: {
+            name: true,
+            code: true,
+            address: true,
+            city: true,
+            zipCode: true,
+            country: true,
+            locationType: true,
+            washMode: true,
+            operationType: true,
+            visibility: true,
+            bookingEnabled: true,
+            parallelSlots: true,
+            phone: true,
+            email: true,
+            openingHoursStructured: {
+              select: { dayOfWeek: true, openTime: true, closeTime: true, isClosed: true },
+              orderBy: { dayOfWeek: 'asc' },
+            },
+          },
+          orderBy: { name: 'asc' },
+        });
+
+        const dayNames: Record<string, { hu: string; en: string }> = {
+          MONDAY: { hu: 'Hétfő', en: 'Monday' },
+          TUESDAY: { hu: 'Kedd', en: 'Tuesday' },
+          WEDNESDAY: { hu: 'Szerda', en: 'Wednesday' },
+          THURSDAY: { hu: 'Csütörtök', en: 'Thursday' },
+          FRIDAY: { hu: 'Péntek', en: 'Friday' },
+          SATURDAY: { hu: 'Szombat', en: 'Saturday' },
+          SUNDAY: { hu: 'Vasárnap', en: 'Sunday' },
+        };
+
+        const locationFullDetails = allLocations.map(loc => {
+          const typeLabel = isHungarian
+            ? (loc.locationType === 'TRUCK_WASH' ? 'Kamionmosó' : 'Autómosó')
+            : (loc.locationType === 'TRUCK_WASH' ? 'Truck Wash' : 'Car Wash');
+          const modeLabel = isHungarian
+            ? (loc.washMode === 'MANUAL' ? 'Személyzetes' : 'Automata')
+            : (loc.washMode === 'MANUAL' ? 'Manual (staffed)' : 'Automatic');
+          const operationLabel = isHungarian
+            ? (loc.operationType === 'OWN' ? 'Saját üzemeltetés' : 'Alvállalkozó')
+            : (loc.operationType === 'OWN' ? 'Own operation' : 'Subcontractor');
+          const visibilityLabel = isHungarian
+            ? (loc.visibility === 'PUBLIC' ? 'Publikus' : loc.visibility === 'NETWORK_ONLY' ? 'Csak hálózat' : 'Dedikált')
+            : (loc.visibility === 'PUBLIC' ? 'Public' : loc.visibility === 'NETWORK_ONLY' ? 'Network only' : 'Dedicated');
+
+          const address = [loc.zipCode, loc.city, loc.address].filter(Boolean).join(', ');
+
+          let openingHoursStr = '';
+          if (loc.openingHoursStructured && loc.openingHoursStructured.length > 0) {
+            openingHoursStr = loc.openingHoursStructured
+              .map(oh => {
+                const dayName = isHungarian ? dayNames[oh.dayOfWeek]?.hu : dayNames[oh.dayOfWeek]?.en;
+                if (oh.isClosed) return `    ${dayName}: ${isHungarian ? 'Zárva' : 'Closed'}`;
+                return `    ${dayName}: ${oh.openTime} - ${oh.closeTime}`;
+              })
+              .join('\n');
+          } else {
+            openingHoursStr = isHungarian ? '    Nincs megadva' : '    Not specified';
+          }
+
+          if (isHungarian) {
+            return `  ${loc.name} (${loc.code}):\n` +
+              `    Cím: ${address || 'Nincs megadva'}\n` +
+              `    Típus: ${typeLabel}\n` +
+              `    Üzemmód: ${modeLabel}\n` +
+              `    Üzemeltetés: ${operationLabel}\n` +
+              `    Láthatóság: ${visibilityLabel}\n` +
+              `    Foglalás: ${loc.bookingEnabled ? `Engedélyezve (${loc.parallelSlots} párhuzamos)` : 'Nincs'}\n` +
+              (loc.phone ? `    Telefon: ${loc.phone}\n` : '') +
+              (loc.email ? `    Email: ${loc.email}\n` : '') +
+              `    Nyitvatartás:\n${openingHoursStr}`;
+          } else {
+            return `  ${loc.name} (${loc.code}):\n` +
+              `    Address: ${address || 'Not specified'}\n` +
+              `    Type: ${typeLabel}\n` +
+              `    Mode: ${modeLabel}\n` +
+              `    Operation: ${operationLabel}\n` +
+              `    Visibility: ${visibilityLabel}\n` +
+              `    Booking: ${loc.bookingEnabled ? `Enabled (${loc.parallelSlots} parallel)` : 'Disabled'}\n` +
+              (loc.phone ? `    Phone: ${loc.phone}\n` : '') +
+              (loc.email ? `    Email: ${loc.email}\n` : '') +
+              `    Opening hours:\n${openingHoursStr}`;
+          }
+        }).join('\n\n');
+
+        const currency = network?.defaultCurrency || 'HUF';
+        const todayRev = todayRevenue._sum?.finalPrice ? Number(todayRevenue._sum.finalPrice).toLocaleString() : '0';
+        const monthlyRev = monthlyRevenue._sum?.finalPrice ? Number(monthlyRevenue._sum.finalPrice).toLocaleString() : '0';
+        const totalRev = totalRevenue._sum?.finalPrice ? Number(totalRevenue._sum.finalPrice).toLocaleString() : '0';
+
         if (network) {
           dynamicInfo = isHungarian
-            ? `\n\nHÁLÓZATOD ADATAI (${network.name}):\n- Helyszínek: ${locationCount}\n- Aktív sofőrök: ${driverCount}\n- Partnerek: ${partnerCount}\n- Pénznem: ${network.defaultCurrency}`
-            : `\n\nYOUR NETWORK DATA (${network.name}):\n- Locations: ${locationCount}\n- Active drivers: ${driverCount}\n- Partners: ${partnerCount}\n- Currency: ${network.defaultCurrency}`;
+            ? `\n\nHÁLÓZATOD ADATAI (${network.name}):\n` +
+              `ÁLTALÁNOS:\n- Helyszínek: ${locationCount}\n- Aktív sofőrök: ${driverCount}\n- Partnerek: ${partnerCount}\n- Pénznem: ${currency}\n\n` +
+              `MAI STATISZTIKA:\n- Mai mosások: ${todayWashes}\n- Befejezett ma: ${todayCompleted}\n- Folyamatban: ${todayInProgress}\n- Mai bevétel: ${todayRev} ${currency}\n\n` +
+              `HAVI STATISZTIKA (aktuális hónap):\n- Havi mosások: ${monthlyWashes}\n- Befejezett: ${monthlyCompleted}\n- Havi bevétel: ${monthlyRev} ${currency}\n\n` +
+              `ÖSSZESÍTÉS (minden idők):\n- Összes mosás: ${totalWashes}\n- Összes befejezett: ${totalCompleted}\n- Összes bevétel: ${totalRev} ${currency}` +
+              (locationDetails ? `\n\nHELYSZÍNEK HAVI BONTÁSBAN (TOP 5):\n${locationDetails}` : '') +
+              `\n\nHELYSZÍNEK RÉSZLETES ADATAI:\n${locationFullDetails}`
+            : `\n\nYOUR NETWORK DATA (${network.name}):\n` +
+              `GENERAL:\n- Locations: ${locationCount}\n- Active drivers: ${driverCount}\n- Partners: ${partnerCount}\n- Currency: ${currency}\n\n` +
+              `TODAY'S STATS:\n- Today's washes: ${todayWashes}\n- Completed today: ${todayCompleted}\n- In progress: ${todayInProgress}\n- Today's revenue: ${todayRev} ${currency}\n\n` +
+              `MONTHLY STATS (current month):\n- Monthly washes: ${monthlyWashes}\n- Completed: ${monthlyCompleted}\n- Monthly revenue: ${monthlyRev} ${currency}\n\n` +
+              `ALL-TIME TOTALS:\n- Total washes: ${totalWashes}\n- Total completed: ${totalCompleted}\n- Total revenue: ${totalRev} ${currency}` +
+              (locationDetails ? `\n\nLOCATION BREAKDOWN (TOP 5 THIS MONTH):\n${locationDetails}` : '') +
+              `\n\nLOCATION DETAILS:\n${locationFullDetails}`;
         }
       }
 
@@ -500,22 +708,208 @@ SPECIAL FEATURES:
         }
       }
 
-      // For platform admin - global stats
+      // For platform admin - full global stats with per-network breakdown
       if (context.role === 'platform_admin') {
-        const networkCount = await this.prisma.network.count({ where: { isActive: true } });
-        const locationCount = await this.prisma.location.count({ where: { isActive: true } });
-        const driverCount = await this.prisma.driver.count({ where: { isActive: true, deletedAt: null } });
-
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
 
-        const todayWashes = await this.prisma.washEvent.count({
+        // Global counters
+        const globalLocationCount = await this.prisma.location.count({ where: { isActive: true } });
+        const globalDriverCount = await this.prisma.driver.count({ where: { isActive: true, deletedAt: null } });
+        const globalPartnerCount = await this.prisma.partnerCompany.count({ where: { isActive: true } });
+
+        // Global wash stats
+        const globalTodayWashes = await this.prisma.washEvent.count({
           where: { createdAt: { gte: todayStart } },
         });
+        const globalTodayCompleted = await this.prisma.washEvent.count({
+          where: { createdAt: { gte: todayStart }, status: 'COMPLETED' },
+        });
+        const globalMonthlyWashes = await this.prisma.washEvent.count({
+          where: { createdAt: { gte: monthStart } },
+        });
+        const globalMonthlyCompleted = await this.prisma.washEvent.count({
+          where: { createdAt: { gte: monthStart }, status: 'COMPLETED' },
+        });
+        const globalTotalWashes = await this.prisma.washEvent.count();
+        const globalTotalCompleted = await this.prisma.washEvent.count({ where: { status: 'COMPLETED' } });
+
+        // Global revenue
+        const globalTodayRevenue = await this.prisma.washEvent.aggregate({
+          where: { createdAt: { gte: todayStart }, status: 'COMPLETED', finalPrice: { not: null } },
+          _sum: { finalPrice: true },
+        });
+        const globalMonthlyRevenue = await this.prisma.washEvent.aggregate({
+          where: { createdAt: { gte: monthStart }, status: 'COMPLETED', finalPrice: { not: null } },
+          _sum: { finalPrice: true },
+        });
+        const globalTotalRevenue = await this.prisma.washEvent.aggregate({
+          where: { status: 'COMPLETED', finalPrice: { not: null } },
+          _sum: { finalPrice: true },
+        });
+
+        // All networks with details
+        const allNetworks = await this.prisma.network.findMany({
+          where: { isActive: true },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            defaultCurrency: true,
+            country: true,
+            subscriptionStatus: true,
+            trialEndsAt: true,
+            billingCompanyName: true,
+            billingCity: true,
+            createdAt: true,
+          },
+          orderBy: { name: 'asc' },
+        });
+
+        // Per-network stats
+        const networkDetails = await Promise.all(allNetworks.map(async (net) => {
+          const netLocationCount = await this.prisma.location.count({
+            where: { networkId: net.id, isActive: true },
+          });
+          const netDriverCount = await this.prisma.driver.count({
+            where: { networkId: net.id, isActive: true, deletedAt: null },
+          });
+          const netPartnerCount = await this.prisma.partnerCompany.count({
+            where: { networkId: net.id, isActive: true },
+          });
+
+          // Network wash stats
+          const netTodayWashes = await this.prisma.washEvent.count({
+            where: { networkId: net.id, createdAt: { gte: todayStart } },
+          });
+          const netMonthlyCompleted = await this.prisma.washEvent.count({
+            where: { networkId: net.id, createdAt: { gte: monthStart }, status: 'COMPLETED' },
+          });
+          const netTotalWashes = await this.prisma.washEvent.count({
+            where: { networkId: net.id },
+          });
+
+          // Network revenue
+          const netMonthlyRevenue = await this.prisma.washEvent.aggregate({
+            where: { networkId: net.id, createdAt: { gte: monthStart }, status: 'COMPLETED', finalPrice: { not: null } },
+            _sum: { finalPrice: true },
+          });
+          const netTotalRevenue = await this.prisma.washEvent.aggregate({
+            where: { networkId: net.id, status: 'COMPLETED', finalPrice: { not: null } },
+            _sum: { finalPrice: true },
+          });
+
+          // Network locations with full details
+          const netLocations = await this.prisma.location.findMany({
+            where: { networkId: net.id, isActive: true },
+            select: {
+              name: true,
+              code: true,
+              address: true,
+              city: true,
+              zipCode: true,
+              locationType: true,
+              washMode: true,
+              operationType: true,
+              visibility: true,
+              bookingEnabled: true,
+              parallelSlots: true,
+              openingHoursStructured: {
+                select: { dayOfWeek: true, openTime: true, closeTime: true, isClosed: true },
+                orderBy: { dayOfWeek: 'asc' },
+              },
+            },
+            orderBy: { name: 'asc' },
+          });
+
+          const dayNames: Record<string, { hu: string; en: string }> = {
+            MONDAY: { hu: 'Hé', en: 'Mon' },
+            TUESDAY: { hu: 'Ke', en: 'Tue' },
+            WEDNESDAY: { hu: 'Sze', en: 'Wed' },
+            THURSDAY: { hu: 'Csü', en: 'Thu' },
+            FRIDAY: { hu: 'Pé', en: 'Fri' },
+            SATURDAY: { hu: 'Szo', en: 'Sat' },
+            SUNDAY: { hu: 'Va', en: 'Sun' },
+          };
+
+          const subscriptionLabel = isHungarian
+            ? (net.subscriptionStatus === 'TRIAL' ? `Próba (lejár: ${net.trialEndsAt ? new Date(net.trialEndsAt).toLocaleDateString('hu') : '?'})` :
+               net.subscriptionStatus === 'ACTIVE' ? 'Aktív' :
+               net.subscriptionStatus === 'CANCELLED' ? 'Lemondva' : net.subscriptionStatus)
+            : (net.subscriptionStatus === 'TRIAL' ? `Trial (expires: ${net.trialEndsAt ? new Date(net.trialEndsAt).toLocaleDateString('en') : '?'})` :
+               net.subscriptionStatus === 'ACTIVE' ? 'Active' :
+               net.subscriptionStatus === 'CANCELLED' ? 'Cancelled' : net.subscriptionStatus);
+
+          const netMonthlyRev = netMonthlyRevenue._sum?.finalPrice ? Number(netMonthlyRevenue._sum.finalPrice).toLocaleString() : '0';
+          const netTotalRev = netTotalRevenue._sum?.finalPrice ? Number(netTotalRevenue._sum.finalPrice).toLocaleString() : '0';
+
+          const locationsStr = netLocations.map(loc => {
+            const typeLabel = loc.locationType === 'TRUCK_WASH' ? (isHungarian ? 'Kamion' : 'Truck') : (isHungarian ? 'Autó' : 'Car');
+            const modeLabel = loc.washMode === 'MANUAL' ? (isHungarian ? 'Személyzetes' : 'Manual') : (isHungarian ? 'Automata' : 'Auto');
+            const opLabel = loc.operationType === 'OWN' ? (isHungarian ? 'Saját' : 'Own') : (isHungarian ? 'Alvállalkozó' : 'Sub');
+            const visLabel = loc.visibility === 'PUBLIC' ? (isHungarian ? 'Publikus' : 'Public') : loc.visibility === 'NETWORK_ONLY' ? (isHungarian ? 'Hálózat' : 'Network') : (isHungarian ? 'Dedikált' : 'Dedicated');
+            const addr = [loc.zipCode, loc.city, loc.address].filter(Boolean).join(', ');
+
+            let hours = '';
+            if (loc.openingHoursStructured && loc.openingHoursStructured.length > 0) {
+              hours = loc.openingHoursStructured
+                .map(oh => {
+                  const d = isHungarian ? dayNames[oh.dayOfWeek]?.hu : dayNames[oh.dayOfWeek]?.en;
+                  return oh.isClosed ? `${d}:X` : `${d}:${oh.openTime}-${oh.closeTime}`;
+                })
+                .join(' | ');
+            }
+
+            if (isHungarian) {
+              return `      - ${loc.name} (${loc.code}): ${addr || 'N/A'} | ${typeLabel}/${modeLabel}/${opLabel} | ${visLabel}` +
+                (loc.bookingEnabled ? ` | Foglalás:${loc.parallelSlots}x` : '') +
+                (hours ? `\n        Nyitva: ${hours}` : '');
+            } else {
+              return `      - ${loc.name} (${loc.code}): ${addr || 'N/A'} | ${typeLabel}/${modeLabel}/${opLabel} | ${visLabel}` +
+                (loc.bookingEnabled ? ` | Booking:${loc.parallelSlots}x` : '') +
+                (hours ? `\n        Hours: ${hours}` : '');
+            }
+          }).join('\n');
+
+          if (isHungarian) {
+            return `  ${net.name} (${net.slug}):\n` +
+              `    Előfizetés: ${subscriptionLabel} | Pénznem: ${net.defaultCurrency} | Ország: ${net.country}\n` +
+              (net.billingCompanyName ? `    Számlázási cég: ${net.billingCompanyName}${net.billingCity ? ', ' + net.billingCity : ''}\n` : '') +
+              `    Helyszínek: ${netLocationCount} | Sofőrök: ${netDriverCount} | Partnerek: ${netPartnerCount}\n` +
+              `    Mai mosások: ${netTodayWashes} | Havi befejezett: ${netMonthlyCompleted} | Összes: ${netTotalWashes}\n` +
+              `    Havi bevétel: ${netMonthlyRev} ${net.defaultCurrency} | Összes bevétel: ${netTotalRev} ${net.defaultCurrency}\n` +
+              (netLocations.length > 0 ? `    Helyszínek:\n${locationsStr}` : '');
+          } else {
+            return `  ${net.name} (${net.slug}):\n` +
+              `    Subscription: ${subscriptionLabel} | Currency: ${net.defaultCurrency} | Country: ${net.country}\n` +
+              (net.billingCompanyName ? `    Billing: ${net.billingCompanyName}${net.billingCity ? ', ' + net.billingCity : ''}\n` : '') +
+              `    Locations: ${netLocationCount} | Drivers: ${netDriverCount} | Partners: ${netPartnerCount}\n` +
+              `    Today's washes: ${netTodayWashes} | Monthly completed: ${netMonthlyCompleted} | Total: ${netTotalWashes}\n` +
+              `    Monthly revenue: ${netMonthlyRev} ${net.defaultCurrency} | Total revenue: ${netTotalRev} ${net.defaultCurrency}\n` +
+              (netLocations.length > 0 ? `    Locations:\n${locationsStr}` : '');
+          }
+        }));
+
+        const gTodayRev = globalTodayRevenue._sum?.finalPrice ? Number(globalTodayRevenue._sum.finalPrice).toLocaleString() : '0';
+        const gMonthlyRev = globalMonthlyRevenue._sum?.finalPrice ? Number(globalMonthlyRevenue._sum.finalPrice).toLocaleString() : '0';
+        const gTotalRev = globalTotalRevenue._sum?.finalPrice ? Number(globalTotalRevenue._sum.finalPrice).toLocaleString() : '0';
 
         dynamicInfo = isHungarian
-          ? `\n\nPLATFORM ADATOK:\n- Aktív hálózatok: ${networkCount}\n- Helyszínek: ${locationCount}\n- Sofőrök: ${driverCount}\n- Mai mosások (globális): ${todayWashes}`
-          : `\n\nPLATFORM DATA:\n- Active networks: ${networkCount}\n- Locations: ${locationCount}\n- Drivers: ${driverCount}\n- Today's washes (global): ${todayWashes}`;
+          ? `\n\nPLATFORM ÖSSZESÍTÉS:\n` +
+            `GLOBÁLIS ADATOK:\n- Aktív hálózatok: ${allNetworks.length}\n- Összes helyszín: ${globalLocationCount}\n- Összes sofőr: ${globalDriverCount}\n- Összes partner: ${globalPartnerCount}\n\n` +
+            `MAI STATISZTIKA (globális):\n- Mai mosások: ${globalTodayWashes}\n- Befejezett ma: ${globalTodayCompleted}\n- Mai bevétel: ${gTodayRev} HUF\n\n` +
+            `HAVI STATISZTIKA (globális):\n- Havi mosások: ${globalMonthlyWashes}\n- Befejezett: ${globalMonthlyCompleted}\n- Havi bevétel: ${gMonthlyRev} HUF\n\n` +
+            `ÖSSZESÍTÉS (minden idők):\n- Összes mosás: ${globalTotalWashes}\n- Összes befejezett: ${globalTotalCompleted}\n- Összes bevétel: ${gTotalRev} HUF\n\n` +
+            `HÁLÓZATOK RÉSZLETESEN:\n${networkDetails.join('\n\n')}`
+          : `\n\nPLATFORM SUMMARY:\n` +
+            `GLOBAL DATA:\n- Active networks: ${allNetworks.length}\n- Total locations: ${globalLocationCount}\n- Total drivers: ${globalDriverCount}\n- Total partners: ${globalPartnerCount}\n\n` +
+            `TODAY'S STATS (global):\n- Today's washes: ${globalTodayWashes}\n- Completed today: ${globalTodayCompleted}\n- Today's revenue: ${gTodayRev} HUF\n\n` +
+            `MONTHLY STATS (global):\n- Monthly washes: ${globalMonthlyWashes}\n- Completed: ${globalMonthlyCompleted}\n- Monthly revenue: ${gMonthlyRev} HUF\n\n` +
+            `ALL-TIME TOTALS:\n- Total washes: ${globalTotalWashes}\n- Total completed: ${globalTotalCompleted}\n- Total revenue: ${gTotalRev} HUF\n\n` +
+            `NETWORKS IN DETAIL:\n${networkDetails.join('\n\n')}`;
       }
 
     } catch (error) {
@@ -537,8 +931,8 @@ SPECIAL FEATURES:
         : 'Hi! I\'m Amy, the vSys Wash assistant. How can I help you? 🚗✨';
     }
 
-    // Pricing question
-    if (lowerMessage.match(/(mennyi|ár|árak|price|pricing|cost)/)) {
+    // Pricing question (only match when asking about prices specifically, not "mennyi sofőr" etc.)
+    if (lowerMessage.match(/(mennyibe|ár|árak|árlista|price|pricing|cost|díj|tarifa)/) && !lowerMessage.match(/(sofőr|driver|mosás|wash|helyszín|location|partner)/)) {
       return isHu
         ? 'Az árak a hálózattól és mosótípustól függnek. Általában a szolgáltatók határozzák meg. Ha sofőr vagy, az alkalmazásban látod az aktuális árakat a helyszín kiválasztása után!'
         : 'Prices depend on the network and wash type. Generally set by service providers. If you\'re a driver, you can see current prices in the app after selecting a location!';

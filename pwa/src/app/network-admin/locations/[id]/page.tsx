@@ -33,6 +33,7 @@ interface Location {
 interface Operator {
   id: string;
   name: string;
+  email: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -191,7 +192,7 @@ export default function LocationDetailPage() {
     mode: 'create' | 'edit';
     operator?: Operator;
   } | null>(null);
-  const [operatorForm, setOperatorForm] = useState({ name: '', pin: '' });
+  const [operatorForm, setOperatorForm] = useState({ name: '', email: '', password: '' });
   const [operatorError, setOperatorError] = useState('');
   const [savingOperator, setSavingOperator] = useState(false);
 
@@ -383,13 +384,13 @@ export default function LocationDetailPage() {
 
   // Operator CRUD
   const openCreateOperator = () => {
-    setOperatorForm({ name: '', pin: '' });
+    setOperatorForm({ name: '', email: '', password: '' });
     setOperatorError('');
     setOperatorModal({ mode: 'create' });
   };
 
   const openEditOperator = (operator: Operator) => {
-    setOperatorForm({ name: operator.name, pin: '' });
+    setOperatorForm({ name: operator.name, email: operator.email || '', password: '' });
     setOperatorError('');
     setOperatorModal({ mode: 'edit', operator });
   };
@@ -400,14 +401,26 @@ export default function LocationDetailPage() {
       return;
     }
 
-    if (operatorModal?.mode === 'create' && operatorForm.pin.length !== 4) {
-      setOperatorError('A PIN kódnak 4 számjegyűnek kell lennie');
-      return;
+    if (operatorModal?.mode === 'create') {
+      if (!operatorForm.email.trim() || !operatorForm.email.includes('@')) {
+        setOperatorError('Érvényes email cím megadása kötelező');
+        return;
+      }
+      if (!operatorForm.password || operatorForm.password.length < 6) {
+        setOperatorError('A jelszónak legalább 6 karakter hosszúnak kell lennie');
+        return;
+      }
     }
 
-    if (operatorModal?.mode === 'edit' && operatorForm.pin && operatorForm.pin.length !== 4) {
-      setOperatorError('A PIN kódnak 4 számjegyűnek kell lennie');
-      return;
+    if (operatorModal?.mode === 'edit') {
+      if (operatorForm.email.trim() && !operatorForm.email.includes('@')) {
+        setOperatorError('Érvényes email cím megadása kötelező');
+        return;
+      }
+      if (operatorForm.password && operatorForm.password.length < 6) {
+        setOperatorError('A jelszónak legalább 6 karakter hosszúnak kell lennie');
+        return;
+      }
     }
 
     setSavingOperator(true);
@@ -417,14 +430,18 @@ export default function LocationDetailPage() {
       if (operatorModal?.mode === 'create') {
         await networkAdminApi.createLocationOperator(locationId, {
           name: operatorForm.name.trim(),
-          pin: operatorForm.pin,
+          email: operatorForm.email.trim(),
+          password: operatorForm.password,
         });
       } else if (operatorModal?.mode === 'edit' && operatorModal.operator) {
-        const updateData: { name?: string; pin?: string } = {
+        const updateData: { name?: string; email?: string; password?: string } = {
           name: operatorForm.name.trim(),
         };
-        if (operatorForm.pin) {
-          updateData.pin = operatorForm.pin;
+        if (operatorForm.email.trim()) {
+          updateData.email = operatorForm.email.trim();
+        }
+        if (operatorForm.password) {
+          updateData.password = operatorForm.password;
         }
         await networkAdminApi.updateLocationOperator(operatorModal.operator.id, updateData);
       }
@@ -1252,7 +1269,10 @@ export default function LocationDetailPage() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">{operator.name}</p>
-                    <p className="text-sm text-gray-500">
+                    {operator.email && (
+                      <p className="text-sm text-gray-600">{operator.email}</p>
+                    )}
+                    <p className="text-xs text-gray-400">
                       Létrehozva: {new Date(operator.createdAt).toLocaleDateString('hu-HU')}
                     </p>
                   </div>
@@ -1313,8 +1333,7 @@ export default function LocationDetailPage() {
         {/* Info box */}
         <div className="mt-4 bg-blue-50 rounded-xl p-4">
           <p className="text-sm text-blue-700">
-            <strong>Tipp:</strong> Minden operátor saját PIN kóddal jelentkezik be az Operátor Portálra.
-            A helyszín kódja ({location.code}) és az egyedi PIN kód együtt azonosítja az operátort.
+            <strong>Tipp:</strong> Minden operátor saját email címmel és jelszóval jelentkezik be az Operátor Portálra.
           </p>
         </div>
       </div>
@@ -1575,18 +1594,32 @@ export default function LocationDetailPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  PIN kód {operatorModal.mode === 'create' ? '*' : '(hagyd üresen, ha nem változik)'}
+                  Email cím {operatorModal.mode === 'create' ? '*' : ''}
+                </label>
+                <input
+                  type="email"
+                  value={operatorForm.email}
+                  onChange={(e) => setOperatorForm({ ...operatorForm, email: e.target.value })}
+                  placeholder="operator@example.com"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+                />
+                {operatorModal.mode === 'edit' && (
+                  <p className="text-xs text-gray-500 mt-1">Az operátor ezzel az email címmel tud bejelentkezni</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Jelszó {operatorModal.mode === 'create' ? '*' : '(hagyd üresen, ha nem változik)'}
                 </label>
                 <input
                   type="password"
-                  inputMode="numeric"
-                  value={operatorForm.pin}
-                  onChange={(e) => setOperatorForm({ ...operatorForm, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                  placeholder="••••"
-                  className="w-full px-4 py-3 text-xl text-center tracking-[0.5em] font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-                  maxLength={4}
+                  value={operatorForm.password}
+                  onChange={(e) => setOperatorForm({ ...operatorForm, password: e.target.value })}
+                  placeholder={operatorModal.mode === 'create' ? 'Min. 6 karakter' : '••••••'}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">4 számjegyű PIN kód</p>
+                <p className="text-xs text-gray-500 mt-1">Legalább 6 karakter hosszú jelszó</p>
               </div>
 
               {operatorError && (

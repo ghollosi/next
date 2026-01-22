@@ -88,14 +88,14 @@ export default function NetworkAdminDashboardPage() {
         (w) => w.status === 'COMPLETED'
       );
 
-      // Calculate today's revenue (only completed/locked washes)
+      // Calculate today's revenue (all washes except REJECTED)
       const todayRevenue = todayWashes
-        .filter((w) => w.status === 'COMPLETED' || w.status === 'LOCKED')
+        .filter((w) => w.status !== 'REJECTED')
         .reduce((sum, w) => sum + (w.totalPrice ? parseFloat(w.totalPrice) : 0), 0);
 
-      // Calculate monthly revenue (only completed/locked washes)
+      // Calculate monthly revenue (all washes except REJECTED)
       const monthlyRevenue = allWashEvents
-        .filter((w) => new Date(w.createdAt) >= monthStart && (w.status === 'COMPLETED' || w.status === 'LOCKED'))
+        .filter((w) => new Date(w.createdAt) >= monthStart && w.status !== 'REJECTED')
         .reduce((sum, w) => sum + (w.totalPrice ? parseFloat(w.totalPrice) : 0), 0);
 
       setStats({

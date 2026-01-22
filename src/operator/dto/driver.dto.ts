@@ -37,10 +37,10 @@ export class CreateDriverDto {
   @IsString()
   email?: string;
 
-  @ApiProperty({ description: 'PIN kód (minimum 4 karakter)' })
+  @ApiProperty({ description: 'Jelszó (minimum 6 karakter)' })
   @IsString()
-  @MinLength(4, { message: 'PIN must be at least 4 characters' })
-  pin: string;
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  password: string;
 }
 
 export class UpdateDriverDto {

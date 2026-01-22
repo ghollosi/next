@@ -1038,7 +1038,7 @@ export class NetworkAdminController {
   })
   async createLocationOperator(
     @Param('locationId') locationId: string,
-    @Body() dto: { name: string; pin: string },
+    @Body() dto: { name: string; email: string; password: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
     const { networkId } = await this.validateAuth(auth);
@@ -1054,7 +1054,7 @@ export class NetworkAdminController {
   })
   async updateOperator(
     @Param('id') id: string,
-    @Body() dto: { name?: string; pin?: string; isActive?: boolean },
+    @Body() dto: { name?: string; email?: string; password?: string; isActive?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
     const { networkId } = await this.validateAuth(auth);
