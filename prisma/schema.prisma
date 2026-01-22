@@ -515,6 +515,7 @@ model PartnerCompany {
   email       String?
   phone       String?
   pinHash     String?  @map("pin_hash") // Hashelt PIN a partner portal autentikációhoz
+  passwordHash String? @map("password_hash") // Jelszó hash (email+jelszó authhoz)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -591,6 +592,7 @@ model Driver {
   phone            String?
   email            String?
   pinHash          String   @map("pin_hash") // Hashed PIN for PWA authentication
+  passwordHash     String?  @map("password_hash") // Jelszó hash (email+jelszó authhoz)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -1619,7 +1621,9 @@ model LocationOperator {
   networkId  String   @map("network_id")
   locationId String   @map("location_id")
   name       String                        // Operátor neve
+  email      String?                       // Email cím (opcionális, majd kötelező lesz)
   pinHash    String   @map("pin_hash")     // Hashelt PIN kód
+  passwordHash String? @map("password_hash") // Jelszó hash (email+jelszó authhoz)
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
