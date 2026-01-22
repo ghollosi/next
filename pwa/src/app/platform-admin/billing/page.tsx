@@ -24,6 +24,7 @@ interface UsagePreview {
   network: Network;
   periodStart: string;
   periodEnd: string;
+  locationCount: number;
   baseMonthlyFee: number;
   washCount: number;
   perWashFee: number;
@@ -527,7 +528,7 @@ export default function PlatformBillingPage() {
                   <h3 className="text-sm font-medium text-white">Számla előnézet</h3>
                   <div className="text-sm text-gray-300 space-y-1">
                     <div className="flex justify-between">
-                      <span>Havi alap díj:</span>
+                      <span>Havi alapdíj ({usagePreview.locationCount || 0} mosó):</span>
                       <span>{formatCurrency(usagePreview.baseMonthlyFee)}</span>
                     </div>
                     <div className="flex justify-between">

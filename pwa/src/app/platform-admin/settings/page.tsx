@@ -465,9 +465,9 @@ export default function PlatformSettingsPage() {
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <label className="block text-sm font-medium text-gray-300">
-                  Alap havi díj (Ft)
+                  Havi alapdíj / mosó (Ft)
                 </label>
-                <HelpTooltip text="A havi előfizetési alapdíj hálózatonként forintban. Ez minden hónap elején automatikusan számlázásra kerül." />
+                <HelpTooltip text="A havi előfizetési alapdíj mosónként (helyszínenként) forintban. A hálózat összes aktív helyszíne után számítódik: alapdíj × helyszínek száma." />
               </div>
               <input
                 type="number"

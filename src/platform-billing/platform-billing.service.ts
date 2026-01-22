@@ -142,7 +142,8 @@ export class PlatformBillingService {
     });
 
     // Calculate fees (use custom pricing if set, otherwise platform defaults)
-    const baseMonthlyFee = network.customMonthlyFee
+    // Havi alapdíj: alapdíj × helyszínek száma (minden aktív mosóért külön díj)
+    const baseMonthlyFeePerLocation = network.customMonthlyFee
       ? Number(network.customMonthlyFee)
       : Number(platformSettings.baseMonthlyFee);
 
@@ -150,7 +151,8 @@ export class PlatformBillingService {
       ? Number(network.customPerWashFee)
       : Number(platformSettings.perWashFee);
 
-    const baseFeeDue = baseMonthlyFee;
+    // Havi alapdíj = alapdíj/mosó × aktív helyszínek száma
+    const baseFeeDue = baseMonthlyFeePerLocation * locationCount;
     const washFeeDue = washCount * perWashFee;
     const totalDue = baseFeeDue + washFeeDue;
 
@@ -240,15 +242,16 @@ export class PlatformBillingService {
       itemType: string;
     }> = [];
 
-    // Base monthly fee
-    if (usage.baseFeeDue > 0) {
+    // Base monthly fee - per location
+    if (usage.baseFeeDue > 0 && usage.locationCount > 0) {
+      const perLocationFee = usage.baseFeeDue / usage.locationCount;
       items.push({
-        description: `vSys Platform - Havi alapdíj (${periodStart.toISOString().split('T')[0]} - ${periodEnd.toISOString().split('T')[0]})`,
-        quantity: 1,
-        unitPrice: usage.baseFeeDue,
+        description: `vSys Platform - Havi alapdíj (${periodStart.toISOString().split('T')[0]} - ${periodEnd.toISOString().split('T')[0]}) - ${usage.locationCount} mosó`,
+        quantity: usage.locationCount,
+        unitPrice: perLocationFee,
         totalPrice: usage.baseFeeDue,
         vatRate: 27,
-        unit: 'hó',
+        unit: 'db',
         itemType: 'BASE_FEE',
       });
     }

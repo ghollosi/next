@@ -201,6 +201,7 @@ interface UsagePreview {
   network: NetworkListItem;
   periodStart: string;
   periodEnd: string;
+  locationCount: number;
   baseMonthlyFee: number;
   washCount: number;
   perWashFee: number;

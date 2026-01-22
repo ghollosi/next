@@ -3,8 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vemiax - Járműmosó Menedzsment Rendszer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <meta name="description" content="VEMIAX - Modern járműmosó menedzsment rendszer. Valós idejű nyomon követés, automatikus számlázás, részletes riportok fuvarozó cégeknek és mosóhálózatoknak.">
+    <meta name="keywords" content="járműmosó, kamionmosó, flottakezelés, fuvarozás, számlázás, menedzsment rendszer">
+    <meta property="og:title" content="VEMIAX - Járműmosó Menedzsment Rendszer">
+    <meta property="og:description" content="Modern járműmosó menedzsment rendszer autómosóknak, fuvarozó cégeknek és mosóhálózatoknak.">
+    <meta property="og:image" content="https://www.vemiax.com/icon-512.png">
+    <title>VEMIAX - Járműmosó Menedzsment Rendszer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -25,13 +34,14 @@
         
         /* Header */
         header {
-            padding: 20px 0;
+            padding: 16px 0;
             position: fixed;
             width: 100%;
             top: 0;
             z-index: 100;
-            background: rgba(13, 27, 42, 0.9);
+            background: rgba(13, 27, 42, 0.95);
             backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(79, 195, 247, 0.1);
         }
         nav {
             display: flex;
@@ -39,176 +49,586 @@
             align-items: center;
         }
         .logo {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
             color: #4fc3f7;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+        .logo img {
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+        }
+        .nav-links {
+            display: flex;
+            align-items: center;
         }
         .nav-links a {
-            color: #fff;
+            color: #b0bec5;
             text-decoration: none;
-            margin-left: 30px;
+            margin-left: 28px;
             font-weight: 500;
+            font-size: 15px;
             transition: color 0.3s;
         }
         .nav-links a:hover {
             color: #4fc3f7;
         }
         .btn-login {
-            background: #4fc3f7;
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
             color: #0d1b2a;
-            padding: 10px 24px;
+            padding: 10px 22px;
             border-radius: 8px;
             font-weight: 600;
+            margin-left: 20px;
+        }
+        .btn-login:hover {
+            box-shadow: 0 4px 15px rgba(79, 195, 247, 0.4);
         }
         
         /* Hero */
         .hero {
-            padding: 160px 0 100px;
+            padding: 140px 0 80px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(79, 195, 247, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        .hero-badge {
+            display: inline-block;
+            background: rgba(79, 195, 247, 0.15);
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            color: #4fc3f7;
+            margin-bottom: 24px;
         }
         .hero h1 {
-            font-size: 3.5rem;
+            font-size: 3.8rem;
             margin-bottom: 24px;
-            line-height: 1.2;
+            line-height: 1.15;
+            font-weight: 800;
         }
         .hero h1 span {
-            color: #4fc3f7;
+            background: linear-gradient(135deg, #4fc3f7 0%, #81d4fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         .hero p {
-            font-size: 1.25rem;
+            font-size: 1.3rem;
             color: #b0bec5;
-            max-width: 600px;
+            max-width: 650px;
             margin: 0 auto 40px;
+            line-height: 1.7;
         }
         .hero-buttons {
             display: flex;
             gap: 16px;
             justify-content: center;
             flex-wrap: wrap;
+            margin-bottom: 60px;
         }
         .btn-primary {
-            background: #4fc3f7;
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
             color: #0d1b2a;
-            padding: 16px 32px;
-            border-radius: 10px;
+            padding: 16px 36px;
+            border-radius: 12px;
             text-decoration: none;
             font-weight: 600;
             font-size: 1.1rem;
             transition: transform 0.3s, box-shadow 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(79, 195, 247, 0.35);
+        }
+        .btn-green {
+            background: linear-gradient(135deg, #4caf50 0%, #43a047 100%);
+        }
+        .btn-green:hover {
+            box-shadow: 0 15px 35px rgba(76, 175, 80, 0.35);
         }
         .btn-secondary {
             background: transparent;
-            border: 2px solid #4fc3f7;
+            border: 2px solid rgba(79, 195, 247, 0.5);
             color: #4fc3f7;
-            padding: 14px 32px;
-            border-radius: 10px;
+            padding: 14px 36px;
+            border-radius: 12px;
             text-decoration: none;
             font-weight: 600;
             font-size: 1.1rem;
             transition: all 0.3s;
         }
         .btn-secondary:hover {
-            background: #4fc3f7;
-            color: #0d1b2a;
+            background: rgba(79, 195, 247, 0.1);
+            border-color: #4fc3f7;
+        }
+
+        /* Trusted by */
+        .trusted {
+            text-align: center;
+            padding: 40px 0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .trusted p {
+            color: #546e7a;
+            font-size: 14px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .trusted-logos {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            flex-wrap: wrap;
+            opacity: 0.6;
+        }
+        .trusted-logos span {
+            font-size: 18px;
+            font-weight: 600;
+            color: #78909c;
+        }
+        
+        /* Problem/Solution Section */
+        .problem-solution {
+            padding: 80px 0;
+            background: rgba(0,0,0,0.2);
+        }
+        .ps-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+        .ps-card {
+            padding: 40px;
+            border-radius: 20px;
+        }
+        .ps-card.problem {
+            background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.05) 100%);
+            border: 1px solid rgba(244, 67, 54, 0.2);
+        }
+        .ps-card.solution {
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%);
+            border: 1px solid rgba(76, 175, 80, 0.2);
+        }
+        .ps-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ps-card.problem h3 { color: #ef5350; }
+        .ps-card.solution h3 { color: #66bb6a; }
+        .ps-card ul {
+            list-style: none;
+        }
+        .ps-card li {
+            padding: 12px 0;
+            color: #b0bec5;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        .ps-card li::before {
+            content: '✗';
+            color: #ef5350;
+            font-weight: bold;
+        }
+        .ps-card.solution li::before {
+            content: '✓';
+            color: #66bb6a;
         }
         
         /* Features */
         .features {
-            padding: 80px 0;
+            padding: 100px 0;
         }
-        .features h2 {
+        .section-header {
             text-align: center;
-            font-size: 2.5rem;
             margin-bottom: 60px;
+        }
+        .section-header h2 {
+            font-size: 2.8rem;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+        .section-header p {
+            color: #78909c;
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
         }
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
         }
         .feature-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 32px;
-            transition: transform 0.3s, border-color 0.3s;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 36px;
+            transition: all 0.3s;
         }
         .feature-card:hover {
-            transform: translateY(-5px);
-            border-color: #4fc3f7;
+            transform: translateY(-8px);
+            border-color: rgba(79, 195, 247, 0.3);
+            background: rgba(79, 195, 247, 0.05);
         }
         .feature-icon {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
-            border-radius: 12px;
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, rgba(79, 195, 247, 0.2) 0%, rgba(79, 195, 247, 0.1) 100%);
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 20px;
-            font-size: 28px;
+            margin-bottom: 24px;
+            font-size: 32px;
         }
         .feature-card h3 {
-            font-size: 1.3rem;
+            font-size: 1.25rem;
             margin-bottom: 12px;
+            font-weight: 600;
         }
         .feature-card p {
-            color: #b0bec5;
+            color: #90a4ae;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        /* How it works */
+        .how-it-works {
+            padding: 100px 0;
+            background: rgba(0,0,0,0.15);
+        }
+        .steps {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+        }
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 40px;
+            left: 15%;
+            right: 15%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #4fc3f7, transparent);
+        }
+        .step {
+            text-align: center;
+            flex: 1;
+            padding: 0 20px;
+            position: relative;
+        }
+        .step-number {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: #0d1b2a;
+            margin: 0 auto 24px;
+            position: relative;
+            z-index: 1;
+        }
+        .step h3 {
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+        }
+        .step p {
+            color: #78909c;
+            font-size: 14px;
             line-height: 1.6;
         }
         
         /* Stats */
         .stats {
-            padding: 60px 0;
-            background: rgba(79, 195, 247, 0.1);
+            padding: 80px 0;
+            background: linear-gradient(135deg, rgba(79, 195, 247, 0.15) 0%, rgba(79, 195, 247, 0.05) 100%);
         }
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 40px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 30px;
             text-align: center;
         }
+        .stat-item {
+            padding: 20px;
+        }
         .stat-number {
-            font-size: 3rem;
-            font-weight: 700;
-            color: #4fc3f7;
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #4fc3f7 0%, #81d4fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
         }
         .stat-label {
-            color: #b0bec5;
+            color: #90a4ae;
             margin-top: 8px;
+            font-size: 14px;
+        }
+
+        /* Pricing hint */
+        .pricing-hint {
+            padding: 80px 0;
+            text-align: center;
+        }
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 32px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .pricing-card {
+            
+            margin: 0 auto;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(79, 195, 247, 0.2);
+            border-radius: 24px;
+            padding: 48px;
+        }
+        .pricing-card h3 {
+            font-size: 1.8rem;
+            margin-bottom: 16px;
+        }
+        .pricing-card .price {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #4fc3f7;
+            margin-bottom: 8px;
+        }
+        .pricing-card .price span {
+            font-size: 1rem;
+            font-weight: 400;
+            color: #78909c;
+        }
+        .pricing-card .trial {
+            background: rgba(76, 175, 80, 0.2);
+            color: #66bb6a;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: inline-block;
+            margin-bottom: 24px;
+        }
+        .pricing-features {
+            text-align: left;
+            margin: 24px 0;
+        }
+        .pricing-features li {
+            padding: 10px 0;
+            color: #b0bec5;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .pricing-features li::before {
+            content: '✓';
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+
+        /* Portals/Login Section */
+        .portals {
+            padding: 100px 0;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .portals-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+        }
+        .portal-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 28px 20px;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.3s;
+            display: block;
+            text-align: center;
+        }
+        .portal-card:hover {
+            transform: translateY(-5px);
+            border-color: #4fc3f7;
+            background: rgba(79, 195, 247, 0.08);
+        }
+        .portal-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 26px;
+        }
+        .portal-icon.purple { background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); }
+        .portal-icon.blue { background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%); }
+        .portal-icon.green { background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%); }
+        .portal-icon.orange { background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); }
+        .portal-icon.cyan { background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%); }
+        .portal-card h3 {
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+        .portal-card p {
+            color: #78909c;
+            font-size: 13px;
+            line-height: 1.4;
         }
         
+        /* Testimonial */
+        .testimonial {
+            padding: 80px 0;
+        }
+        .testimonial-card {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+            padding: 48px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .testimonial-card blockquote {
+            font-size: 1.4rem;
+            line-height: 1.8;
+            color: #cfd8dc;
+            margin-bottom: 24px;
+            font-style: italic;
+        }
+        .testimonial-author {
+            color: #4fc3f7;
+            font-weight: 600;
+        }
+        .testimonial-role {
+            color: #78909c;
+            font-size: 14px;
+        }
+
         /* CTA */
         .cta {
             padding: 100px 0;
             text-align: center;
+            position: relative;
+        }
+        .cta::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(79, 195, 247, 0.15) 0%, transparent 60%);
+            pointer-events: none;
         }
         .cta h2 {
-            font-size: 2.5rem;
+            font-size: 2.8rem;
             margin-bottom: 20px;
         }
         .cta p {
-            color: #b0bec5;
+            color: #90a4ae;
             font-size: 1.2rem;
             margin-bottom: 40px;
+            
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
         
         /* Footer */
         footer {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 40px 0;
-            text-align: center;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 60px 0 30px;
         }
-        footer p {
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        .footer-brand .logo {
+            margin-bottom: 16px;
+        }
+        .footer-brand p {
             color: #78909c;
+            font-size: 14px;
+            line-height: 1.6;
         }
-        footer a {
-            color: #4fc3f7;
+        .footer-col h4 {
+            color: #fff;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        .footer-col a {
+            display: block;
+            color: #78909c;
             text-decoration: none;
+            padding: 6px 0;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+        .footer-col a:hover {
+            color: #4fc3f7;
+        }
+        .footer-bottom {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .footer-bottom p {
+            color: #546e7a;
+            font-size: 13px;
+        }
+        .footer-bottom a {
+            color: #78909c;
+            text-decoration: none;
+            margin-left: 24px;
+            font-size: 13px;
         }
         
         /* Mobile Menu Button */
@@ -239,9 +659,26 @@
         }
 
         /* Mobile */
+        @media (max-width: 1024px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .portals-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .footer-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
         @media (max-width: 768px) {
             .hero h1 {
-                font-size: 2.2rem;
+                font-size: 2.4rem;
+            }
+            .hero p {
+                font-size: 1.1rem;
             }
             .mobile-menu-btn {
                 display: block;
@@ -266,8 +703,53 @@
                 padding: 12px;
                 display: block;
             }
-            .features h2, .cta h2 {
-                font-size: 1.8rem;
+            .section-header h2 {
+                font-size: 2rem;
+            }
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            .ps-grid {
+                grid-template-columns: 1fr;
+            }
+            .steps {
+                flex-direction: column;
+                gap: 40px;
+            }
+            .steps::before {
+                display: none;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .portals-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .footer-grid {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+            .footer-bottom a {
+                margin: 8px 12px;
+            }
+            .logo img {
+                width: 32px;
+                height: 32px;
+            }
+        }
+        @media (max-width: 480px) {
+            .portals-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .pricing-cards {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -276,7 +758,10 @@
     <header>
         <div class="container">
             <nav>
-                <div class="logo">Vemiax</div>
+                <a href="/" class="logo">
+                    <img src="/icon-192.png" alt="VEMIAX Logo">
+                    VEMIAX
+                </a>
                 <button class="mobile-menu-btn" onclick="toggleMenu()" aria-label="Menü">
                     <span></span>
                     <span></span>
@@ -284,8 +769,10 @@
                 </button>
                 <div class="nav-links" id="navLinks">
                     <a href="#features" onclick="closeMenu()">Funkciók</a>
-                    <a href="#about" onclick="closeMenu()">Rólunk</a>
-                    <a href="https://app.vemiax.com/network-admin" class="btn-login">Belépés</a>
+                    <a href="#how-it-works" onclick="closeMenu()">Hogyan működik</a>
+                    <a href="#pricing" onclick="closeMenu()">Árak</a>
+                    <a href="#portals" onclick="closeMenu()">Belépés</a>
+                    <a href="https://app.vemiax.com/login" class="btn-login">Sofőr belépés</a>
                 </div>
             </nav>
         </div>
@@ -293,48 +780,140 @@
 
     <section class="hero">
         <div class="container">
+            <div class="hero-badge">🚀 30 napos ingyenes próbaidőszak</div>
             <h1>Modern <span>járműmosó</span><br>menedzsment rendszer</h1>
-            <p>Egyszerűsítse járműmosó hálózata működését. Valós idejű nyomon követés, automatikus számlázás, részletes riportok - egy helyen.</p>
+            <p>Egyszerűsítse járműmosó hálózata működését. Valós idejű nyomon követés, automatikus számlázás, részletes riportok - minden egy helyen, mobiltelefonról elérhető.</p>
             <div class="hero-buttons">
-                <a href="https://app.vemiax.com/network-admin" class="btn-primary">Próbálja ki ingyen</a>
-                <a href="#features" class="btn-secondary">További információ</a>
+                <a href="https://app.vemiax.com/network-admin/register" class="btn-primary btn-green">🚀 Próbáld ki ingyen</a>
+                <a href="#features" class="btn-secondary">Részletek megtekintése</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="trusted">
+        <div class="container">
+            <p>Megbízható megoldás professzionális felhasználóknak</p>
+            <div class="trusted-logos">
+                <span>🚿 Autómosóknak</span>
+                <span>🚛 Fuvarozók</span>
+                <span>🏢 Mosóhálózatok</span>
+                <span>🚚 Flottakezelők</span>
+                <span>🏭 Logisztikai cégek</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="problem-solution">
+        <div class="container">
+            <div class="ps-grid">
+                <div class="ps-card problem">
+                    <h3>❌ Nélkülünk</h3>
+                    <ul>
+                        <li>Papír alapú nyilvántartás, elveszett blokkok</li>
+                        <li>Kézi számlázás minden hónap végén</li>
+                        <li>Nincs rálátás a költségekre valós időben</li>
+                        <li>Telefonos egyeztetés minden mosásnál</li>
+                        <li>Excel táblák karbantartása órákig</li>
+                        <li>Partner viták hiányos adatok miatt</li>
+                    </ul>
+                </div>
+                <div class="ps-card solution">
+                    <h3>✅ VEMIAX-szal</h3>
+                    <ul>
+                        <li>Digitális nyilvántartás, automatikus mentés</li>
+                        <li>Automatikus havi számlázás partnereknek</li>
+                        <li>Valós idejű dashboard minden költségről</li>
+                        <li>QR kód beolvasás, azonnali azonosítás</li>
+                        <li>Automatikus riportok és exportok</li>
+                        <li>Átlátható elszámolás mindkét félnek</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </section>
 
     <section class="features" id="features">
         <div class="container">
-            <h2>Minden ami a sikeres működéshez kell</h2>
+            <div class="section-header">
+                <h2>Minden funkció egy helyen</h2>
+                <p>Teljes körű megoldás járműmosó hálózatok és fuvarozó partnerek számára</p>
+            </div>
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🚛</div>
-                    <h3>Sofőr alkalmazás</h3>
-                    <p>Mobil PWA alkalmazás sofőröknek. QR kód alapú bejelentkezés, mosás indítás egyetlen érintéssel.</p>
+                    <div class="feature-icon">📱</div>
+                    <h3>Sofőr PWA alkalmazás</h3>
+                    <p>Mobil alkalmazás sofőröknek letöltés nélkül. QR kód beolvasás, mosás indítás egyetlen érintéssel, előzmények megtekintése.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🖥️</div>
+                    <h3>Operátor felület</h3>
+                    <p>Egyszerű kezelőfelület a mosó személyzetnek. Rendszám azonosítás, szolgáltatás kiválasztás, azonnali rögzítés.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
                     <h3>Valós idejű dashboard</h3>
-                    <p>Kövesse nyomon az összes helyszín forgalmát, bevételeit és teljesítményét egyetlen felületen.</p>
+                    <p>Kövesse nyomon az összes helyszín forgalmát, bevételeit és teljesítményét egyetlen áttekinthető felületen.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💳</div>
                     <h3>Automatikus számlázás</h3>
-                    <p>Partner cégek automatikus havi számlázása. Stripe integráció az online fizetéshez.</p>
+                    <p>Partner cégek automatikus havi számlázása. Szamlazz.hu integráció, NAV online számla beküldés.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🏢</div>
-                    <h3>Multi-tenant architektúra</h3>
-                    <p>Több mosóhálózat kezelése egyetlen platformról. Mindegyik saját beállításokkal és árazással.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <h3>Operátor felület</h3>
-                    <p>Egyszerű kezelőfelület a mosó személyzetnek. Mosás rögzítés, járműazonosítás pillanatok alatt.</p>
+                    <div class="feature-icon">🌐</div>
+                    <h3>Hálózat kezelés</h3>
+                    <p>Helyszínek, szolgáltatások és árak központi kezelése. Partner cégek meghívása, sofőrök jóváhagyása egy felületen.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📈</div>
                     <h3>Részletes riportok</h3>
-                    <p>Excel export, időszaki összesítők, partner cég statisztikák. Minden adat kéznél.</p>
+                    <p>Excel export, időszaki összesítők, partner statisztikák. Minden adat exportálható, elemezhető.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📅</div>
+                    <h3>Időpontfoglalás</h3>
+                    <p>Online foglalási rendszer sofőröknek és partnereknek. Kapacitás kezelés, emlékeztető értesítések.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔔</div>
+                    <h3>Email értesítések</h3>
+                    <p>Automatikus értesítések foglalásokról, számlákról, jóváhagyásokról. Testreszabható email sablonok.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <h3>Biztonság</h3>
+                    <p>SSL titkosítás, GDPR megfelelőség, rendszeres biztonsági mentések. Audit napló minden műveletről.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <div class="section-header">
+                <h2>Hogyan működik?</h2>
+                <p>Egyszerű beüzemelés, gyors eredmények</p>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Regisztráció</h3>
+                    <p>Hozza létre hálózatát percek alatt. Adja meg helyszíneit, szolgáltatásait és árait.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Partnerek meghívása</h3>
+                    <p>Hívja meg partner cégeit és sofőrjeiket. QR kód vagy meghívó link segítségével.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Mosások rögzítése</h3>
+                    <p>Sofőrök QR kóddal vagy operátorok manuálisan rögzítik a mosásokat.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Automatikus elszámolás</h3>
+                    <p>Hónap végén automatikus számla generálás partnereknek. Nulla adminisztráció.</p>
                 </div>
             </div>
         </div>
@@ -343,41 +922,165 @@
     <section class="stats">
         <div class="container">
             <div class="stats-grid">
-                <div>
+                <div class="stat-item">
                     <div class="stat-number">99.9%</div>
                     <div class="stat-label">Rendelkezésre állás</div>
                 </div>
-                <div>
+                <div class="stat-item">
                     <div class="stat-number">24/7</div>
                     <div class="stat-label">Működés</div>
                 </div>
-                <div>
+                <div class="stat-item">
+                    <div class="stat-number">&lt;3s</div>
+                    <div class="stat-label">Válaszidő</div>
+                </div>
+                <div class="stat-item">
                     <div class="stat-number">GDPR</div>
                     <div class="stat-label">Megfelelőség</div>
                 </div>
-                <div>
+                <div class="stat-item">
                     <div class="stat-number">SSL</div>
-                    <div class="stat-label">Biztonság</div>
+                    <div class="stat-label">Titkosítás</div>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="cta" id="about">
+    <section class="pricing-hint" id="pricing">
         <div class="container">
-            <h2>Készen áll a hatékonyabb működésre?</h2>
-            <p>Vegye fel velünk a kapcsolatot és kezdje el a próbaidőszakot még ma.</p>
-            <a href="mailto:info@vemiax.com" class="btn-primary">Kapcsolat: info@vemiax.com</a>
+            <div class="section-header">
+                <h2>Egyszerű, átlátható árazás</h2>
+                <p>Nincs rejtett költség, nincs hosszú távú elköteleződés</p>
+            </div>
+            <div class="pricing-cards"><div class="pricing-card">
+                <div class="trial">🎉 30 nap ingyenes próbaidőszak</div>
+                <h3>Járműmosó csomag</h3>
+                <div class="price">49.000 Ft <span>/ hó</span></div>
+                <ul class="pricing-features">
+                    <li>1 mosóhelyszín</li>
+                    <li>Korlátlan partner és sofőr</li>
+                    <li>Korlátlan mosás rögzítés</li>
+                    <li>Automatikus számlázás</li>
+                    <li>Email értesítések</li>
+                    <li>Részletes riportok és export</li>
+                    <li>Email support</li>
+                </ul>
+                <a href="https://app.vemiax.com/network-admin/register" class="btn-primary btn-green" style="width: 100%; justify-content: center;">Ingyenes próba indítása</a>
+            </div>
+            <div class="pricing-card">
+                <div class="trial">🎉 30 nap ingyenes próbaidőszak</div>
+                <h3>Hálózati csomag</h3>
+                <div class="price">39.000 Ft <span>/ mosó / hó</span></div>
+                <ul class="pricing-features">
+                    <li>Korlátlan helyszín</li>
+                    <li>Korlátlan partner és sofőr</li>
+                    <li>Korlátlan mosás rögzítés</li>
+                    <li>Automatikus számlázás</li>
+                    <li>Email értesítések</li>
+                    <li>Részletes riportok és export</li>
+                    <li>Prioritásos support</li>
+                </ul>
+                <a href="https://app.vemiax.com/network-admin/register" class="btn-primary btn-green" style="width: 100%; justify-content: center;">Ingyenes próba indítása</a>
+            </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="testimonial">
+        <div class="container">
+            <div class="testimonial-card">
+                <blockquote>
+                    "A VEMIAX rendszer bevezetésével jelentősen csökkent az adminisztrációs terhelés. A partnerekkel való elszámolás átlátható lett, nincs több vita a mosások számáról. A sofőrök is szeretik az egyszerű mobilos felületet."
+                </blockquote>
+                
+                
+            </div>
+        </div>
+    </section>
+
+    <section class="portals" id="portals">
+        <div class="container">
+            <div class="section-header">
+                <h2>Belépés a rendszerbe</h2>
+                <p>Válassza ki a megfelelő portált szerepkörének megfelelően</p>
+            </div>
+            <div class="portals-grid">
+                <a href="https://app.vemiax.com/platform-admin" class="portal-card">
+                    <div class="portal-icon purple">🛡️</div>
+                    <h3>Platform Admin</h3>
+                    <p>Platform tulajdonos, hálózatok kezelése</p>
+                </a>
+                <a href="https://app.vemiax.com/network-admin" class="portal-card">
+                    <div class="portal-icon blue">🏢</div>
+                    <h3>Network Admin</h3>
+                    <p>Hálózat adminisztráció, beállítások</p>
+                </a>
+                <a href="https://app.vemiax.com/operator-portal/login" class="portal-card">
+                    <div class="portal-icon green">🔄</div>
+                    <h3>Operátor</h3>
+                    <p>Mosások rögzítése, naptár</p>
+                </a>
+                <a href="https://app.vemiax.com/partner/login" class="portal-card">
+                    <div class="portal-icon orange">💰</div>
+                    <h3>Partner</h3>
+                    <p>Számlák, költségek nyomon követése</p>
+                </a>
+                <a href="https://app.vemiax.com/login" class="portal-card">
+                    <div class="portal-icon cyan">👤</div>
+                    <h3>Sofőr</h3>
+                    <p>Mosás indítás, előzmények</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2>Készen áll a váltásra?</h2>
+            <p>Próbálja ki 30 napig ingyenesen, kötöttségek nélkül. Segítünk a beüzemelésben.</p>
+            <div class="cta-buttons">
+                <a href="https://app.vemiax.com/network-admin/register" class="btn-primary btn-green">🚀 Ingyenes próba indítása</a>
+                <a href="mailto:info@vemiax.com" class="btn-secondary">📧 Kérdése van? Írjon nekünk</a>
+            </div>
         </div>
     </section>
 
     <footer>
         <div class="container">
-            <p>&copy; 2026 Vemiax. Minden jog fenntartva.</p>
-            <p style="margin-top: 10px;">
-                <a href="https://app.vemiax.com/network-admin">Mosóhálózat kezelés</a> · 
-                <a href="https://app.vemiax.com/platform-admin">Platform Admin</a>
-            </p>
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="logo">
+                        <img src="/icon-192.png" alt="VEMIAX Logo">
+                        VEMIAX
+                    </a>
+                    <p>Modern járműmosó menedzsment rendszer autómosóknak, fuvarozó cégeknek és mosóhálózatoknak. Automatizálja az adminisztrációt, növelje a hatékonyságot.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Termék</h4>
+                    <a href="#features">Funkciók</a>
+                    <a href="#pricing">Árazás</a>
+                    <a href="#how-it-works">Hogyan működik</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Portálok</h4>
+                    <a href="https://app.vemiax.com/network-admin">Network Admin</a>
+                    <a href="https://app.vemiax.com/operator-portal/login">Operátor</a>
+                    <a href="https://app.vemiax.com/partner/login">Partner</a>
+                    <a href="https://app.vemiax.com/login">Sofőr</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Kapcsolat</h4>
+                    <a href="mailto:info@vemiax.com">info@vemiax.com</a>
+                    <a href="https://app.vemiax.com/network-admin/register">Regisztráció</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 VEMIAX. Minden jog fenntartva.</p>
+                <div>
+                    <a href="/privacy.html">Adatvédelmi irányelvek</a>
+                    <a href="/terms.html">Felhasználási feltételek</a>
+                </div>
+            </div>
         </div>
     </footer>
 
@@ -405,6 +1108,16 @@
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
+        });
+
+        // Header scroll effect
+        window.addEventListener('scroll', function() {
+            const header = document.querySelector('header');
+            if (window.scrollY > 50) {
+                header.style.background = 'rgba(13, 27, 42, 0.98)';
+            } else {
+                header.style.background = 'rgba(13, 27, 42, 0.95)';
+            }
         });
     </script>
 </body>

@@ -761,10 +761,11 @@ export default function NetworkDetailPage() {
             <h2 className="text-lg font-semibold text-white mb-4">Jelenlegi árazás</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gray-700/50 rounded-lg p-4">
-                <p className="text-sm text-gray-400 mb-1">Havi alapdíj</p>
+                <p className="text-sm text-gray-400 mb-1">Havi alapdíj / mosó</p>
                 <p className="text-2xl font-bold text-white">
                   {formatCurrency(network.effectiveMonthlyFee)}
                 </p>
+                <p className="text-xs text-gray-500 mt-1">× {network.locationCount} helyszín = {formatCurrency(network.effectiveMonthlyFee * network.locationCount)}</p>
                 {network.customMonthlyFee !== null && (
                   <p className="text-xs text-indigo-400 mt-1">Egyedi ár (platform: {formatCurrency(network.platformMonthlyFee || 0)})</p>
                 )}
@@ -805,7 +806,7 @@ export default function NetworkDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-700">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Egyedi havi alapdíj (HUF)
+                      Egyedi havi alapdíj / mosó (HUF)
                     </label>
                     <input
                       type="number"
@@ -814,7 +815,7 @@ export default function NetworkDetailPage() {
                       placeholder={network.platformMonthlyFee?.toString() || '0'}
                       className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Platform alapértelmezett: {formatCurrency(network.platformMonthlyFee || 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Platform alapértelmezett: {formatCurrency(network.platformMonthlyFee || 0)} / mosó</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
