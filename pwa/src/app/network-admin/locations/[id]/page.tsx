@@ -179,7 +179,7 @@ export default function LocationDetailPage() {
 
   // Service Modal
   const [serviceModal, setServiceModal] = useState(false);
-  const [selectedServiceId, setSelectedServiceId] = useState('');
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [addingService, setAddingService] = useState(false);
   const [serviceError, setServiceError] = useState('');
 
@@ -487,14 +487,22 @@ export default function LocationDetailPage() {
 
   // Service functions
   const openAddService = () => {
-    setSelectedServiceId('');
+    setSelectedServiceIds([]);
     setServiceError('');
     setServiceModal(true);
   };
 
-  const addService = async () => {
-    if (!selectedServiceId) {
-      setServiceError('Válassz egy szolgáltatást');
+  const toggleServiceSelection = (serviceId: string) => {
+    setSelectedServiceIds(prev =>
+      prev.includes(serviceId)
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId]
+    );
+  };
+
+  const addServices = async () => {
+    if (selectedServiceIds.length === 0) {
+      setServiceError('Válassz legalább egy szolgáltatást');
       return;
     }
 
@@ -502,7 +510,9 @@ export default function LocationDetailPage() {
     setServiceError('');
 
     try {
-      await networkAdminApi.addLocationService(locationId, selectedServiceId);
+      for (const serviceId of selectedServiceIds) {
+        await networkAdminApi.addLocationService(locationId, serviceId);
+      }
       // Reload services
       const services = await networkAdminApi.listLocationServices(locationId);
       setLocationServices(services);
@@ -527,6 +537,11 @@ export default function LocationDetailPage() {
     } catch (err: any) {
       alert(err.message || 'Hiba történt');
     }
+  };
+
+  // Check if a service has a price set
+  const serviceHasPrice = (serviceId: string): boolean => {
+    return prices.some(p => p.servicePackageId === serviceId);
   };
 
   // Get available services (not yet added to location)
@@ -1410,12 +1425,12 @@ export default function LocationDetailPage() {
           onClick={() => setServiceModal(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full"
+            className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Szolgáltatás hozzáadása</h2>
+                <h2 className="text-xl font-bold text-gray-900">Szolgaltatasok hozzaadasa</h2>
                 <button
                   onClick={() => setServiceModal(false)}
                   className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1425,30 +1440,70 @@ export default function LocationDetailPage() {
                   </svg>
                 </button>
               </div>
+              <p className="text-sm text-gray-500 mt-1">Pipald ki a szolgaltatasokat, amelyeket hozza szeretnel adni a helyszinhez.</p>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Válassz szolgáltatást *
-                </label>
-                {availableServices.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Minden szolgáltatás már hozzá van adva ehhez a helyszínhez.</p>
-                ) : (
-                  <select
-                    value={selectedServiceId}
-                    onChange={(e) => setSelectedServiceId(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-                  >
-                    <option value="">-- Válassz --</option>
-                    {availableServices.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id}>
-                        {pkg.name} ({pkg.code})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-2">
+              {availableServices.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">Minden szolgaltatas mar hozza van adva ehhez a helyszinhez.</p>
+              ) : (
+                <>
+                  {/* Info about disabled services */}
+                  {availableServices.some(pkg => !serviceHasPrice(pkg.id)) && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm mb-4 flex items-start gap-2">
+                      <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <span>A halvany szolgaltatasokhoz meg nincs ar beallitva az <Link href="/network-admin/prices" className="underline font-medium">Arlistaban</Link>. Csak ar beallitasa utan adhatod oket a helyszinhez.</span>
+                    </div>
+                  )}
+
+                  {availableServices.map((pkg) => {
+                    const hasPrice = serviceHasPrice(pkg.id);
+                    const isSelected = selectedServiceIds.includes(pkg.id);
+                    return (
+                      <label
+                        key={pkg.id}
+                        className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                          !hasPrice
+                            ? 'opacity-40 cursor-not-allowed border-gray-100 bg-gray-50'
+                            : isSelected
+                              ? 'border-primary-500 bg-primary-50'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                        onClick={(e) => {
+                          if (!hasPrice) {
+                            e.preventDefault();
+                            return;
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!hasPrice}
+                          onChange={() => hasPrice && toggleServiceSelection(pkg.id)}
+                          className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-30"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium ${hasPrice ? 'text-gray-900' : 'text-gray-400'}`}>
+                            {pkg.name}
+                          </p>
+                          <p className={`text-sm ${hasPrice ? 'text-gray-500' : 'text-gray-300'}`}>
+                            {pkg.code}
+                            {pkg.durationMinutes && ` - ${pkg.durationMinutes} perc`}
+                          </p>
+                        </div>
+                        {!hasPrice && (
+                          <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg whitespace-nowrap">
+                            Nincs ar
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </>
+              )}
 
               {serviceError && (
                 <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm">
@@ -1457,19 +1512,24 @@ export default function LocationDetailPage() {
               )}
             </div>
 
-            <div className="p-6 pt-0 flex gap-3">
+            <div className="p-6 pt-4 border-t border-gray-100 flex gap-3">
               <button
                 onClick={() => setServiceModal(false)}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
               >
-                Mégse
+                Megse
               </button>
               <button
-                onClick={addService}
-                disabled={addingService || availableServices.length === 0}
+                onClick={addServices}
+                disabled={addingService || selectedServiceIds.length === 0}
                 className="flex-1 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:bg-gray-300"
               >
-                {addingService ? 'Hozzáadás...' : 'Hozzáadás'}
+                {addingService
+                  ? 'Hozzaadas...'
+                  : selectedServiceIds.length > 0
+                    ? `${selectedServiceIds.length} szolgaltatas hozzaadasa`
+                    : 'Hozzaadas'
+                }
               </button>
             </div>
           </div>
