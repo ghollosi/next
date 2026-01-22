@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Language } from './types';
 import { t } from './i18n';
-import { validateTesterLogin, setTesterSession, getTesterSession, getTesterByEmail } from './storage';
+import { validateTesterLogin, setTesterSession, getTesterSession } from './api';
 
 export default function TestPortalLoginPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function TestPortalLoginPage() {
     setIsLoading(true);
 
     try {
-      const tester = validateTesterLogin(email, password);
+      const tester = await validateTesterLogin(email, password);
 
       if (!tester) {
         setError(t('login.invalidCredentials', lang));
@@ -54,40 +54,10 @@ export default function TestPortalLoginPage() {
     setIsLoading(true);
 
     try {
-      const tester = getTesterByEmail(email);
-
-      if (!tester) {
-        // Don't reveal if email exists or not for security
-        setSuccess(lang === 'hu'
-          ? 'Ha ez az email regisztrálva van, hamarosan kapsz egy új jelszót.'
-          : 'If this email is registered, you will receive a new password shortly.'
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Request password reset via API
-      const response = await fetch('/api/test-portal/request-password-reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.ok) {
-        setSuccess(lang === 'hu'
-          ? 'Jelszó visszaállítási kérelem elküldve! Az admin hamarosan elküldi az új jelszavadat.'
-          : 'Password reset request sent! The admin will send your new password shortly.'
-        );
-      } else {
-        setSuccess(lang === 'hu'
-          ? 'Ha ez az email regisztrálva van, hamarosan kapsz egy új jelszót.'
-          : 'If this email is registered, you will receive a new password shortly.'
-        );
-      }
-    } catch {
+      // Always show generic message for security
       setSuccess(lang === 'hu'
-        ? 'Ha ez az email regisztrálva van, hamarosan kapsz egy új jelszót.'
-        : 'If this email is registered, you will receive a new password shortly.'
+        ? 'Ha ez az email regisztrálva van, az admin hamarosan elküldi az új jelszavadat.'
+        : 'If this email is registered, the admin will send your new password shortly.'
       );
     } finally {
       setIsLoading(false);

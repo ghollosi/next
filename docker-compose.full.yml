@@ -85,6 +85,9 @@ services:
         - API_URL=http://api:3000
         # Client-side API calls must use HTTPS domain (not IP) to avoid mixed content errors
         - NEXT_PUBLIC_API_URL=https://api.vemiax.com
+        # Test Portal Admin credentials (build-time)
+        - NEXT_PUBLIC_TEST_ADMIN_EMAIL=${NEXT_PUBLIC_TEST_ADMIN_EMAIL:-}
+        - NEXT_PUBLIC_TEST_ADMIN_PASSWORD=${NEXT_PUBLIC_TEST_ADMIN_PASSWORD:-}
     container_name: vsys-pwa
     environment:
       NODE_ENV: production

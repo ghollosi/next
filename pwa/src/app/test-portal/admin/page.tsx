@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Language, Tester, BugReport } from '../types';
+import { Language } from '../types';
 import { t } from '../i18n';
 import {
   isAdminLoggedIn,
@@ -14,14 +14,17 @@ import {
   deleteTester,
   updateTester,
   regenerateTesterPassword,
-  getTesterPassword,
+  sendTesterInvite,
   getBugReports,
   updateBugStatus,
   getTestingStats,
-  exportAllData,
   getFeedback,
-} from '../storage';
-import { TEST_PHASES, TOTAL_ESTIMATED_MINUTES } from '../test-phases';
+  Tester,
+  TestBugReport,
+  TestingStats,
+  TestFeedback,
+} from '../api';
+import { TEST_PHASES } from '../test-phases';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -31,76 +34,79 @@ export default function AdminPage() {
   const [error, setError] = useState('');
   const [lang, setLang] = useState<Language>('hu');
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Admin state
   const [testers, setTesters] = useState<Tester[]>([]);
-  const [bugs, setBugs] = useState<BugReport[]>([]);
-  const [stats, setStats] = useState(getTestingStats());
+  const [bugs, setBugs] = useState<TestBugReport[]>([]);
+  const [feedback, setFeedback] = useState<TestFeedback[]>([]);
+  const [stats, setStats] = useState<TestingStats>({
+    totalTesters: 0,
+    activeTesters: 0,
+    completedTesters: 0,
+    totalBugs: 0,
+    averageRating: 0,
+    completionRate: 0,
+  });
 
   // Add tester form
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTesterName, setNewTesterName] = useState('');
   const [newTesterEmail, setNewTesterEmail] = useState('');
-  const [newTesterLang, setNewTesterLang] = useState<Language>('hu');
+  const [newTesterLang, setNewTesterLang] = useState<'HU' | 'EN'>('HU');
   const [createdTester, setCreatedTester] = useState<Tester | null>(null);
 
   // Edit tester
   const [editingTester, setEditingTester] = useState<Tester | null>(null);
   const [editName, setEditName] = useState('');
-  const [editLang, setEditLang] = useState<Language>('hu');
-  const [showPassword, setShowPassword] = useState<string | null>(null);
+  const [editLang, setEditLang] = useState<'HU' | 'EN'>('HU');
 
   // Active tab
   const [activeTab, setActiveTab] = useState<'testers' | 'bugs' | 'feedback' | 'export'>('testers');
+
+  const loadData = useCallback(async () => {
+    try {
+      const [testersData, bugsData, feedbackData, statsData] = await Promise.all([
+        getTesters(),
+        getBugReports(),
+        getFeedback(),
+        getTestingStats(),
+      ]);
+      setTesters(testersData);
+      setBugs(bugsData);
+      setFeedback(feedbackData);
+      setStats(statsData);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    }
+  }, []);
 
   useEffect(() => {
     if (isAdminLoggedIn()) {
       setIsLoggedIn(true);
       loadData();
     }
-  }, []);
+    setIsLoading(false);
+  }, [loadData]);
 
-  const loadData = () => {
-    setTesters(getTesters());
-    setBugs(getBugReports());
-    setStats(getTestingStats());
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateAdminLogin(email, password)) {
-      setAdminSession();
-      setIsLoggedIn(true);
-      loadData();
-    } else {
-      setError(t('login.invalidCredentials', lang));
-    }
-  };
+    setError('');
+    setIsLoading(true);
 
-  // Send invitation email via API
-  const sendInvitationEmail = async (tester: Tester) => {
     try {
-      const response = await fetch('/api/test-portal/send-invite', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: tester.email,
-          name: tester.name,
-          password: tester.password,
-          language: tester.language,
-        }),
-      });
-
-      if (!response.ok) {
-        console.error('Failed to send invitation email');
-        return false;
+      const valid = await validateAdminLogin(email, password);
+      if (valid) {
+        setAdminSession();
+        setIsLoggedIn(true);
+        await loadData();
+      } else {
+        setError(t('login.invalidCredentials', lang));
       }
-      return true;
-    } catch (err) {
-      console.error('Error sending invitation email:', err);
-      return false;
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -116,18 +122,19 @@ export default function AdminPage() {
     setSendingInvite(true);
 
     try {
-      const tester = createTester(newTesterName, newTesterEmail, newTesterLang);
+      const tester = await createTester(newTesterName, newTesterEmail, newTesterLang);
 
       // Send invitation email
-      const emailSent = await sendInvitationEmail(tester);
-      if (!emailSent) {
+      try {
+        await sendTesterInvite(tester.id);
+      } catch {
         console.warn('Invitation email could not be sent, but tester was created');
       }
 
       setCreatedTester(tester);
       setNewTesterName('');
       setNewTesterEmail('');
-      loadData();
+      await loadData();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -135,10 +142,14 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteTester = (id: string) => {
+  const handleDeleteTester = async (id: string) => {
     if (confirm(t('admin.deleteConfirm', lang))) {
-      deleteTester(id);
-      loadData();
+      try {
+        await deleteTester(id);
+        await loadData();
+      } catch (err: any) {
+        setError(err.message);
+      }
     }
   };
 
@@ -148,14 +159,18 @@ export default function AdminPage() {
     setEditLang(tester.language);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingTester) return;
-    updateTester(editingTester.id, {
-      name: editName,
-      language: editLang,
-    });
-    setEditingTester(null);
-    loadData();
+    try {
+      await updateTester(editingTester.id, {
+        name: editName,
+        language: editLang,
+      });
+      setEditingTester(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   const handleRegeneratePassword = async (tester: Tester) => {
@@ -164,20 +179,12 @@ export default function AdminPage() {
       : 'Are you sure you want to generate a new password? The old password will be invalidated!'
     )) return;
 
-    const newPassword = regenerateTesterPassword(tester.id);
-    if (newPassword) {
+    try {
+      const newPassword = await regenerateTesterPassword(tester.id);
+
       // Send new password via email
       try {
-        await fetch('/api/test-portal/send-invite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: tester.email,
-            name: tester.name,
-            password: newPassword,
-            language: tester.language,
-          }),
-        });
+        await sendTesterInvite(tester.id);
         alert(lang === 'hu'
           ? `Új jelszó generálva és elküldve: ${newPassword}`
           : `New password generated and sent: ${newPassword}`
@@ -188,17 +195,29 @@ export default function AdminPage() {
           : `New password: ${newPassword} (email sending failed)`
         );
       }
-      loadData();
+      await loadData();
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
-  const handleShowPassword = (testerId: string) => {
-    const password = getTesterPassword(testerId);
-    setShowPassword(showPassword === testerId ? null : testerId);
+  const handleResendInvite = async (tester: Tester) => {
+    try {
+      await sendTesterInvite(tester.id);
+      alert(lang === 'hu' ? 'Meghívó elküldve!' : 'Invite sent!');
+    } catch (err: any) {
+      alert(lang === 'hu' ? 'Hiba történt az email küldésekor' : 'Error sending email');
+    }
   };
 
-  const handleExportData = () => {
-    const data = exportAllData();
+  const handleExportData = async () => {
+    const data = {
+      testers: testers.map(t => ({ ...t, password: '***' })),
+      feedback,
+      bugs,
+      stats,
+      exportedAt: new Date().toISOString(),
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -208,10 +227,23 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleBugStatusChange = (bugId: string, status: BugReport['status']) => {
-    updateBugStatus(bugId, status);
-    loadData();
+  const handleBugStatusChange = async (bugId: string, status: TestBugReport['status']) => {
+    try {
+      await updateBugStatus(bugId, status);
+      await loadData();
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
+
+  // Loading state
+  if (isLoading && !isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   // Login Screen
   if (!isLoggedIn) {
@@ -261,10 +293,11 @@ export default function AdminPage() {
 
               <button
                 type="submit"
+                disabled={isLoading}
                 className="w-full py-3 bg-gray-800 text-white font-semibold rounded-xl
-                         hover:bg-gray-900 transition-colors"
+                         hover:bg-gray-900 transition-colors disabled:opacity-50"
               >
-                {t('login.loginButton', lang)}
+                {isLoading ? '...' : t('login.loginButton', lang)}
               </button>
             </form>
 
@@ -449,11 +482,11 @@ export default function AdminPage() {
                         </label>
                         <select
                           value={newTesterLang}
-                          onChange={(e) => setNewTesterLang(e.target.value as Language)}
+                          onChange={(e) => setNewTesterLang(e.target.value as 'HU' | 'EN')}
                           className="w-full px-3 py-2 border rounded-lg"
                         >
-                          <option value="hu">Magyar</option>
-                          <option value="en">English</option>
+                          <option value="HU">Magyar</option>
+                          <option value="EN">English</option>
                         </select>
                       </div>
                     </div>
@@ -506,7 +539,7 @@ export default function AdminPage() {
                     <tr key={tester.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4">
                         <div className="font-medium text-gray-800">{tester.name}</div>
-                        <div className="text-xs text-gray-500">{tester.language.toUpperCase()}</div>
+                        <div className="text-xs text-gray-500">{tester.language}</div>
                       </td>
                       <td className="py-3 px-4 text-gray-600">{tester.email}</td>
                       <td className="py-3 px-4">
@@ -541,13 +574,13 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2 justify-end flex-wrap">
-                          {/* Show/Hide Password */}
+                          {/* Resend Invite */}
                           <button
-                            onClick={() => handleShowPassword(tester.id)}
-                            className="text-gray-500 hover:text-gray-700 text-xs px-2 py-1 border rounded"
-                            title={lang === 'hu' ? 'Jelszó megtekintése' : 'View password'}
+                            onClick={() => handleResendInvite(tester)}
+                            className="text-primary-600 hover:text-primary-800 text-xs px-2 py-1 border rounded"
+                            title={lang === 'hu' ? 'Meghívó újraküldése' : 'Resend invite'}
                           >
-                            {showPassword === tester.id ? '🔒' : '👁️'}
+                            📧
                           </button>
                           {/* Edit */}
                           <button
@@ -572,13 +605,6 @@ export default function AdminPage() {
                             {lang === 'hu' ? 'Törlés' : 'Delete'}
                           </button>
                         </div>
-                        {/* Show password if visible */}
-                        {showPassword === tester.id && (
-                          <div className="mt-2 text-xs bg-yellow-50 p-2 rounded border border-yellow-200">
-                            <strong>{lang === 'hu' ? 'Jelszó' : 'Password'}:</strong>{' '}
-                            <code className="bg-white px-1 py-0.5 rounded">{tester.password}</code>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -632,11 +658,11 @@ export default function AdminPage() {
                       </label>
                       <select
                         value={editLang}
-                        onChange={(e) => setEditLang(e.target.value as Language)}
+                        onChange={(e) => setEditLang(e.target.value as 'HU' | 'EN')}
                         className="w-full px-3 py-2 border rounded-lg"
                       >
-                        <option value="hu">Magyar</option>
-                        <option value="en">English</option>
+                        <option value="HU">Magyar</option>
+                        <option value="EN">English</option>
                       </select>
                     </div>
                     <div className="flex gap-2 pt-4">
@@ -704,14 +730,14 @@ export default function AdminPage() {
                           <select
                             value={bug.status}
                             onChange={(e) =>
-                              handleBugStatusChange(bug.id, e.target.value as BugReport['status'])
+                              handleBugStatusChange(bug.id, e.target.value as TestBugReport['status'])
                             }
                             className="text-sm border rounded px-2 py-1"
                           >
                             <option value="NEW">New</option>
-                            <option value="REVIEWED">Reviewed</option>
+                            <option value="IN_PROGRESS">In Progress</option>
                             <option value="FIXED">Fixed</option>
-                            <option value="WONT_FIX">Won't Fix</option>
+                            <option value="WONT_FIX">Won&apos;t Fix</option>
                           </select>
                         </div>
                       </div>
@@ -731,11 +757,24 @@ export default function AdminPage() {
             </h2>
 
             {TEST_PHASES.map((phase) => {
-              const phaseFeedback = getFeedback().filter((f) => f.phaseId === phase.id);
-              const ratings = phaseFeedback.filter((f) => typeof f.value === 'number');
+              const phaseFeedback = feedback.filter((f) => f.phaseId === phase.id);
+              const ratings = phaseFeedback.filter((f) => {
+                try {
+                  const val = JSON.parse(f.value);
+                  return typeof val === 'number';
+                } catch {
+                  return false;
+                }
+              });
               const avgRating =
                 ratings.length > 0
-                  ? ratings.reduce((sum, f) => sum + (f.value as number), 0) / ratings.length
+                  ? ratings.reduce((sum, f) => {
+                      try {
+                        return sum + JSON.parse(f.value);
+                      } catch {
+                        return sum;
+                      }
+                    }, 0) / ratings.length
                   : 0;
 
               return (

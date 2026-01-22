@@ -199,17 +199,11 @@ export function clearTesterSession(): void {
 
 // ============= ADMIN SESSION =============
 
-// Admin credentials should be configured via environment variables
-// NEXT_PUBLIC_TEST_ADMIN_EMAIL and NEXT_PUBLIC_TEST_ADMIN_PASSWORD
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_TEST_ADMIN_EMAIL || '';
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_TEST_ADMIN_PASSWORD || '';
+// Hardcoded admin credentials for test portal
+const ADMIN_EMAIL = 'gabor.hollosi@vedox.hu';
+const ADMIN_PASSWORD = 'VsysAdmin2024!';
 
 export function validateAdminLogin(email: string, password: string): boolean {
-  // If env vars not set, deny all logins for security
-  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-    console.warn('Test portal admin credentials not configured in environment variables');
-    return false;
-  }
   return email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && password === ADMIN_PASSWORD;
 }
 

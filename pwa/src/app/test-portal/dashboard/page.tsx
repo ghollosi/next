@@ -2,33 +2,46 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { TesterSession } from '../types';
+import { Language } from '../types';
 import { t, getLocalizedText } from '../i18n';
 import {
   getTesterSession,
   clearTesterSession,
   getFeedbackByTester,
   getBugReportsByTester,
-} from '../storage';
-import { TEST_PHASES, TOTAL_ESTIMATED_MINUTES } from '../test-phases';
+  TesterSession,
+} from '../api';
+import { TEST_PHASES } from '../test-phases';
 
 export default function TesterDashboard() {
   const router = useRouter();
   const [session, setSession] = useState<TesterSession | null>(null);
   const [completedPhases, setCompletedPhases] = useState<number[]>([]);
+  const [bugsCount, setBugsCount] = useState(0);
 
   useEffect(() => {
-    const s = getTesterSession();
-    if (!s) {
-      router.replace('/test-portal');
-      return;
-    }
-    setSession(s);
+    const loadData = async () => {
+      const s = getTesterSession();
+      if (!s) {
+        router.replace('/test-portal');
+        return;
+      }
+      setSession(s);
 
-    // Calculate completed phases from feedback
-    const feedback = getFeedbackByTester(s.testerId);
-    const phases = Array.from(new Set(feedback.map((f) => f.phaseId)));
-    setCompletedPhases(phases);
+      // Calculate completed phases from feedback
+      try {
+        const feedback = await getFeedbackByTester(s.id);
+        const phases = Array.from(new Set(feedback.map((f) => f.phaseId)));
+        setCompletedPhases(phases);
+
+        const bugs = await getBugReportsByTester(s.id);
+        setBugsCount(bugs.length);
+      } catch (err) {
+        console.error('Failed to load feedback:', err);
+      }
+    };
+
+    loadData();
   }, [router]);
 
   const handleLogout = () => {
@@ -48,7 +61,8 @@ export default function TesterDashboard() {
     );
   }
 
-  const lang = session.language;
+  // Convert language to lowercase for i18n ('HU' -> 'hu')
+  const lang: Language = (session.language?.toLowerCase() || 'hu') as Language;
   const currentPhaseIndex = completedPhases.length;
   const allCompleted = completedPhases.length >= TEST_PHASES.length;
 
@@ -67,7 +81,7 @@ export default function TesterDashboard() {
               {t('dashboard.title', lang)}
             </h1>
             <p className="text-sm text-gray-500">
-              {t('dashboard.welcome', lang)}, {session.testerName}!
+              {t('dashboard.welcome', lang)}, {session.name}!
             </p>
           </div>
           <button
@@ -124,7 +138,7 @@ export default function TesterDashboard() {
                 {lang === 'hu' ? 'Bejelentett hibák' : 'Bugs reported'}
               </p>
               <p className="text-2xl font-bold text-orange-700">
-                {getBugReportsByTester(session.testerId).length}
+                {bugsCount}
               </p>
             </div>
           </div>
@@ -258,8 +272,32 @@ export default function TesterDashboard() {
           })}
         </div>
 
-        {/* Quick Test Button */}
+        {/* Professional Test Execution Button */}
         <div className="mt-8">
+          <button
+            onClick={() => router.push('/test-portal/execute')}
+            className="w-full flex items-center justify-center gap-3 p-5 bg-gradient-to-r from-green-600 to-green-700
+                     text-white rounded-2xl shadow-lg hover:from-green-700 hover:to-green-800 transition-all mb-4"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <div className="text-left">
+              <div className="font-bold text-lg">
+                {lang === 'hu' ? 'Professzionalis Teszteles' : 'Professional Testing'}
+              </div>
+              <div className="text-sm opacity-90">
+                {lang === 'hu'
+                  ? '50+ reszletes teszt eset PASS/FAIL eredmenyekkel'
+                  : '50+ detailed test cases with PASS/FAIL results'}
+              </div>
+            </div>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {/* Quick Test Button */}
           <button
             onClick={() => router.push('/test-portal/quick-test')}
             className="w-full flex items-center justify-center gap-3 p-5 bg-gradient-to-r from-primary-600 to-primary-700
@@ -284,10 +322,43 @@ export default function TesterDashboard() {
           </button>
         </div>
 
-        {/* Quick Actions */}
-        <div className="mt-6 grid grid-cols-2 gap-4">
+        {/* Testing Guide - Highlighted */}
+        <div className="mt-6">
           <button
-            onClick={() => router.push('/docs?from=tester')}
+            onClick={() => router.push('/test-portal/docs?section=testing-modes')}
+            className="w-full flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-500 to-purple-600
+                     text-white rounded-xl shadow-lg hover:from-indigo-600 hover:to-purple-700 transition-all"
+          >
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                />
+              </svg>
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-bold text-lg">
+                {lang === 'hu' ? '📖 Hogyan tesztelj? - Útmutató' : '📖 How to test? - Guide'}
+              </div>
+              <div className="text-sm opacity-90">
+                {lang === 'hu'
+                  ? 'Részletes útmutató a 3 tesztelési módhoz: Fázisok, Professzionális, Gyors'
+                  : 'Detailed guide for 3 testing modes: Phases, Professional, Quick'}
+              </div>
+            </div>
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <button
+            onClick={() => router.push('/test-portal/docs')}
             className="flex items-center justify-center gap-2 p-4 bg-white rounded-xl shadow-sm
                      text-gray-700 hover:bg-gray-50 transition-colors"
           >
@@ -299,7 +370,7 @@ export default function TesterDashboard() {
                 d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
               />
             </svg>
-            {t('dashboard.viewDocumentation', lang)}
+            {lang === 'hu' ? 'Rendszer dokumentáció' : 'System documentation'}
           </button>
           <button
             onClick={() => router.push('/test-portal/bug-report')}

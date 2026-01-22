@@ -32,6 +32,7 @@ import { PlatformBillingModule } from './platform-billing/platform-billing.modul
 import { CompanyDataModule } from './company-data/company-data.module';
 import { AddressModule } from './modules/address/address.module';
 import { SecurityModule } from './common/security/security.module';
+import { TestPortalModule } from './test-portal/test-portal.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { SecurityModule } from './common/security/security.module';
     PlatformBillingModule,
     CompanyDataModule,
     AddressModule,
+    TestPortalModule,
   ],
   providers: [
     // SECURITY: Apply user-aware rate limiting globally

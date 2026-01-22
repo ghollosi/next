@@ -1,25 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { TesterSession, Language } from '../types';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Language } from '../types';
 import { t, getLocalizedText } from '../i18n';
-import { getTesterSession } from '../storage';
+import { getTesterSession, TesterSession } from '../api';
 import { TEST_PHASES, TOTAL_ESTIMATED_MINUTES } from '../test-phases';
 
-export default function DocsPage() {
+type SectionType = 'overview' | 'testing-modes' | 'system' | 'phases' | 'faq';
+
+function DocsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<TesterSession | null>(null);
   const [lang, setLang] = useState<Language>('hu');
-  const [activeSection, setActiveSection] = useState<'overview' | 'system' | 'phases' | 'faq'>('overview');
+  const [activeSection, setActiveSection] = useState<SectionType>('overview');
 
   useEffect(() => {
     const s = getTesterSession();
     if (s) {
       setSession(s);
-      setLang(s.language);
+      setLang((s.language?.toLowerCase() || 'hu') as Language);
     }
-  }, []);
+
+    // Check for section query parameter
+    const sectionParam = searchParams.get('section');
+    if (sectionParam && ['overview', 'testing-modes', 'system', 'phases', 'faq'].includes(sectionParam)) {
+      setActiveSection(sectionParam as SectionType);
+    }
+  }, [searchParams]);
 
   const content = {
     overview: {
@@ -28,19 +37,19 @@ export default function DocsPage() {
         content: `
 ## Mi ez a tesztelési portál?
 
-Ez a portál segít neked végigmenni a vSys platform tesztelésén. A tesztelés 7 fázisból áll, és körülbelül ${TOTAL_ESTIMATED_MINUTES} percet vesz igénybe.
+Ez a portál segít neked végigmenni a vSys platform tesztelésén. Háromféle tesztelési mód közül választhatsz.
 
 ## Hogyan működik?
 
-1. **Fázisonként haladj** - Minden fázis egy konkrét funkció tesztelésére koncentrál
-2. **Kövesd az utasításokat** - Minden fázisnál részletes útmutatót kapsz
-3. **Adj visszajelzést** - Minden fázis végén válaszolj a kérdésekre
+1. **Válassz tesztelési módot** - A dashboard-on három gomb közül választhatsz
+2. **Kövesd az utasításokat** - Minden tesztnél részletes útmutatót kapsz
+3. **Adj visszajelzést** - Értékeld a funkciókat
 4. **Jelents hibákat** - Ha bármilyen problémát találsz, jelezd nekünk
 
 ## Fontos tudnivalók
 
+- **Bejelentkezés**: Minden portálra email címmel és jelszóval lehet belépni
 - **QR kód használat**: A SOFŐR olvassa be a HELYSZÍN QR kódját, NEM fordítva!
-- **Teszt adatok**: Használd a megadott teszt bejelentkezési adatokat
 - **Hibák**: Ha hibát találsz, jelentsd be a "Hiba bejelentése" gombbal
         `,
       },
@@ -49,20 +58,182 @@ Ez a portál segít neked végigmenni a vSys platform tesztelésén. A tesztelé
         content: `
 ## What is this testing portal?
 
-This portal helps you go through testing the vSys platform. Testing consists of 7 phases and takes approximately ${TOTAL_ESTIMATED_MINUTES} minutes.
+This portal helps you go through testing the vSys platform. You can choose from three testing modes.
 
 ## How does it work?
 
-1. **Progress phase by phase** - Each phase focuses on testing a specific function
-2. **Follow the instructions** - You'll get detailed guidance for each phase
-3. **Provide feedback** - Answer questions at the end of each phase
+1. **Choose a testing mode** - You can choose from three buttons on the dashboard
+2. **Follow the instructions** - You'll get detailed guidance for each test
+3. **Provide feedback** - Rate the features
 4. **Report bugs** - If you find any issues, let us know
 
 ## Important information
 
+- **Login**: All portals use email and password for authentication
 - **QR code usage**: The DRIVER scans the LOCATION QR code, NOT the other way around!
-- **Test data**: Use the provided test login credentials
 - **Bugs**: If you find a bug, report it using the "Report a bug" button
+        `,
+      },
+    },
+    'testing-modes': {
+      hu: {
+        title: 'Tesztelési módok',
+        content: `
+## Tesztelési módok
+
+A dashboard-on három tesztelési mód közül választhatsz:
+
+### 1. Tesztelési Fázisok (felül, számozott lista)
+
+**Mi ez?**
+7 strukturált fázis, sorrendben végrehajtandó. Minden fázis után visszajelzést kell adni.
+
+**Mikor használd?**
+- Ha lépésről lépésre szeretnél haladni
+- Ha egyszerű, szöveges utasításokat szeretnél
+- Ha fontos számodra a haladás követése
+
+**Hogyan működik?**
+1. Az első fázis "Tesztelés indítása" gombbal elérhető
+2. A fázis befejezése után válaszolj a visszajelző kérdésekre
+3. Ezután nyílik meg a következő fázis
+4. A többi fázis addig szürke/zárolt marad
+
+---
+
+### 2. Professzionális Tesztelés (zöld gomb)
+
+**Mi ez?**
+50+ részletes teszteset PASS/FAIL/BLOCKED eredményekkel, modulokba rendezve.
+
+**Mikor használd?**
+- Ha alapos, dokumentált tesztelésre van szükség
+- Ha pontos PASS/FAIL eredményeket szeretnél
+- Ha részletes hibajelentést akarsz készíteni
+
+**Hogyan működik?**
+1. Válassz modult (pl. Sofőr Alkalmazás, Operátor Portál, stb.)
+2. Válassz tesztesetet a listából
+3. Kövesd a lépéseket egyenként
+4. Minden lépésnél jelöld: SIKERES / SIKERTELEN / BLOKKOLT
+5. Ha sikertelen, írd le mi történt és készíts képernyőképet
+6. Az eredmények automatikusan mentődnek
+
+**Modulok:**
+- Sofőr Alkalmazás - bejelentkezés, mosás, járművek
+- Operátor Portál - bejelentkezés, mosás rögzítés
+- Partner Portál - bejelentkezés, sofőrök, számlák
+- Network Admin - bejelentkezés, helyszínek, partnerek
+- Keresztfunkcionális tesztek - több modul együttműködése
+- Biztonsági tesztek - session, URL védelem, SQL injection
+- UI/UX tesztek - mobil nézet, hibaüzenetek
+
+---
+
+### 3. Gyors Tesztelés (kék gomb)
+
+**Mi ez?**
+Azonnali belépés egy adott portálra teszt felhasználóval.
+
+**Mikor használd?**
+- Ha gyorsan szeretnél valamit ellenőrizni
+- Ha csak egy konkrét funkciót akarsz tesztelni
+- Ha nincs időd a strukturált tesztelésre
+
+**Hogyan működik?**
+1. Válaszd ki a portált (Sofőr / Operátor / Partner)
+2. Válassz egy teszt felhasználót a listából
+3. Automatikusan belépsz a kiválasztott portálra
+
+---
+
+## Melyiket válasszam?
+
+| Ha... | Akkor... |
+|-------|----------|
+| Első alkalommal tesztelsz | Kezdd a **Fázisokkal** |
+| Alapos tesztelést szeretnél | Válaszd a **Professzionális Tesztelést** |
+| Gyorsan akarsz valamit nézni | Használd a **Gyors Tesztelést** |
+        `,
+      },
+      en: {
+        title: 'Testing Modes',
+        content: `
+## Testing Modes
+
+You can choose from three testing modes on the dashboard:
+
+### 1. Testing Phases (top, numbered list)
+
+**What is it?**
+7 structured phases to be completed in order. Feedback is required after each phase.
+
+**When to use?**
+- If you want to progress step by step
+- If you prefer simple, text-based instructions
+- If tracking progress is important to you
+
+**How does it work?**
+1. The first phase is accessible via "Start testing" button
+2. After completing a phase, answer the feedback questions
+3. This unlocks the next phase
+4. Other phases remain gray/locked until then
+
+---
+
+### 2. Professional Testing (green button)
+
+**What is it?**
+50+ detailed test cases with PASS/FAIL/BLOCKED results, organized into modules.
+
+**When to use?**
+- If thorough, documented testing is needed
+- If you want precise PASS/FAIL results
+- If you want to create detailed bug reports
+
+**How does it work?**
+1. Choose a module (e.g., Driver App, Operator Portal, etc.)
+2. Select a test case from the list
+3. Follow the steps one by one
+4. Mark each step: PASS / FAIL / BLOCKED
+5. If failed, describe what happened and take a screenshot
+6. Results are saved automatically
+
+**Modules:**
+- Driver App - login, wash, vehicles
+- Operator Portal - login, wash recording
+- Partner Portal - login, drivers, invoices
+- Network Admin - login, locations, partners
+- Cross-functional tests - multiple modules working together
+- Security tests - session, URL protection, SQL injection
+- UI/UX tests - mobile view, error messages
+
+---
+
+### 3. Quick Test (blue button)
+
+**What is it?**
+Instant login to a specific portal with a test user.
+
+**When to use?**
+- If you want to quickly check something
+- If you only want to test a specific feature
+- If you don't have time for structured testing
+
+**How does it work?**
+1. Select the portal (Driver / Operator / Partner)
+2. Choose a test user from the list
+3. You'll automatically log into the selected portal
+
+---
+
+## Which one should I choose?
+
+| If... | Then... |
+|-------|---------|
+| First time testing | Start with **Phases** |
+| Want thorough testing | Choose **Professional Testing** |
+| Quick check needed | Use **Quick Test** |
         `,
       },
     },
@@ -247,7 +418,7 @@ After completing the testing, you'll receive a certificate, and we'll notify you
           <div className="w-full md:w-48 flex-shrink-0">
             <div className="bg-white rounded-xl shadow-sm p-4">
               <nav className="space-y-1">
-                {(['overview', 'system', 'phases', 'faq'] as const).map((section) => (
+                {(['overview', 'testing-modes', 'system', 'phases', 'faq'] as const).map((section) => (
                   <button
                     key={section}
                     onClick={() => setActiveSection(section)}
@@ -258,6 +429,7 @@ After completing the testing, you'll receive a certificate, and we'll notify you
                     }`}
                   >
                     {section === 'overview' && t('docs.overview', lang)}
+                    {section === 'testing-modes' && (lang === 'hu' ? 'Tesztelési módok' : 'Testing Modes')}
                     {section === 'system' && t('docs.systemDescription', lang)}
                     {section === 'phases' && t('docs.testCases', lang)}
                     {section === 'faq' && t('docs.faq', lang)}
@@ -316,5 +488,17 @@ After completing the testing, you'll receive a certificate, and we'll notify you
         </div>
       </main>
     </div>
+  );
+}
+
+export default function DocsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-500">Betöltés...</div>
+      </div>
+    }>
+      <DocsContent />
+    </Suspense>
   );
 }

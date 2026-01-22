@@ -2328,3 +2328,82 @@ model AccountLockout {
   @@index([lockedUntil])
   @@map("account_lockouts")
 }
+
+// =============================================================================
+// TEST PORTAL: TESTERS
+// For beta testing the vSys Wash platform
+// =============================================================================
+
+enum TesterStatus {
+  INVITED
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum TesterLanguage {
+  HU
+  EN
+}
+
+model Tester {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  password      String                              // Generated password
+  language      TesterLanguage @default(HU)
+  status        TesterStatus   @default(INVITED)
+  currentPhase  Int            @default(1) @map("current_phase")
+  totalPhases   Int            @default(7) @map("total_phases")
+  lastLoginAt   DateTime?      @map("last_login_at")
+  completedAt   DateTime?      @map("completed_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  feedback      TestFeedback[]
+  bugReports    TestBugReport[]
+
+  @@index([email])
+  @@index([status])
+  @@map("testers")
+}
+
+model TestFeedback {
+  id            String   @id @default(uuid())
+  testerId      String   @map("tester_id")
+  phaseId       Int      @map("phase_id")
+  questionId    String   @map("question_id")
+  value         String                              // JSON encoded value
+  screenshotUrl String?  @map("screenshot_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tester        Tester   @relation(fields: [testerId], references: [id], onDelete: Cascade)
+
+  @@unique([testerId, questionId])
+  @@index([testerId])
+  @@index([phaseId])
+  @@map("test_feedback")
+}
+
+model TestBugReport {
+  id            String   @id @default(uuid())
+  testerId      String   @map("tester_id")
+  phaseId       Int      @map("phase_id")
+  title         String
+  description   String
+  severity      String                              // LOW, MEDIUM, HIGH, CRITICAL
+  status        String   @default("NEW")            // NEW, IN_PROGRESS, FIXED, WONT_FIX
+  screenshotUrl String?  @map("screenshot_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tester        Tester   @relation(fields: [testerId], references: [id], onDelete: Cascade)
+
+  @@index([testerId])
+  @@index([status])
+  @@index([severity])
+  @@map("test_bug_reports")
+}
