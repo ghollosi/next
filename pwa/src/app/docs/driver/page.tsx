@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import DriverEmiWrapper from '@/components/DriverEmiWrapper'
 import {
   TruckIcon,
   QrCodeIcon,
@@ -255,6 +256,9 @@ export default function DriverDocsPage() {
           Partner →
         </Link>
       </div>
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   )
 }

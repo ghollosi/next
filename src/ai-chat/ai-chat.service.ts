@@ -526,33 +526,41 @@ SPECIAL FEATURES:
   }
 
   // Quick FAQ responses for common questions (to save API calls)
-  getQuickResponse(message: string, language: 'hu' | 'en'): string | null {
+  // ONLY for guest/public users - authenticated users should get AI responses with context
+  getQuickResponse(message: string, language: 'hu' | 'en', role: UserRole = 'guest'): string | null {
+    // Skip quick responses for authenticated users - they should get contextual AI answers
+    if (role !== 'guest') {
+      return null;
+    }
+
     const lowerMessage = message.toLowerCase();
     const isHu = language === 'hu';
 
-    // Greeting
-    if (lowerMessage.match(/^(szia|hello|hi|hey|üdv|helló)/)) {
+    // Greeting - only at the start of message
+    if (lowerMessage.match(/^(szia|hello|hi|hey|üdv|helló)[\s!?.,]*$/)) {
       return isHu
         ? 'Szia! Émi vagyok, a vSys Wash asszisztense. Miben segíthetek? 🚗✨'
         : 'Hi! I\'m Amy, the vSys Wash assistant. How can I help you? 🚗✨';
     }
 
-    // Pricing question
-    if (lowerMessage.match(/(mennyi|ár|árak|price|pricing|cost)/)) {
+    // Pricing question - more specific patterns to avoid false matches like "hálózat"
+    if (lowerMessage.match(/\b(mennyi|árak|árazás|price|pricing|cost|mennyibe)\b/) &&
+        lowerMessage.match(/\b(mosás|wash|kerül|fizet|szolgáltatás)\b/)) {
       return isHu
         ? 'Az árak a hálózattól és mosótípustól függnek. Általában a szolgáltatók határozzák meg. Ha sofőr vagy, az alkalmazásban látod az aktuális árakat a helyszín kiválasztása után!'
         : 'Prices depend on the network and wash type. Generally set by service providers. If you\'re a driver, you can see current prices in the app after selecting a location!';
     }
 
     // How to register
-    if (lowerMessage.match(/(regisztr|register|hogyan kezd|how to start|sign up|fiók|account)/)) {
+    if (lowerMessage.match(/\b(regisztrál|register|hogyan kezd|how to start|sign up)\b/)) {
       return isHu
         ? 'Regisztrálni az app.vemiax.com/register oldalon tudsz! Válaszd ki: 1) Privát ügyfél - ha magad fizetsz 2) Céges sofőr - ha a munkahelyed fizet. Email címmel és jelszóval tudsz majd belépni!'
         : 'You can register at app.vemiax.com/register! Choose: 1) Private customer - if you pay yourself 2) Fleet driver - if your company pays. You can log in with email and password!';
     }
 
-    // Contact
-    if (lowerMessage.match(/(kapcsolat|contact|email|support|segítség kell)/)) {
+    // Contact - only for direct contact questions
+    if (lowerMessage.match(/\b(kapcsolat|contact|elérhetőség|support)\b/) &&
+        lowerMessage.match(/\b(hol|hogyan|mi|what|how|where)\b/)) {
       return isHu
         ? 'Bármilyen kérdéssel fordulhatsz hozzánk: info@vemiax.com - Igyekszünk gyorsan válaszolni! 📧'
         : 'For any questions, contact us: info@vemiax.com - We try to respond quickly! 📧';

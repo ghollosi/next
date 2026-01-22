@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -217,6 +218,7 @@ export default function CheckStatusPage() {
       </div>
     }>
       <CheckStatusContent />
+      <DriverEmiWrapper />
     </Suspense>
   );
 }

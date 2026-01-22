@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import { api, Vehicle, VehicleCategory } from '@/lib/api';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -335,6 +336,9 @@ export default function VehiclesPage() {
 
       {/* Bottom Safe Area */}
       <div className="safe-area-bottom" />
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   );
 }

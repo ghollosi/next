@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import { api, Location, WashService, Vehicle, VehicleCategory, LocationType } from '@/lib/api';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 interface SelectedService {
   service: WashService;
@@ -764,6 +765,7 @@ export default function NewWashPage() {
       </div>
     }>
       <NewWashContent />
+      <DriverEmiWrapper />
     </Suspense>
   );
 }

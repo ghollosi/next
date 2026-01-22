@@ -68,8 +68,8 @@ export class AiChatController {
 
     const language = body.language || 'hu';
 
-    // Try quick response first
-    const quickResponse = this.aiChatService.getQuickResponse(body.message, language);
+    // Try quick response first (only for guests)
+    const quickResponse = this.aiChatService.getQuickResponse(body.message, language, 'guest');
     if (quickResponse) {
       return {
         message: quickResponse,
@@ -130,14 +130,8 @@ export class AiChatController {
 
     const language = body.language || 'hu';
 
-    // Try quick response first
-    const quickResponse = this.aiChatService.getQuickResponse(body.message, language);
-    if (quickResponse) {
-      return {
-        message: quickResponse,
-        isQuickResponse: true,
-      };
-    }
+    // Skip quick responses for authenticated users - they should always get contextual AI answers
+    // The getQuickResponse now returns null for non-guest roles anyway
 
     const context: ChatContext = {
       role: userRole as UserRole,

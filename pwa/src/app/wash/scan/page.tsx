@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import { api } from '@/lib/api';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 import dynamic from 'next/dynamic';
 
 // Dynamically import QRScanner to avoid SSR issues with html5-qrcode
@@ -282,6 +283,9 @@ export default function ScanQRPage() {
           </button>
         </div>
       )}
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   );
 }

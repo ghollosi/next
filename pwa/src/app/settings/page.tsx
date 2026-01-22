@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getSession, getDriver, clearSession, saveSession, DriverInfo } from '@/lib/session';
 import { AddressInput, AddressData } from '@/components/address';
+import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -441,6 +442,9 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Émi Chat Widget */}
+      <DriverEmiWrapper />
     </div>
   );
 }
