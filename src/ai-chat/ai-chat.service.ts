@@ -404,7 +404,7 @@ SPECIAL FEATURES:
           : `\n\nCURRENT PLATFORM DATA:\n- Active networks: ${networkCount}\n- Wash locations: ${locationCount}`;
       }
 
-      // For network admin - their network's data
+      // For network admin - their network's data including wash stats and financials
       if (context.role === 'network_admin' && context.networkId) {
         const network = await this.prisma.network.findUnique({
           where: { id: context.networkId },
@@ -420,10 +420,126 @@ SPECIAL FEATURES:
           where: { networkId: context.networkId, isActive: true },
         });
 
+        // Today's wash stats
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayWashes = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: todayStart } },
+        });
+        const todayCompleted = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: todayStart }, status: 'COMPLETED' },
+        });
+        const todayInProgress = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: todayStart }, status: 'IN_PROGRESS' },
+        });
+
+        // Monthly wash stats
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        const monthlyWashes = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: monthStart } },
+        });
+        const monthlyCompleted = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, createdAt: { gte: monthStart }, status: 'COMPLETED' },
+        });
+
+        // Monthly revenue (sum of finalPrice for completed washes)
+        const monthlyRevenue = await this.prisma.washEvent.aggregate({
+          where: {
+            networkId: context.networkId,
+            createdAt: { gte: monthStart },
+            status: 'COMPLETED',
+            finalPrice: { not: null },
+          },
+          _sum: { finalPrice: true },
+        });
+
+        // Today's revenue
+        const todayRevenue = await this.prisma.washEvent.aggregate({
+          where: {
+            networkId: context.networkId,
+            createdAt: { gte: todayStart },
+            status: 'COMPLETED',
+            finalPrice: { not: null },
+          },
+          _sum: { finalPrice: true },
+        });
+
+        // All-time total washes
+        const totalWashes = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId },
+        });
+        const totalCompleted = await this.prisma.washEvent.count({
+          where: { networkId: context.networkId, status: 'COMPLETED' },
+        });
+
+        // All-time revenue
+        const totalRevenue = await this.prisma.washEvent.aggregate({
+          where: {
+            networkId: context.networkId,
+            status: 'COMPLETED',
+            finalPrice: { not: null },
+          },
+          _sum: { finalPrice: true },
+        });
+
+        // Per-location breakdown (top locations this month)
+        const locationBreakdown = await this.prisma.washEvent.groupBy({
+          by: ['locationId'],
+          where: {
+            networkId: context.networkId,
+            createdAt: { gte: monthStart },
+            status: 'COMPLETED',
+          },
+          _count: true,
+          _sum: { finalPrice: true },
+          orderBy: { _count: { locationId: 'desc' } },
+          take: 5,
+        });
+
+        // Get location names for breakdown
+        let locationDetails = '';
+        if (locationBreakdown.length > 0) {
+          const locationIds = locationBreakdown.map(l => l.locationId);
+          const locations = await this.prisma.location.findMany({
+            where: { id: { in: locationIds } },
+            select: { id: true, name: true },
+          });
+          const locationMap = new Map(locations.map(l => [l.id, l.name]));
+
+          locationDetails = locationBreakdown
+            .map(l => {
+              const name = locationMap.get(l.locationId) || 'Ismeretlen';
+              const revenue = l._sum?.finalPrice ? Number(l._sum.finalPrice).toLocaleString() : '0';
+              return isHungarian
+                ? `  - ${name}: ${l._count} mosás, ${revenue} ${network?.defaultCurrency || 'HUF'} bevétel`
+                : `  - ${name}: ${l._count} washes, ${revenue} ${network?.defaultCurrency || 'HUF'} revenue`;
+            })
+            .join('\n');
+        }
+
+        const currency = network?.defaultCurrency || 'HUF';
+        const todayRev = todayRevenue._sum?.finalPrice ? Number(todayRevenue._sum.finalPrice).toLocaleString() : '0';
+        const monthlyRev = monthlyRevenue._sum?.finalPrice ? Number(monthlyRevenue._sum.finalPrice).toLocaleString() : '0';
+        const totalRev = totalRevenue._sum?.finalPrice ? Number(totalRevenue._sum.finalPrice).toLocaleString() : '0';
+
         if (network) {
           dynamicInfo = isHungarian
-            ? `\n\nHÁLÓZATOD ADATAI (${network.name}):\n- Helyszínek: ${locationCount}\n- Aktív sofőrök: ${driverCount}\n- Partnerek: ${partnerCount}\n- Pénznem: ${network.defaultCurrency}`
-            : `\n\nYOUR NETWORK DATA (${network.name}):\n- Locations: ${locationCount}\n- Active drivers: ${driverCount}\n- Partners: ${partnerCount}\n- Currency: ${network.defaultCurrency}`;
+            ? `\n\nHÁLÓZATOD ADATAI (${network.name}):\n` +
+              `ÁLTALÁNOS:\n- Helyszínek: ${locationCount}\n- Aktív sofőrök: ${driverCount}\n- Partnerek: ${partnerCount}\n- Pénznem: ${currency}\n\n` +
+              `MAI STATISZTIKA:\n- Mai mosások: ${todayWashes}\n- Befejezett ma: ${todayCompleted}\n- Folyamatban: ${todayInProgress}\n- Mai bevétel: ${todayRev} ${currency}\n\n` +
+              `HAVI STATISZTIKA (aktuális hónap):\n- Havi mosások: ${monthlyWashes}\n- Befejezett: ${monthlyCompleted}\n- Havi bevétel: ${monthlyRev} ${currency}\n\n` +
+              `ÖSSZESÍTÉS (minden idők):\n- Összes mosás: ${totalWashes}\n- Összes befejezett: ${totalCompleted}\n- Összes bevétel: ${totalRev} ${currency}` +
+              (locationDetails ? `\n\nHELYSZÍNEK HAVI BONTÁSBAN (TOP 5):\n${locationDetails}` : '')
+            : `\n\nYOUR NETWORK DATA (${network.name}):\n` +
+              `GENERAL:\n- Locations: ${locationCount}\n- Active drivers: ${driverCount}\n- Partners: ${partnerCount}\n- Currency: ${currency}\n\n` +
+              `TODAY'S STATS:\n- Today's washes: ${todayWashes}\n- Completed today: ${todayCompleted}\n- In progress: ${todayInProgress}\n- Today's revenue: ${todayRev} ${currency}\n\n` +
+              `MONTHLY STATS (current month):\n- Monthly washes: ${monthlyWashes}\n- Completed: ${monthlyCompleted}\n- Monthly revenue: ${monthlyRev} ${currency}\n\n` +
+              `ALL-TIME TOTALS:\n- Total washes: ${totalWashes}\n- Total completed: ${totalCompleted}\n- Total revenue: ${totalRev} ${currency}` +
+              (locationDetails ? `\n\nLOCATION BREAKDOWN (TOP 5 THIS MONTH):\n${locationDetails}` : '');
         }
       }
 
@@ -526,41 +642,33 @@ SPECIAL FEATURES:
   }
 
   // Quick FAQ responses for common questions (to save API calls)
-  // ONLY for guest/public users - authenticated users should get AI responses with context
-  getQuickResponse(message: string, language: 'hu' | 'en', role: UserRole = 'guest'): string | null {
-    // Skip quick responses for authenticated users - they should get contextual AI answers
-    if (role !== 'guest') {
-      return null;
-    }
-
+  getQuickResponse(message: string, language: 'hu' | 'en'): string | null {
     const lowerMessage = message.toLowerCase();
     const isHu = language === 'hu';
 
-    // Greeting - only at the start of message
-    if (lowerMessage.match(/^(szia|hello|hi|hey|üdv|helló)[\s!?.,]*$/)) {
+    // Greeting
+    if (lowerMessage.match(/^(szia|hello|hi|hey|üdv|helló)/)) {
       return isHu
         ? 'Szia! Émi vagyok, a vSys Wash asszisztense. Miben segíthetek? 🚗✨'
         : 'Hi! I\'m Amy, the vSys Wash assistant. How can I help you? 🚗✨';
     }
 
-    // Pricing question - more specific patterns to avoid false matches like "hálózat"
-    if (lowerMessage.match(/\b(mennyi|árak|árazás|price|pricing|cost|mennyibe)\b/) &&
-        lowerMessage.match(/\b(mosás|wash|kerül|fizet|szolgáltatás)\b/)) {
+    // Pricing question
+    if (lowerMessage.match(/(mennyi|ár|árak|price|pricing|cost)/)) {
       return isHu
         ? 'Az árak a hálózattól és mosótípustól függnek. Általában a szolgáltatók határozzák meg. Ha sofőr vagy, az alkalmazásban látod az aktuális árakat a helyszín kiválasztása után!'
         : 'Prices depend on the network and wash type. Generally set by service providers. If you\'re a driver, you can see current prices in the app after selecting a location!';
     }
 
     // How to register
-    if (lowerMessage.match(/\b(regisztrál|register|hogyan kezd|how to start|sign up)\b/)) {
+    if (lowerMessage.match(/(regisztr|register|hogyan kezd|how to start|sign up|fiók|account)/)) {
       return isHu
         ? 'Regisztrálni az app.vemiax.com/register oldalon tudsz! Válaszd ki: 1) Privát ügyfél - ha magad fizetsz 2) Céges sofőr - ha a munkahelyed fizet. Email címmel és jelszóval tudsz majd belépni!'
         : 'You can register at app.vemiax.com/register! Choose: 1) Private customer - if you pay yourself 2) Fleet driver - if your company pays. You can log in with email and password!';
     }
 
-    // Contact - only for direct contact questions
-    if (lowerMessage.match(/\b(kapcsolat|contact|elérhetőség|support)\b/) &&
-        lowerMessage.match(/\b(hol|hogyan|mi|what|how|where)\b/)) {
+    // Contact
+    if (lowerMessage.match(/(kapcsolat|contact|email|support|segítség kell)/)) {
       return isHu
         ? 'Bármilyen kérdéssel fordulhatsz hozzánk: info@vemiax.com - Igyekszünk gyorsan válaszolni! 📧'
         : 'For any questions, contact us: info@vemiax.com - We try to respond quickly! 📧';
