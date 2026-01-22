@@ -109,6 +109,25 @@ class ApiClient {
     }
   }
 
+  // NEW: Unified email + password login
+  async login(email: string, password: string): Promise<ActivateResponse> {
+    const response = await fetch(`${this.baseUrl}/pwa/login`, this.fetchOptions({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    }));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Bejelentkezés sikertelen');
+    }
+
+    return response.json();
+  }
+
+  // DEPRECATED: Keep for backward compatibility
   async activate(inviteCode: string, pin: string): Promise<ActivateResponse> {
     const response = await fetch(`${this.baseUrl}/pwa/activate`, this.fetchOptions({
       method: 'POST',
@@ -126,6 +145,7 @@ class ApiClient {
     return response.json();
   }
 
+  // DEPRECATED: Use login() instead
   async loginByPhone(phone: string, pin: string): Promise<ActivateResponse> {
     const response = await fetch(`${this.baseUrl}/pwa/login-phone`, this.fetchOptions({
       method: 'POST',
@@ -143,6 +163,7 @@ class ApiClient {
     return response.json();
   }
 
+  // DEPRECATED: Use login() instead
   async loginByEmail(email: string, pin: string): Promise<ActivateResponse> {
     const response = await fetch(`${this.baseUrl}/pwa/login-email`, this.fetchOptions({
       method: 'POST',

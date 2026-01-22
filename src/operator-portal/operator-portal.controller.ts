@@ -77,71 +77,66 @@ export class OperatorPortalController {
   @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   async login(
-    @Body() body: { locationCode: string; pin: string },
+    @Body() body: { email: string; password: string },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const ipAddress = req.ip || req.socket?.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    if (!body.locationCode || !body.pin) {
-      throw new BadRequestException('Location code and PIN are required');
+    if (!body.email || !body.password) {
+      throw new BadRequestException('Email cím és jelszó megadása kötelező');
     }
 
-    // Find location by code (across all networks for now - could be restricted)
-    const location = await this.prisma.location.findFirst({
+    // Find operator by email
+    const operator = await this.prisma.locationOperator.findFirst({
       where: {
-        code: body.locationCode.toUpperCase(),
+        email: body.email.toLowerCase(),
         isActive: true,
         deletedAt: null,
       },
       include: {
-        network: true,
-        operators: {
-          where: {
-            isActive: true,
-            deletedAt: null,
+        location: {
+          include: {
+            network: true,
           },
         },
       },
     });
 
-    if (!location) {
-      // AUDIT: Log failed login - invalid location code
+    if (!operator) {
+      // AUDIT: Log failed login - invalid email
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
         actorType: 'OPERATOR',
-        metadata: { locationCode: body.locationCode.toUpperCase(), error: 'Invalid location code' },
+        metadata: { email: body.email.toLowerCase(), error: 'Invalid email' },
         ipAddress,
         userAgent,
       });
-      throw new UnauthorizedException('Invalid location code');
+      throw new UnauthorizedException('Hibás email cím vagy jelszó');
     }
 
-    // Try to authenticate with location operators first
-    let authenticatedOperator: { id: string; name: string } | null = null;
-
-    for (const operator of location.operators) {
-      const isValidPin = await bcrypt.compare(body.pin, operator.pinHash);
-      if (isValidPin) {
-        authenticatedOperator = { id: operator.id, name: operator.name };
-        break;
-      }
+    // Check if operator has a password set
+    if (!operator.passwordHash) {
+      throw new UnauthorizedException('Nincs jelszó beállítva. Kérj jelszó visszaállítást.');
     }
 
-    // If no operator found with valid PIN, reject authentication
-    if (!authenticatedOperator) {
-      // AUDIT: Log failed login - invalid PIN
+    // Verify password
+    const isValidPassword = await bcrypt.compare(body.password, operator.passwordHash);
+    if (!isValidPassword) {
+      // AUDIT: Log failed login - invalid password
       await this.auditLogService.log({
-        networkId: location.networkId,
+        networkId: operator.networkId,
         action: AuditAction.LOGIN_FAILED,
         actorType: 'OPERATOR',
-        metadata: { locationCode: body.locationCode.toUpperCase(), locationId: location.id, error: 'Invalid PIN' },
+        metadata: { email: body.email.toLowerCase(), operatorId: operator.id, error: 'Invalid password' },
         ipAddress,
         userAgent,
       });
-      throw new UnauthorizedException('Hibás PIN kód. Kérd a Network Admin-t, hogy hozzon létre operátort ehhez a helyszínhez.');
+      throw new UnauthorizedException('Hibás email cím vagy jelszó');
     }
+
+    const location = operator.location;
 
     // Create session and store in database
     const sessionData: OperatorSessionData = {
@@ -150,8 +145,8 @@ export class OperatorPortalController {
       locationName: location.name,
       locationCode: location.code,
       washMode: location.washMode,
-      operatorId: authenticatedOperator.id || null,
-      operatorName: authenticatedOperator.name,
+      operatorId: operator.id,
+      operatorName: operator.name,
     };
 
     const sessionId = await this.sessionService.createSession(
@@ -159,7 +154,7 @@ export class OperatorPortalController {
       sessionData,
       {
         networkId: location.networkId,
-        userId: authenticatedOperator.id,
+        userId: operator.id,
       },
     );
 
@@ -171,8 +166,8 @@ export class OperatorPortalController {
       networkId: location.networkId,
       action: AuditAction.LOGIN_SUCCESS,
       actorType: 'OPERATOR',
-      actorId: authenticatedOperator.id,
-      metadata: { locationCode: body.locationCode.toUpperCase(), locationId: location.id, operatorName: authenticatedOperator.name },
+      actorId: operator.id,
+      metadata: { email: body.email.toLowerCase(), locationId: location.id, operatorName: operator.name },
       ipAddress,
       userAgent,
     });
@@ -184,59 +179,41 @@ export class OperatorPortalController {
       locationCode: location.code,
       washMode: location.washMode,
       networkName: location.network.name,
-      operatorName: authenticatedOperator.name,
+      operatorName: operator.name,
     };
   }
 
-  // ==================== PIN Reset ====================
+  // ==================== Password Reset ====================
 
-  @Post('request-pin-reset')
+  @Post('request-password-reset')
   @SensitiveThrottle()
   @HttpCode(HttpStatus.OK)
-  async requestPinReset(
-    @Body() body: { locationCode: string; operatorName: string },
+  async requestPasswordReset(
+    @Body() body: { email: string },
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket?.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    if (!body.locationCode || !body.operatorName) {
-      throw new BadRequestException('Helyszín kód és operátor név megadása kötelező');
+    if (!body.email) {
+      throw new BadRequestException('Email cím megadása kötelező');
     }
 
-    // Find location by code
-    const location = await this.prisma.location.findFirst({
+    // Find operator by email
+    const operator = await this.prisma.locationOperator.findFirst({
       where: {
-        code: body.locationCode.toUpperCase(),
+        email: body.email.toLowerCase(),
         isActive: true,
         deletedAt: null,
       },
-    });
-
-    if (!location) {
-      // Biztonsági okokból ne áruljuk el, hogy nem létezik
-      return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
-    }
-
-    // Check if location has email
-    if (!location.email) {
-      this.logger.warn(`PIN reset requested for location ${location.code} but no email configured`);
-      return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
-    }
-
-    // Find operator by name at this location
-    const operator = await this.prisma.locationOperator.findFirst({
-      where: {
-        locationId: location.id,
-        name: { equals: body.operatorName, mode: 'insensitive' },
-        isActive: true,
-        deletedAt: null,
+      include: {
+        location: true,
       },
     });
 
     if (!operator) {
       // Biztonsági okokból ne áruljuk el, hogy nem létezik
-      return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
+      return { message: 'Ha az email cím helyes, a jelszó visszaállító linket elküldtük' };
     }
 
     // Generate reset token
@@ -253,63 +230,58 @@ export class OperatorPortalController {
 
     // Send email
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
-    const resetLink = `${platformUrl}/operator-portal/reset-pin?token=${resetToken}`;
+    const resetLink = `${platformUrl}/operator-portal/reset-password?token=${resetToken}`;
 
-    this.logger.log(`PIN reset link for operator ${operator.name} at ${location.code}: ${resetLink}`);
+    this.logger.log(`Password reset link for operator ${operator.name}: ${resetLink}`);
 
-    // Send PIN reset email to location email
-    if (location.email) {
-      try {
-        await this.emailService.sendPinResetEmail(
-          location.email,
-          operator.name,
-          resetLink,
-          'operator',
-        );
-        this.logger.log(`PIN reset email sent to location ${location.code} for operator ${operator.name}`);
-      } catch (emailError) {
-        this.logger.error(`Failed to send PIN reset email: ${emailError.message}`);
-        // Don't throw - still allow the process to continue
-      }
-    } else {
-      this.logger.warn(`Location ${location.code} has no email configured, PIN reset email not sent`);
+    // Send password reset email
+    try {
+      await this.emailService.sendPasswordResetEmail(
+        operator.email!,
+        operator.name,
+        resetLink,
+      );
+      this.logger.log(`Password reset email sent to operator ${operator.name}`);
+    } catch (emailError) {
+      this.logger.error(`Failed to send password reset email: ${emailError.message}`);
+      // Don't throw - still allow the process to continue
     }
 
-    // AUDIT: Log PIN reset request
+    // AUDIT: Log password reset request
     await this.auditLogService.log({
-      networkId: location.networkId,
+      networkId: operator.networkId,
       action: AuditAction.UPDATE,
       actorType: 'OPERATOR',
       metadata: {
-        type: 'PIN_RESET_REQUESTED',
-        locationCode: location.code,
+        type: 'PASSWORD_RESET_REQUESTED',
+        locationCode: operator.location.code,
         operatorName: operator.name,
         operatorId: operator.id,
-        email: location.email,
+        email: operator.email,
       },
       ipAddress,
       userAgent,
     });
 
-    return { message: 'Ha a helyszín és operátor létezik, a PIN visszaállító linket elküldtük a helyszín email címére' };
+    return { message: 'Ha az email cím helyes, a jelszó visszaállító linket elküldtük' };
   }
 
-  @Post('reset-pin')
+  @Post('reset-password')
   @SensitiveThrottle()
   @HttpCode(HttpStatus.OK)
-  async resetPin(
-    @Body() body: { token: string; newPin: string },
+  async resetPassword(
+    @Body() body: { token: string; newPassword: string },
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket?.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    if (!body.token || !body.newPin) {
-      throw new BadRequestException('Token és új PIN megadása kötelező');
+    if (!body.token || !body.newPassword) {
+      throw new BadRequestException('Token és új jelszó megadása kötelező');
     }
 
-    if (body.newPin.length < 4 || body.newPin.length > 8) {
-      throw new BadRequestException('A PIN kódnak 4-8 karakter hosszúnak kell lennie');
+    if (body.newPassword.length < 8) {
+      throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
     }
 
     // Find operator by reset token
@@ -329,26 +301,26 @@ export class OperatorPortalController {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');
     }
 
-    // Hash new PIN and update
-    const pinHash = await bcrypt.hash(body.newPin, 12);
+    // Hash new password and update
+    const passwordHash = await bcrypt.hash(body.newPassword, 12);
 
     await this.prisma.locationOperator.update({
       where: { id: operator.id },
       data: {
-        pinHash,
+        passwordHash,
         pinResetToken: null,
         pinResetExpires: null,
       },
     });
 
-    // AUDIT: Log PIN reset success
+    // AUDIT: Log password reset success
     await this.auditLogService.log({
       networkId: operator.networkId,
       action: AuditAction.UPDATE,
       actorType: 'OPERATOR',
       actorId: operator.id,
       metadata: {
-        type: 'PIN_RESET_SUCCESS',
+        type: 'PASSWORD_RESET_SUCCESS',
         locationCode: operator.location.code,
         operatorName: operator.name,
       },
@@ -356,7 +328,7 @@ export class OperatorPortalController {
       userAgent,
     });
 
-    return { message: 'PIN kód sikeresen megváltoztatva' };
+    return { message: 'Jelszó sikeresen megváltoztatva' };
   }
 
   @Get('profile')

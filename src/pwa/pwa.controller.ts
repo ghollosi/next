@@ -449,10 +449,152 @@ export class PwaController {
     }
   }
 
+  // =========================================================================
+  // UNIFIED EMAIL + PASSWORD LOGIN (NEW)
+  // =========================================================================
+
+  @Post('login')
+  @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with email address and password' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', description: 'Driver email address' },
+        password: { type: 'string', description: 'Driver password' },
+      },
+      required: ['email', 'password'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Driver logged in successfully',
+    type: ActivateResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid email or password' })
+  async login(
+    @Body() body: { email: string; password: string },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ActivateResponseDto & { sessionId: string }> {
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
+
+    if (!body.email || !body.password) {
+      throw new BadRequestException('Email cím és jelszó megadása kötelező');
+    }
+
+    // Mask email for audit log (show first 3 chars + domain)
+    const emailParts = body.email.split('@');
+    const maskedEmail = emailParts[0].slice(0, 3) + '***@' + (emailParts[1] || '');
+
+    // Find driver by email
+    const driver = await this.prisma.driver.findFirst({
+      where: {
+        email: body.email.toLowerCase(),
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        partnerCompany: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!driver) {
+      // AUDIT: Log failed login - invalid email
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'DRIVER',
+        metadata: { method: 'email+password', email: maskedEmail, error: 'Invalid email' },
+        ipAddress,
+        userAgent,
+      });
+      throw new UnauthorizedException('Hibás email cím vagy jelszó');
+    }
+
+    // Check if driver has a password set
+    if (!driver.passwordHash) {
+      throw new UnauthorizedException('Nincs jelszó beállítva. Kérj jelszó visszaállítást.');
+    }
+
+    // Verify password
+    const bcrypt = await import('bcrypt');
+    const isValidPassword = await bcrypt.compare(body.password, driver.passwordHash);
+    if (!isValidPassword) {
+      // AUDIT: Log failed login - invalid password
+      await this.auditLogService.log({
+        networkId: driver.networkId,
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'DRIVER',
+        actorId: driver.id,
+        metadata: { method: 'email+password', email: maskedEmail, error: 'Invalid password' },
+        ipAddress,
+        userAgent,
+      });
+      throw new UnauthorizedException('Hibás email cím vagy jelszó');
+    }
+
+    // Create session and store in database
+    const sessionData: DriverSessionData = {
+      driverId: driver.id,
+      networkId: driver.networkId,
+      partnerCompanyId: driver.partnerCompanyId || undefined,
+    };
+
+    const sessionId = await this.sessionService.createSession(
+      SessionType.DRIVER,
+      sessionData,
+      {
+        networkId: driver.networkId,
+        userId: driver.id,
+      },
+    );
+
+    // SECURITY: Set httpOnly cookie for session (XSS protection)
+    setSessionCookie(res, SESSION_COOKIES.DRIVER, sessionId);
+
+    // AUDIT: Log successful login
+    await this.auditLogService.log({
+      networkId: driver.networkId,
+      action: AuditAction.LOGIN_SUCCESS,
+      actorType: 'DRIVER',
+      actorId: driver.id,
+      metadata: { method: 'email+password', email: maskedEmail },
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      sessionId,
+      driverId: driver.id,
+      networkId: driver.networkId,
+      partnerCompanyId: driver.partnerCompanyId,
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      partnerCompanyName: driver.partnerCompany?.name || null,
+      isPrivateCustomer: driver.isPrivateCustomer,
+      billingName: driver.billingName,
+      billingAddress: driver.billingAddress,
+      billingCity: driver.billingCity,
+      billingZipCode: driver.billingZipCode,
+      billingCountry: driver.billingCountry,
+      billingTaxNumber: driver.billingTaxNumber,
+    };
+  }
+
+  // =========================================================================
+  // DEPRECATED: Legacy PIN-based login (keep for backward compatibility)
+  // =========================================================================
+
   @Post('login-phone')
   @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with phone number and PIN' })
+  @ApiOperation({ summary: '[DEPRECATED] Login with phone number and PIN - use /login instead' })
   @ApiBody({ type: ActivateByPhoneDto })
   @ApiResponse({
     status: 200,
@@ -538,7 +680,7 @@ export class PwaController {
   @Post('login-email')
   @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email address and PIN' })
+  @ApiOperation({ summary: '[DEPRECATED] Login with email address and PIN - use /login instead' })
   @ApiBody({ type: ActivateByEmailDto })
   @ApiResponse({
     status: 200,
@@ -623,13 +765,186 @@ export class PwaController {
   }
 
   // =========================================================================
-  // PIN RESET REQUEST ENDPOINT
+  // PASSWORD RESET ENDPOINTS (NEW)
+  // =========================================================================
+
+  @Post('request-password-reset')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset - sends email with reset link' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email'],
+      properties: {
+        email: { type: 'string', description: 'Email address associated with the driver account' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Request submitted (same response regardless of email existence)' })
+  async requestPasswordReset(
+    @Body() body: { email: string },
+    @Req() req: Request,
+  ) {
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
+
+    if (!body.email) {
+      throw new BadRequestException('Email cím megadása kötelező');
+    }
+
+    const email = body.email.toLowerCase();
+    const emailParts = email.split('@');
+    const maskedEmail = emailParts[0].slice(0, 3) + '***@' + (emailParts[1] || '');
+
+    // Find driver by email (across all networks)
+    const driver = await this.prisma.driver.findFirst({
+      where: {
+        email,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    // Always return success message for security (don't reveal if email exists)
+    const successMessage = 'Ha az email cím regisztrálva van, a jelszó visszaállító linket elküldtük.';
+
+    if (!driver) {
+      this.logger.warn(`Password reset request for unknown email: ${maskedEmail}`);
+      return { message: successMessage };
+    }
+
+    // Generate reset token
+    const crypto = await import('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
+
+    await this.prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        pinResetToken: resetToken,
+        pinResetExpires: resetExpires,
+      },
+    });
+
+    // Send email
+    const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
+    const resetLink = `${platformUrl}/reset-password?token=${resetToken}`;
+
+    this.logger.log(`Password reset link for driver ${driver.id}: ${resetLink}`);
+
+    // Send password reset email
+    try {
+      await this.emailService.sendPasswordResetEmail(
+        driver.email!,
+        `${driver.firstName} ${driver.lastName}`,
+        resetLink,
+      );
+      this.logger.log(`Password reset email sent to driver ${driver.id}`);
+    } catch (emailError) {
+      this.logger.error(`Failed to send password reset email to driver ${driver.id}: ${emailError.message}`);
+      // Don't throw - still allow the process to continue
+    }
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId: driver.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'DRIVER',
+      actorId: driver.id,
+      metadata: {
+        type: 'PASSWORD_RESET_REQUESTED',
+        email: maskedEmail,
+        driverName: `${driver.firstName} ${driver.lastName}`,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: successMessage };
+  }
+
+  @Post('reset-password')
+  @SensitiveThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'Reset token from email' },
+        newPassword: { type: 'string', description: 'New password (min 8 characters)' },
+      },
+      required: ['token', 'newPassword'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  async resetPassword(
+    @Body() body: { token: string; newPassword: string },
+    @Req() req: Request,
+  ) {
+    const { ipAddress, userAgent } = this.getRequestMetadata(req);
+
+    if (!body.token || !body.newPassword) {
+      throw new BadRequestException('Token és új jelszó megadása kötelező');
+    }
+
+    if (body.newPassword.length < 8) {
+      throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
+    }
+
+    // Find driver by reset token
+    const driver = await this.prisma.driver.findFirst({
+      where: {
+        pinResetToken: body.token,
+        pinResetExpires: { gt: new Date() },
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!driver) {
+      throw new UnauthorizedException('Érvénytelen vagy lejárt token');
+    }
+
+    // Hash new password and update
+    const bcrypt = await import('bcrypt');
+    const passwordHash = await bcrypt.hash(body.newPassword, 12);
+
+    await this.prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        passwordHash,
+        pinResetToken: null,
+        pinResetExpires: null,
+      },
+    });
+
+    // Audit log
+    await this.auditLogService.log({
+      networkId: driver.networkId,
+      action: AuditAction.UPDATE,
+      actorType: 'DRIVER',
+      actorId: driver.id,
+      metadata: {
+        type: 'PASSWORD_RESET_SUCCESS',
+        driverName: `${driver.firstName} ${driver.lastName}`,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: 'Jelszó sikeresen megváltoztatva' };
+  }
+
+  // =========================================================================
+  // DEPRECATED: Legacy PIN reset (keep for backward compatibility)
   // =========================================================================
 
   @Post('request-pin-reset')
   @SensitiveThrottle()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request PIN reset - creates a request for Partner/Platform Admin' })
+  @ApiOperation({ summary: '[DEPRECATED] Request PIN reset - use /request-password-reset instead' })
   @ApiBody({
     schema: {
       type: 'object',

@@ -610,6 +610,10 @@ model Driver {
   phoneVerified    Boolean   @default(false) @map("phone_verified")
   phoneVerifiedAt  DateTime? @map("phone_verified_at")
 
+  // Password reset
+  pinResetToken   String?   @map("pin_reset_token")
+  pinResetExpires DateTime? @map("pin_reset_expires")
+
   // Magánszemély ügyfél adatok (személyautó mosókhoz)
   isPrivateCustomer Boolean   @default(false) @map("is_private_customer")  // Magánszemély-e (nem flottás sofőr)
   billingName       String?   @map("billing_name")                          // Számlázási név

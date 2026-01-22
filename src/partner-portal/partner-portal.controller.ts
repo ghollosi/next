@@ -83,65 +83,80 @@ export class PartnerPortalController {
   @Post('login')
   @LoginThrottle() // SECURITY: Brute force protection - 5 attempts per minute
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Partner login with company code and PIN' })
+  @ApiOperation({ summary: 'Partner login with email and password' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        code: { type: 'string', description: 'Partner company code' },
-        pin: { type: 'string', description: '4-digit PIN' },
+        email: { type: 'string', description: 'Partner email address' },
+        password: { type: 'string', description: 'Partner password' },
       },
-      required: ['code', 'pin'],
+      required: ['email', 'password'],
     },
   })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
-    @Body() body: { code: string; pin: string },
+    @Body() body: { email: string; password: string },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const ipAddress = req.ip || req.socket?.remoteAddress;
     const userAgent = req.get('user-agent');
 
+    // Validate input
+    if (!body.email || !body.password) {
+      throw new BadRequestException('Email és jelszó megadása kötelező');
+    }
+
     try {
-      // SECURITY: Validate network ID is configured
-      if (!DEFAULT_NETWORK_ID) {
-        throw new BadRequestException('Network ID is not configured. Please set DEFAULT_NETWORK_ID environment variable.');
+      // Find partner by email
+      const partner = await this.prisma.partnerCompany.findFirst({
+        where: {
+          email: body.email.toLowerCase(),
+          isActive: true,
+          deletedAt: null,
+        },
+      });
+
+      if (!partner) {
+        // AUDIT: Log failed login - partner not found
+        await this.auditLogService.log({
+          action: AuditAction.LOGIN_FAILED,
+          actorType: 'PARTNER',
+          metadata: { email: body.email.toLowerCase(), error: 'Partner not found' },
+          ipAddress,
+          userAgent,
+        });
+        throw new UnauthorizedException('Hibás email cím vagy jelszó');
       }
 
-      // SECURITY: Use findByCodeForAuth to get full object with pinHash for authentication
-      const partner = await this.partnerCompanyService.findByCodeForAuth(
-        DEFAULT_NETWORK_ID,
-        body.code.toUpperCase(),
-      );
-
-      // Verify PIN using bcrypt hash stored in database
-      if (!partner.pinHash) {
-        // AUDIT: Log failed login - no PIN configured
+      // Verify password using bcrypt hash stored in database
+      if (!partner.passwordHash) {
+        // AUDIT: Log failed login - no password configured
         await this.auditLogService.log({
           networkId: partner.networkId,
           action: AuditAction.LOGIN_FAILED,
           actorType: 'PARTNER',
-          metadata: { partnerCode: body.code.toUpperCase(), partnerId: partner.id, error: 'No PIN configured' },
+          metadata: { email: body.email.toLowerCase(), partnerId: partner.id, error: 'No password configured' },
           ipAddress,
           userAgent,
         });
-        throw new UnauthorizedException('Nincs beállítva PIN kód. Kérd a Network Admin-t a PIN beállításához.');
+        throw new UnauthorizedException('Nincs beállítva jelszó. Kérje a jelszó visszaállítást.');
       }
 
-      const isValidPin = await bcrypt.compare(body.pin, partner.pinHash);
-      if (!isValidPin) {
-        // AUDIT: Log failed login - invalid PIN
+      const isValidPassword = await bcrypt.compare(body.password, partner.passwordHash);
+      if (!isValidPassword) {
+        // AUDIT: Log failed login - invalid password
         await this.auditLogService.log({
           networkId: partner.networkId,
           action: AuditAction.LOGIN_FAILED,
           actorType: 'PARTNER',
-          metadata: { partnerCode: body.code.toUpperCase(), partnerId: partner.id, error: 'Invalid PIN' },
+          metadata: { email: body.email.toLowerCase(), partnerId: partner.id, error: 'Invalid password' },
           ipAddress,
           userAgent,
         });
-        throw new UnauthorizedException('Hibás PIN kód');
+        throw new UnauthorizedException('Hibás email cím vagy jelszó');
       }
 
       // Generate session and store in database
@@ -169,7 +184,7 @@ export class PartnerPortalController {
         action: AuditAction.LOGIN_SUCCESS,
         actorType: 'PARTNER',
         actorId: partner.id,
-        metadata: { partnerCode: body.code.toUpperCase(), partnerName: partner.name },
+        metadata: { email: body.email.toLowerCase(), partnerName: partner.name },
         ipAddress,
         userAgent,
       });
@@ -181,53 +196,45 @@ export class PartnerPortalController {
         partnerCode: partner.code,
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
         throw error;
       }
-      // AUDIT: Log failed login - partner not found
-      await this.auditLogService.log({
-        action: AuditAction.LOGIN_FAILED,
-        actorType: 'PARTNER',
-        metadata: { partnerCode: body.code.toUpperCase(), error: 'Partner not found' },
-        ipAddress,
-        userAgent,
-      });
-      throw new UnauthorizedException('Hibás partner kód vagy PIN');
+      this.logger.error('Partner login error:', error);
+      throw new UnauthorizedException('Hibás email cím vagy jelszó');
     }
   }
 
-  // ==================== PIN Reset ====================
+  // ==================== Password Reset ====================
 
-  @Post('request-pin-reset')
+  @Post('request-password-reset')
   @SensitiveThrottle()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request PIN reset (sends email to partner)' })
+  @ApiOperation({ summary: 'Request password reset (sends email to partner)' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        code: { type: 'string', description: 'Partner company code' },
-        email: { type: 'string', description: 'Partner email for verification' },
+        email: { type: 'string', description: 'Partner email address' },
       },
-      required: ['code', 'email'],
+      required: ['email'],
     },
   })
   @ApiResponse({ status: 200, description: 'Reset email sent if account exists' })
-  async requestPinReset(
-    @Body() body: { code: string; email: string },
+  async requestPasswordReset(
+    @Body() body: { email: string },
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket?.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    if (!body.code || !body.email) {
-      throw new BadRequestException('Partner kód és email megadása kötelező');
+    if (!body.email) {
+      throw new BadRequestException('Email cím megadása kötelező');
     }
 
-    // Find partner by code and verify email
+    // Find partner by email
     const partner = await this.prisma.partnerCompany.findFirst({
       where: {
-        code: body.code.toUpperCase(),
+        email: body.email.toLowerCase(),
         isActive: true,
         deletedAt: null,
       },
@@ -235,13 +242,7 @@ export class PartnerPortalController {
 
     if (!partner) {
       // Biztonsági okokból ne áruljuk el, hogy nem létezik
-      return { message: 'Ha a partner kód és email helyes, a PIN visszaállító linket elküldtük' };
-    }
-
-    // Verify email matches
-    if (!partner.email || partner.email.toLowerCase() !== body.email.toLowerCase()) {
-      // Biztonsági okokból ne áruljuk el
-      return { message: 'Ha a partner kód és email helyes, a PIN visszaállító linket elküldtük' };
+      return { message: 'Ha az email cím helyes, a jelszó visszaállító linket elküldtük' };
     }
 
     // Generate reset token
@@ -258,31 +259,30 @@ export class PartnerPortalController {
 
     // Send email
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
-    const resetLink = `${platformUrl}/partner/reset-pin?token=${resetToken}`;
+    const resetLink = `${platformUrl}/partner/reset-password?token=${resetToken}`;
 
-    this.logger.log(`PIN reset link for partner ${partner.code}: ${resetLink}`);
+    this.logger.log(`Password reset link for partner ${partner.code}: ${resetLink}`);
 
-    // Send PIN reset email
+    // Send password reset email
     try {
-      await this.emailService.sendPinResetEmail(
-        partner.email,
+      await this.emailService.sendPasswordResetEmail(
+        partner.email!,
         partner.name,
         resetLink,
-        'partner',
       );
-      this.logger.log(`PIN reset email sent to partner ${partner.code}`);
+      this.logger.log(`Password reset email sent to partner ${partner.code}`);
     } catch (emailError) {
-      this.logger.error(`Failed to send PIN reset email to partner ${partner.code}: ${emailError.message}`);
+      this.logger.error(`Failed to send password reset email to partner ${partner.code}: ${emailError.message}`);
       // Don't throw - still allow the process to continue
     }
 
-    // AUDIT: Log PIN reset request
+    // AUDIT: Log password reset request
     await this.auditLogService.log({
       networkId: partner.networkId,
       action: AuditAction.UPDATE,
       actorType: 'PARTNER',
       metadata: {
-        type: 'PIN_RESET_REQUESTED',
+        type: 'PASSWORD_RESET_REQUESTED',
         partnerCode: partner.code,
         partnerId: partner.id,
         email: partner.email,
@@ -291,38 +291,38 @@ export class PartnerPortalController {
       userAgent,
     });
 
-    return { message: 'Ha a partner kód és email helyes, a PIN visszaállító linket elküldtük' };
+    return { message: 'Ha az email cím helyes, a jelszó visszaállító linket elküldtük' };
   }
 
-  @Post('reset-pin')
+  @Post('reset-password')
   @SensitiveThrottle()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reset PIN with token' })
+  @ApiOperation({ summary: 'Reset password with token' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
         token: { type: 'string', description: 'Reset token from email' },
-        newPin: { type: 'string', description: 'New 4-digit PIN' },
+        newPassword: { type: 'string', description: 'New password (min 8 characters)' },
       },
-      required: ['token', 'newPin'],
+      required: ['token', 'newPassword'],
     },
   })
-  @ApiResponse({ status: 200, description: 'PIN reset successful' })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
   @ApiResponse({ status: 401, description: 'Invalid or expired token' })
-  async resetPin(
-    @Body() body: { token: string; newPin: string },
+  async resetPassword(
+    @Body() body: { token: string; newPassword: string },
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket?.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    if (!body.token || !body.newPin) {
-      throw new BadRequestException('Token és új PIN megadása kötelező');
+    if (!body.token || !body.newPassword) {
+      throw new BadRequestException('Token és új jelszó megadása kötelező');
     }
 
-    if (body.newPin.length < 4 || body.newPin.length > 8) {
-      throw new BadRequestException('A PIN kódnak 4-8 karakter hosszúnak kell lennie');
+    if (body.newPassword.length < 8) {
+      throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
     }
 
     // Find partner by reset token
@@ -339,33 +339,33 @@ export class PartnerPortalController {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');
     }
 
-    // Hash new PIN and update
-    const pinHash = await bcrypt.hash(body.newPin, 12);
+    // Hash new password and update
+    const passwordHash = await bcrypt.hash(body.newPassword, 12);
 
     await this.prisma.partnerCompany.update({
       where: { id: partner.id },
       data: {
-        pinHash,
+        passwordHash,
         pinResetToken: null,
         pinResetExpires: null,
       },
     });
 
-    // AUDIT: Log PIN reset success
+    // AUDIT: Log password reset success
     await this.auditLogService.log({
       networkId: partner.networkId,
       action: AuditAction.UPDATE,
       actorType: 'PARTNER',
       actorId: partner.id,
       metadata: {
-        type: 'PIN_RESET_SUCCESS',
+        type: 'PASSWORD_RESET_SUCCESS',
         partnerCode: partner.code,
       },
       ipAddress,
       userAgent,
     });
 
-    return { message: 'PIN kód sikeresen megváltoztatva' };
+    return { message: 'Jelszó sikeresen megváltoztatva' };
   }
 
   // ==================== Driver PIN Reset Requests ====================

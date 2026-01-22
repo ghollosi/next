@@ -5,16 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { saveSession, getPendingLocation, clearPendingLocation } from '@/lib/session';
 
-type LoginMethod = 'phone' | 'email' | 'invite';
-
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone');
-  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
-  const [pin, setPin] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -43,15 +38,7 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      let response;
-
-      if (loginMethod === 'phone') {
-        response = await api.loginByPhone(phone, pin);
-      } else if (loginMethod === 'email') {
-        response = await api.loginByEmail(email, pin);
-      } else {
-        response = await api.activate(inviteCode.toUpperCase(), pin);
-      }
+      const response = await api.login(email, password);
 
       saveSession(response.sessionId, {
         driverId: response.driverId,
@@ -84,38 +71,11 @@ function LoginContent() {
     }
   };
 
-  const handlePinChange = (value: string) => {
-    // Only allow digits and max 4 characters
-    const cleaned = value.replace(/\D/g, '').slice(0, 4);
-    setPin(cleaned);
-  };
-
-  const handlePhoneChange = (value: string) => {
-    // Allow digits, +, spaces, and dashes
-    const cleaned = value.replace(/[^\d\s\-+]/g, '');
-    setPhone(cleaned);
-  };
-
-  const handleInviteChange = (value: string) => {
-    // Only allow alphanumeric and max 6 characters
-    const cleaned = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
-    setInviteCode(cleaned);
-  };
-
-  const handleEmailChange = (value: string) => {
-    setEmail(value.trim());
-  };
-
   const isSubmitDisabled = () => {
     if (loading) return true;
-    if (pin.length !== 4) return true;
-    if (loginMethod === 'phone') {
-      return phone.replace(/[\s\-+]/g, '').length < 9;
-    } else if (loginMethod === 'email') {
-      return !email.includes('@') || email.length < 5;
-    } else {
-      return inviteCode.length !== 6;
-    }
+    if (!email.includes('@') || email.length < 5) return true;
+    if (password.length < 8) return true;
+    return false;
   };
 
   return (
@@ -144,125 +104,42 @@ function LoginContent() {
           </div>
         )}
 
-        {/* Login Method Toggle */}
-        <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
-          <button
-            type="button"
-            onClick={() => { setLoginMethod('phone'); setError(''); }}
-            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
-              loginMethod === 'phone'
-                ? 'bg-white text-primary-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            Telefon
-          </button>
-          <button
-            type="button"
-            onClick={() => { setLoginMethod('email'); setError(''); }}
-            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
-              loginMethod === 'email'
-                ? 'bg-white text-primary-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            Email
-          </button>
-          <button
-            type="button"
-            onClick={() => { setLoginMethod('invite'); setError(''); }}
-            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
-              loginMethod === 'invite'
-                ? 'bg-white text-primary-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            Meghívó kód
-          </button>
-        </div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-6 text-center">
+          Bejelentkezés
+        </h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Phone Input (shown when phone method selected) */}
-          {loginMethod === 'phone' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Telefonszám
-              </label>
-              <input
-                type="tel"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="+36 30 123 4567"
-                className="w-full px-4 py-4 text-xl text-center tracking-wide font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-                autoComplete="tel"
-              />
-              <p className="text-xs text-gray-500 mt-1 text-center">
-                A regisztrációkor megadott telefonszám
-              </p>
-            </div>
-          )}
-
-          {/* Email Input (shown when email method selected) */}
-          {loginMethod === 'email' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email cím
-              </label>
-              <input
-                type="email"
-                inputMode="email"
-                value={email}
-                onChange={(e) => handleEmailChange(e.target.value)}
-                placeholder="pelda@email.com"
-                className="w-full px-4 py-4 text-lg text-center border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-                autoComplete="email"
-              />
-              <p className="text-xs text-gray-500 mt-1 text-center">
-                A regisztrációkor megadott email cím
-              </p>
-            </div>
-          )}
-
-          {/* Invite Code Input (shown when invite method selected) */}
-          {loginMethod === 'invite' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Meghívó kód
-              </label>
-              <input
-                type="text"
-                value={inviteCode}
-                onChange={(e) => handleInviteChange(e.target.value)}
-                placeholder="ABC123"
-                className="w-full px-4 py-4 text-2xl text-center tracking-[0.5em] font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none uppercase"
-                maxLength={6}
-                autoComplete="off"
-                autoCapitalize="characters"
-              />
-              <p className="text-xs text-gray-500 mt-1 text-center">
-                6 karakteres kód a cégedtől
-              </p>
-            </div>
-          )}
-
-          {/* PIN Input */}
+          {/* Email Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              PIN kód
+              Email cím
+            </label>
+            <input
+              type="email"
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value.trim())}
+              placeholder="pelda@email.com"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+              autoComplete="email"
+            />
+          </div>
+
+          {/* Password Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Jelszó
             </label>
             <input
               type="password"
-              inputMode="numeric"
-              value={pin}
-              onChange={(e) => handlePinChange(e.target.value)}
-              placeholder="••••"
-              className="w-full px-4 py-4 text-2xl text-center tracking-[0.75em] font-mono border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
-              maxLength={4}
-              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 focus:outline-none"
+              autoComplete="current-password"
             />
             <p className="text-xs text-gray-500 mt-1 text-center">
-              4 számjegyű PIN
+              Minimum 8 karakter
             </p>
           </div>
 
@@ -298,8 +175,8 @@ function LoginContent() {
 
         {/* Help Text */}
         <div className="mt-8 text-center space-y-3">
-          <a href="/forgot-pin" className="text-sm text-primary-600 hover:underline block">
-            Elfelejtetted a PIN kódod?
+          <a href="/forgot-password" className="text-sm text-primary-600 hover:underline block">
+            Elfelejtetted a jelszavad?
           </a>
           <div className="pt-2 border-t border-gray-100">
             <p className="text-sm text-gray-500 pt-3">

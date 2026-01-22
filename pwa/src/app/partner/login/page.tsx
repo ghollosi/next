@@ -7,8 +7,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function PartnerLoginPage() {
   const router = useRouter();
-  const [code, setCode] = useState('');
-  const [pin, setPin] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +23,8 @@ export default function PartnerLoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code: code.toUpperCase(), pin }),
+        credentials: 'include',
+        body: JSON.stringify({ email: email.toLowerCase(), password }),
       });
 
       if (!response.ok) {
@@ -69,43 +70,34 @@ export default function PartnerLoginPage() {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Partner Code Input */}
+          {/* Email Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Partner kód
+              Email cím
             </label>
             <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="HUNGATRANS"
-              className="w-full px-4 py-4 text-xl text-center tracking-wider font-mono border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 focus:outline-none uppercase"
-              autoComplete="off"
-              autoCapitalize="characters"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="partner@ceg.hu"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 focus:outline-none"
+              autoComplete="email"
             />
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              A cég azonosító kódja
-            </p>
           </div>
 
-          {/* PIN Input */}
+          {/* Password Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              PIN kód
+              Jelszó
             </label>
             <input
               type="password"
-              inputMode="numeric"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="••••"
-              className="w-full px-4 py-4 text-2xl text-center tracking-[0.75em] font-mono border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 focus:outline-none"
-              maxLength={4}
-              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 focus:outline-none"
+              autoComplete="current-password"
             />
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              4 számjegyű PIN kód
-            </p>
           </div>
 
           {/* Error Message */}
@@ -118,7 +110,7 @@ export default function PartnerLoginPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!code || pin.length !== 4 || loading}
+            disabled={!email || !password || loading}
             className="w-full bg-blue-600 text-white py-4 px-6 rounded-xl text-lg font-semibold
                        disabled:bg-gray-300 disabled:cursor-not-allowed
                        hover:bg-blue-700 active:bg-blue-800 transition-colors"
@@ -139,8 +131,8 @@ export default function PartnerLoginPage() {
 
         {/* Help Text */}
         <div className="mt-8 text-center space-y-3">
-          <a href="/partner/forgot-pin" className="text-sm text-blue-600 hover:underline block">
-            Elfelejtetted a PIN kódod?
+          <a href="/partner/forgot-password" className="text-sm text-blue-600 hover:underline block">
+            Elfelejtetted a jelszavad?
           </a>
           <p className="text-xs text-gray-400">
             Nincs hozzáférésed? Keresd az üzemeltetőt!

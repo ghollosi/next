@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_URL = 'https://api.vemiax.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.vemiax.com';
 
 export default function OperatorLoginPage() {
   const router = useRouter();
-  const [locationCode, setLocationCode] = useState('');
-  const [pin, setPin] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +23,8 @@ export default function OperatorLoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ locationCode: locationCode.toUpperCase(), pin }),
+        credentials: 'include',
+        body: JSON.stringify({ email: email.toLowerCase(), password }),
       });
 
       if (!response.ok) {
@@ -41,6 +42,7 @@ export default function OperatorLoginPage() {
         locationCode: data.locationCode,
         washMode: data.washMode,
         networkName: data.networkName,
+        operatorName: data.operatorName,
       }));
 
       router.push('/operator-portal/dashboard');
@@ -67,47 +69,38 @@ export default function OperatorLoginPage() {
       {/* Login Form */}
       <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-6">
         <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-          Mosó Bejelentkezés
+          Operátor Bejelentkezés
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Location Code Input */}
+          {/* Email Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Helyszín kód
+              Email cím
             </label>
             <input
-              type="text"
-              value={locationCode}
-              onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
-              placeholder="BP01"
-              className="w-full px-4 py-4 text-xl text-center tracking-wider font-mono border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-0 focus:outline-none uppercase"
-              autoComplete="off"
-              autoCapitalize="characters"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="operator@moso.hu"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-0 focus:outline-none"
+              autoComplete="email"
             />
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              A mosó állomás kódja
-            </p>
           </div>
 
-          {/* PIN Input */}
+          {/* Password Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              PIN kód
+              Jelszó
             </label>
             <input
               type="password"
-              inputMode="numeric"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="••••"
-              className="w-full px-4 py-4 text-2xl text-center tracking-[0.75em] font-mono border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-0 focus:outline-none"
-              maxLength={4}
-              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-0 focus:outline-none"
+              autoComplete="current-password"
             />
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              4 számjegyű PIN (demo: 1234)
-            </p>
           </div>
 
           {/* Error Message */}
@@ -120,7 +113,7 @@ export default function OperatorLoginPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!locationCode || pin.length !== 4 || loading}
+            disabled={!email || !password || loading}
             className="w-full bg-green-600 text-white py-4 px-6 rounded-xl text-lg font-semibold
                        disabled:bg-gray-300 disabled:cursor-not-allowed
                        hover:bg-green-700 active:bg-green-800 transition-colors"
@@ -141,8 +134,8 @@ export default function OperatorLoginPage() {
 
         {/* Help Text */}
         <div className="mt-8 text-center space-y-3">
-          <a href="/operator-portal/forgot-pin" className="text-sm text-green-600 hover:underline">
-            Elfelejtetted a PIN kódod?
+          <a href="/operator-portal/forgot-password" className="text-sm text-green-600 hover:underline">
+            Elfelejtetted a jelszavad?
           </a>
           <div className="pt-2">
             <a href="/login" className="text-sm text-gray-500 hover:underline">
