@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSession, getDriver, DriverInfo } from '@/lib/session';
 import DriverEmiWrapper from '@/components/DriverEmiWrapper';
 
-const API_URL = 'https://api.vemiax.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.vemiax.com';
 
 interface Location {
   id: string;

@@ -5,7 +5,7 @@ const nextConfig = {
   // NOTE: Only rewrite actual API paths, not PWA page routes!
   // The platform-api.ts and network-admin-api.ts call the API directly via getApiUrl()
   async rewrites() {
-    const apiUrl = process.env.API_URL || 'http://vsys-app:3000';
+    const apiUrl = process.env.API_URL || 'http://vsys-api:3000';
     return [
       // Core API endpoints only
       {

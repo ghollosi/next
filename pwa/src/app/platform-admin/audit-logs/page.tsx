@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { platformApi, getPlatformToken } from '@/lib/platform-api';
 
-const API_URL = 'https://api.vemiax.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.vemiax.com';
 
 interface Network {
   id: string;

@@ -109,6 +109,38 @@ export class WashEventService {
     return washEvent;
   }
 
+  /**
+   * Find wash event by ID with driver ownership check.
+   * Used by PWA endpoints to prevent IDOR - drivers can only access their own wash events.
+   */
+  async findByIdForDriver(id: string, driverId: string): Promise<WashEvent> {
+    const washEvent = await this.prisma.washEvent.findFirst({
+      where: {
+        id,
+        driverId,
+      },
+      include: {
+        location: true,
+        partnerCompany: true,
+        servicePackage: true,
+        driver: true,
+        tractorVehicle: true,
+        trailerVehicle: true,
+        services: {
+          include: {
+            servicePackage: true,
+          },
+        },
+      },
+    });
+
+    if (!washEvent) {
+      throw new NotFoundException(`Wash event not found`);
+    }
+
+    return washEvent;
+  }
+
   async findByLocation(
     networkId: string,
     locationId: string,
@@ -445,6 +477,11 @@ export class WashEventService {
       }
     }
 
+    // Determine default vehicle type based on location type
+    const defaultVehicleType: VehicleType = location.locationType === 'CAR_WASH'
+      ? VehicleType.CAR
+      : VehicleType.SEMI_TRUCK;
+
     // Prepare services data if using multiple services - with pricing lookup
     let servicesData: any[] | undefined;
     let calculatedTotalPrice = 0;
@@ -452,7 +489,7 @@ export class WashEventService {
     if (hasMultipleServices) {
       servicesData = [];
       for (const svc of input.services!) {
-        const vType = (svc.vehicleType || 'SEMI_TRUCK') as VehicleType;
+        const vType = (svc.vehicleType as VehicleType) || defaultVehicleType;
         const qty = svc.quantity || 1;
         const unitPrice = await this.lookupPrice(
           washEventNetworkId,
@@ -477,12 +514,11 @@ export class WashEventService {
         });
       }
     } else {
-      // Single service - look up price for the primary service
-      const vType = 'SEMI_TRUCK' as VehicleType;
+      // Single service - look up price using location-based vehicle type
       const unitPrice = await this.lookupPrice(
         washEventNetworkId,
         primaryServicePackageId,
-        vType,
+        defaultVehicleType,
         driver.partnerCompanyId,
       );
       calculatedTotalPrice = unitPrice;

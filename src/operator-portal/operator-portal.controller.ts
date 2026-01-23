@@ -216,14 +216,15 @@ export class OperatorPortalController {
       return { message: 'Ha az email cím helyes, a jelszó visszaállító linket elküldtük' };
     }
 
-    // Generate reset token
+    // Generate reset token and hash it before storing
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
+    const hashedToken = await bcrypt.hash(resetToken, 10);
 
     await this.prisma.locationOperator.update({
       where: { id: operator.id },
       data: {
-        pinResetToken: resetToken,
+        pinResetToken: hashedToken,
         pinResetExpires: resetExpires,
       },
     });
@@ -284,10 +285,10 @@ export class OperatorPortalController {
       throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
     }
 
-    // Find operator by reset token
-    const operator = await this.prisma.locationOperator.findFirst({
+    // Find operator by reset token (hashed comparison)
+    const operatorsWithTokens = await this.prisma.locationOperator.findMany({
       where: {
-        pinResetToken: body.token,
+        pinResetToken: { not: null },
         pinResetExpires: { gt: new Date() },
         isActive: true,
         deletedAt: null,
@@ -296,6 +297,14 @@ export class OperatorPortalController {
         location: true,
       },
     });
+
+    let operator = null;
+    for (const op of operatorsWithTokens) {
+      if (op.pinResetToken && await bcrypt.compare(body.token, op.pinResetToken)) {
+        operator = op;
+        break;
+      }
+    }
 
     if (!operator) {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');

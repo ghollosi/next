@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API_URL = 'https://api.vemiax.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.vemiax.com';
 
 interface BillingSettings {
   id?: string;

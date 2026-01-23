@@ -1477,7 +1477,8 @@ export class PwaController {
   @ApiResponse({ status: 200, description: 'Wash event details' })
   async getWashEvent(@Param('id') id: string, @Req() req: Request) {
     const session = await this.getDriverSession(req);
-    return this.washEventService.findById(session.networkId, id);
+    const washEvent = await this.washEventService.findByIdForDriver(id, session.driverId);
+    return washEvent;
   }
 
   @Post('wash-events/:id/start')
@@ -1489,12 +1490,12 @@ export class PwaController {
     const session = await this.getDriverSession(req);
     const metadata = this.getRequestMetadata(req);
 
-    // First authorize (auto-authorize for driver-created events)
-    let washEvent = await this.washEventService.findById(session.networkId, id);
+    // Verify ownership - driver can only start their own wash events
+    let washEvent = await this.washEventService.findByIdForDriver(id, session.driverId);
 
     if (washEvent.status === 'CREATED') {
       washEvent = await this.washEventService.authorize(
-        session.networkId,
+        (washEvent as any).networkId,
         id,
         {
           actorType: 'SYSTEM',
@@ -1504,7 +1505,7 @@ export class PwaController {
     }
 
     // Then start
-    return this.washEventService.start(session.networkId, id, {
+    return this.washEventService.start((washEvent as any).networkId, id, {
       actorType: 'DRIVER',
       actorId: session.driverId,
       ...metadata,
@@ -1520,7 +1521,10 @@ export class PwaController {
     const session = await this.getDriverSession(req);
     const metadata = this.getRequestMetadata(req);
 
-    return this.washEventService.complete(session.networkId, id, {
+    // Verify ownership - driver can only complete their own wash events
+    const washEvent = await this.washEventService.findByIdForDriver(id, session.driverId);
+
+    return this.washEventService.complete((washEvent as any).networkId, id, {
       actorType: 'DRIVER',
       actorId: session.driverId,
       ...metadata,

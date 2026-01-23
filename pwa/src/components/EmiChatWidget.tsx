@@ -99,9 +99,10 @@ export default function EmiChatWidget({
 
       // Determine endpoint and headers
       const isAuthenticated = userRole && token;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.vemiax.com';
       const endpoint = isAuthenticated
-        ? 'https://api.vemiax.com/ai-chat/authenticated'
-        : 'https://api.vemiax.com/ai-chat/public';
+        ? `${apiBase}/ai-chat/authenticated`
+        : `${apiBase}/ai-chat/public`;
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

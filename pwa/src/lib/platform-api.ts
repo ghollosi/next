@@ -3,10 +3,10 @@
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
     // Client-side: use public API URL
-    return 'https://api.vemiax.com';
+    return process.env.NEXT_PUBLIC_API_URL || 'https://api.vemiax.com';
   }
   // Server-side: use internal Docker network
-  return 'http://vsys-app:3000';
+  return 'http://vsys-api:3000';
 }
 
 interface PlatformLoginResponse {
