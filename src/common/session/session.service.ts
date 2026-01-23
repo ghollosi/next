@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionType } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -29,10 +30,22 @@ type SessionData = DriverSessionData | OperatorSessionData | PartnerSessionData;
 
 @Injectable()
 export class SessionService {
+  private readonly logger = new Logger(SessionService.name);
   // Session élettartam: 24 óra
   private readonly SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Automatikus cleanup - óránként törli a lejárt session-öket
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleSessionCleanup(): Promise<void> {
+    const count = await this.cleanupExpiredSessions();
+    if (count > 0) {
+      this.logger.log(`Cleaned up ${count} expired sessions`);
+    }
+  }
 
   /**
    * Generál egy egyedi session ID-t

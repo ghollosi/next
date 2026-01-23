@@ -33,6 +33,7 @@ import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { EmailService } from '../modules/email/email.service';
 import { SessionType, AuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { assertValidPassword } from '../common/security/password-policy';
 import {
   setSessionCookie,
   clearSessionCookie,
@@ -322,9 +323,7 @@ export class PartnerPortalController {
       throw new BadRequestException('Token és új jelszó megadása kötelező');
     }
 
-    if (body.newPassword.length < 8) {
-      throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
-    }
+    assertValidPassword(body.newPassword);
 
     // Find partner by reset token (hashed comparison)
     const partnersWithTokens = await this.prisma.partnerCompany.findMany({

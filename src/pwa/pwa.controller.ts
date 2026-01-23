@@ -41,6 +41,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { SessionService, DriverSessionData } from '../common/session/session.service';
 import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } from '../common/session/cookie.helper';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
+import { assertValidPassword } from '../common/security/password-policy';
 import { BookingService } from '../modules/booking/booking.service';
 import { CreateBookingDto, CancelBookingDto } from '../modules/booking/dto/booking.dto';
 import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType, AuditAction } from '@prisma/client';
@@ -897,9 +898,7 @@ export class PwaController {
       throw new BadRequestException('Token és új jelszó megadása kötelező');
     }
 
-    if (body.newPassword.length < 8) {
-      throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
-    }
+    assertValidPassword(body.newPassword);
 
     // SECURITY: Find drivers with non-expired tokens and compare hashes
     const bcrypt = await import('bcrypt');

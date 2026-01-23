@@ -2348,9 +2348,7 @@ Vemiax csapata`;
       throw new ConflictException('Érvényes email cím megadása kötelező');
     }
 
-    if (!dto.password || dto.password.length < 6) {
-      throw new ConflictException('A jelszónak legalább 6 karakter hosszúnak kell lennie');
-    }
+    assertValidPassword(dto.password);
 
     // Check for duplicate email within this network
     const existingOperator = await this.prisma.locationOperator.findFirst({
@@ -2431,9 +2429,7 @@ Vemiax csapata`;
     }
 
     if (dto.password) {
-      if (dto.password.length < 6) {
-        throw new ConflictException('A jelszónak legalább 6 karakter hosszúnak kell lennie');
-      }
+      assertValidPassword(dto.password);
       const bcrypt = await import('bcrypt');
       updateData.passwordHash = await bcrypt.hash(dto.password, 12);
     }
