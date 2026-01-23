@@ -75,7 +75,8 @@ import { AiChatModule } from './ai-chat/ai-chat.module';
     PlatformBillingModule,
     CompanyDataModule,
     AddressModule,
-    TestPortalModule,
+    // SECURITY: Test portal only available in non-production environments
+    ...(process.env.NODE_ENV !== 'production' ? [TestPortalModule] : []),
     AiChatModule,
   ],
   providers: [

@@ -838,7 +838,7 @@ export class PwaController {
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/reset-password?token=${resetToken}`;
 
-    this.logger.log(`Password reset link for driver ${driver.id}: ${resetLink}`);
+    this.logger.log(`Password reset email requested for driver ${driver.id}`);
 
     // Send password reset email
     try {

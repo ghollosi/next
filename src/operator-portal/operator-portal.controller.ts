@@ -232,7 +232,7 @@ export class OperatorPortalController {
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/operator-portal/reset-password?token=${resetToken}`;
 
-    this.logger.log(`Password reset link for operator ${operator.name}: ${resetLink}`);
+    this.logger.log(`Password reset email requested for operator ${operator.name}`);
 
     // Send password reset email
     try {

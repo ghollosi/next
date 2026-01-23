@@ -261,7 +261,7 @@ export class PartnerPortalController {
     const platformUrl = this.configService.get('PLATFORM_URL') || 'https://app.vemiax.com';
     const resetLink = `${platformUrl}/partner/reset-password?token=${resetToken}`;
 
-    this.logger.log(`Password reset link for partner ${partner.code}: ${resetLink}`);
+    this.logger.log(`Password reset email requested for partner ${partner.code}`);
 
     // Send password reset email
     try {
