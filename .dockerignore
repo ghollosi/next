@@ -17,10 +17,5 @@ npm-debug.log*
 .vscode
 backup
 backups
-docker-compose*.yml
-Dockerfile*
-tsconfig*.json
 *.spec.ts
 test
-.eslintrc*
-.prettierrc*
