@@ -418,14 +418,15 @@ export class PlatformAdminService {
       return { message: 'Ha az email cím létezik, elküldtük a jelszó-visszaállító linket' };
     }
 
-    // Token generálás (32 byte = 64 hex karakter)
+    // Token generálás és hash-elés tárolás előtt
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
+    const tokenHash = await bcrypt.hash(resetToken, 10);
 
     await this.prisma.platformAdmin.update({
       where: { id: admin.id },
       data: {
-        passwordResetToken: resetToken,
+        passwordResetToken: tokenHash,
         passwordResetExpires: resetExpires,
       },
     });
@@ -453,13 +454,22 @@ export class PlatformAdminService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    const admin = await this.prisma.platformAdmin.findFirst({
+    // Find admins with active reset tokens and compare with bcrypt
+    const adminsWithTokens = await this.prisma.platformAdmin.findMany({
       where: {
-        passwordResetToken: dto.token,
+        passwordResetToken: { not: null },
         passwordResetExpires: { gt: new Date() },
         isActive: true,
       },
     });
+
+    let admin = null;
+    for (const a of adminsWithTokens) {
+      if (a.passwordResetToken && await bcrypt.compare(dto.token, a.passwordResetToken)) {
+        admin = a;
+        break;
+      }
+    }
 
     if (!admin) {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');

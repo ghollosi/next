@@ -585,11 +585,12 @@ Vemiax csapata`;
         data: { usedAt: new Date() },
       });
 
-      // Generate new token
+      // Generate new token and hash before storing
       const resetToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = await bcrypt.hash(resetToken, 10);
       await this.prisma.verificationToken.create({
         data: {
-          token: resetToken,
+          token: tokenHash,
           type: 'PASSWORD_RESET',
           email: email.toLowerCase(),
           expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
@@ -597,7 +598,7 @@ Vemiax csapata`;
         },
       });
 
-      // Send password reset email
+      // Send password reset email (with unhashed token)
       await this.sendPasswordResetEmail(admin, network, resetToken);
 
       return successResponse;
@@ -608,14 +609,22 @@ Vemiax csapata`;
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    const resetToken = await this.prisma.verificationToken.findFirst({
+    // Find valid tokens and compare with bcrypt
+    const candidates = await this.prisma.verificationToken.findMany({
       where: {
-        token,
         type: 'PASSWORD_RESET',
         usedAt: null,
         expiresAt: { gt: new Date() },
       },
     });
+
+    let resetToken = null;
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(token, candidate.token)) {
+        resetToken = candidate;
+        break;
+      }
+    }
 
     if (!resetToken) {
       throw new BadRequestException('Érvénytelen vagy lejárt token. Kérjen új jelszó visszaállító linket.');

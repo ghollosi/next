@@ -245,14 +245,15 @@ export class PartnerPortalController {
       return { message: 'Ha az email cím helyes, a jelszó visszaállító linket elküldtük' };
     }
 
-    // Generate reset token
+    // Generate reset token and hash before storing
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 óra
+    const resetTokenHash = await bcrypt.hash(resetToken, 10);
 
     await this.prisma.partnerCompany.update({
       where: { id: partner.id },
       data: {
-        pinResetToken: resetToken,
+        pinResetToken: resetTokenHash,
         pinResetExpires: resetExpires,
       },
     });
@@ -325,15 +326,23 @@ export class PartnerPortalController {
       throw new BadRequestException('A jelszónak legalább 8 karakter hosszúnak kell lennie');
     }
 
-    // Find partner by reset token
-    const partner = await this.prisma.partnerCompany.findFirst({
+    // Find partner by reset token (hashed comparison)
+    const partnersWithTokens = await this.prisma.partnerCompany.findMany({
       where: {
-        pinResetToken: body.token,
+        pinResetToken: { not: null },
         pinResetExpires: { gt: new Date() },
         isActive: true,
         deletedAt: null,
       },
     });
+
+    let partner = null;
+    for (const p of partnersWithTokens) {
+      if (p.pinResetToken && await bcrypt.compare(body.token, p.pinResetToken)) {
+        partner = p;
+        break;
+      }
+    }
 
     if (!partner) {
       throw new UnauthorizedException('Érvénytelen vagy lejárt token');
