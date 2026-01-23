@@ -10,6 +10,11 @@ build/
 .env.local
 .env.*.local
 
+# Server env backups (contain secrets - NEVER commit!)
+backup/server-env-*.txt
+backup/*-env-*
+*.env.backup
+
 # IDE
 .idea/
 .vscode/

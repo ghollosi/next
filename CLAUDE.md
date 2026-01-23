@@ -126,38 +126,213 @@ ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "docker exec vsys-api npx prisma 
 cd /Users/hollosigabor/Downloads/NewvSys && npx prisma studio
 ```
 
-### Backup készítése:
+### TELJES BIZTONSÁGI MENTÉS - LÉPÉSRŐL LÉPÉSRE
+
+A biztonsági mentés 4 részből áll:
+1. **Adatbázis dump** - PostgreSQL teljes mentés
+2. **Landing page** - www.vemiax.com fájlok
+3. **Nginx konfiguráció** - szerver beállítások
+4. **Git commit + GitHub push** - kód + backup fájlok
+
+#### ⚠️ KRITIKUS SZABÁLYOK:
+- **SOHA ne commitolj `.env` fájlt vagy szerver környezeti változókat!** (API kulcsok, jelszavak)
+- **GitHub Push Protection** blokkolja a titkokat tartalmazó commitokat
+- A szerver `.env` fájl CSAK lokálisan tárolható (nem megy Githubra)
+- A `backup/` mappa tartalmazza a mentési fájlokat
+
+---
+
+#### 1. LÉPÉS: Adatbázis mentés letöltése szerverről
+
 ```bash
-# Adatbázis backup
-ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "docker exec vsys-postgres pg_dump -U vsys vsys_next" > backup.sql
+# Dátumváltozó beállítása (aktuális nap)
+DATE=$(date +%Y-%m-%d)
 
-# Landing page backup
-ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "tar -czf - /var/www/vemiax" > landing-backup.tar.gz
+# PostgreSQL dump letöltése a szerverről
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "docker exec vsys-postgres pg_dump -U vsys vsys_next" \
+  > backup/database-backup-${DATE}.sql
 
-# Nginx config backup
-ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "cat /etc/nginx/sites-available/vemiax" > nginx-backup.conf
+# Ellenőrzés: méret és sorok száma
+wc -l backup/database-backup-${DATE}.sql
+ls -lh backup/database-backup-${DATE}.sql
 ```
 
-### Teljes backup visszaállítás:
+**Elvárt eredmény:** ~88000+ sor, ~9-10 MB fájl
+
+---
+
+#### 2. LÉPÉS: Landing page mentés
+
 ```bash
-# 1. Git checkout a backup tag-re
-git checkout backup-2026-01-22-emi-registration
+# www.vemiax.com fájlok tömörítése és letöltése
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "tar -czf - /var/www/vemiax" \
+  > backup/www-vemiax-landing-${DATE}.tar.gz
 
-# 2. Adatbázis backup feltöltése
-scp -i ~/.ssh/vsys-hetzner backup.sql root@46.224.157.177:/tmp/
+# Ellenőrzés
+ls -lh backup/www-vemiax-landing-${DATE}.tar.gz
+```
 
-# 3. Adatbázis visszaállítás (VIGYÁZAT - felülírja az adatokat!)
-ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "docker exec -i vsys-postgres psql -U vsys vsys_next < /tmp/backup.sql"
+**Elvárt eredmény:** ~140-150 KB tömörített fájl
 
-# 4. Kód szinkronizálás és rebuild
-rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'dist' --exclude '.next' --exclude 'backup' --exclude '.env' \
+---
+
+#### 3. LÉPÉS: Nginx konfiguráció mentés
+
+```bash
+# Nginx site config letöltése
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "cat /etc/nginx/sites-available/vemiax" \
+  > backup/nginx-vemiax-${DATE}.conf
+
+# Ellenőrzés
+wc -l backup/nginx-vemiax-${DATE}.conf
+```
+
+**Elvárt eredmény:** ~150-170 sor
+
+---
+
+#### 4. LÉPÉS (OPCIONÁLIS, CSAK LOKÁLISAN): Szerver .env mentés
+
+```bash
+# Ez a fájl SOHA NEM KERÜL GITBE! Csak lokális másolat.
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "cat /root/vsys-next/.env" \
+  > backup/server-env-${DATE}.txt
+
+# FONTOS: Azonnal ellenőrizd hogy .gitignore-ban van-e!
+echo "backup/server-env-*.txt" >> .gitignore
+```
+
+---
+
+#### 5. LÉPÉS: Git commit és GitHub push
+
+```bash
+# 1. Ellenőrizd mit fogsz commitolni (NE legyen benne env fájl!)
+git status
+
+# 2. CSAK a biztonságos fájlokat add hozzá (SOHA NE HASZNÁLJ git add . !)
+git add backup/database-backup-${DATE}.sql
+git add backup/nginx-vemiax-${DATE}.conf
+git add backup/www-vemiax-landing-${DATE}.tar.gz
+
+# 3. ELLENŐRIZD hogy nincs benne titok!
+git diff --staged --stat
+# Ha látsz server-env vagy .env fájlt: git reset HEAD <fájl>
+
+# 4. Commit
+git commit -m "backup: Full system backup ${DATE}
+
+- Database dump
+- Landing page (www.vemiax.com)
+- Nginx config
+- Server .env kept locally only (contains secrets)
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+
+# 5. Push GitHubra
+git push origin <branch-neve>
+```
+
+**Ha a push sikertelen "push protection" miatt:**
+- Valamilyen titok maradt a commitban
+- `git reset --soft HEAD~1` - visszavonja a commitot
+- Töröld/ignoráld a titkos fájlt
+- Commitolj újra a titok nélkül
+
+---
+
+#### TELJES MENTÉS EGY SCRIPTBEN (copy-paste):
+
+```bash
+DATE=$(date +%Y-%m-%d)
+
+# 1. DB dump
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "docker exec vsys-postgres pg_dump -U vsys vsys_next" \
+  > backup/database-backup-${DATE}.sql
+
+# 2. Landing page
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "tar -czf - /var/www/vemiax" \
+  > backup/www-vemiax-landing-${DATE}.tar.gz
+
+# 3. Nginx config
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "cat /etc/nginx/sites-available/vemiax" \
+  > backup/nginx-vemiax-${DATE}.conf
+
+# 4. Env (CSAK LOKÁLISAN!)
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "cat /root/vsys-next/.env" \
+  > backup/server-env-${DATE}.txt
+
+# 5. Git (CSAK biztonságos fájlok!)
+git add backup/database-backup-${DATE}.sql
+git add backup/nginx-vemiax-${DATE}.conf
+git add backup/www-vemiax-landing-${DATE}.tar.gz
+# NE ADD HOZZÁ: backup/server-env-${DATE}.txt !
+
+git commit -m "backup: Full system backup ${DATE}
+
+- Database dump
+- Landing page (www.vemiax.com)
+- Nginx config
+- Server .env kept locally only
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+
+git push origin $(git branch --show-current)
+```
+
+---
+
+### VISSZAÁLLÍTÁS BACKUPBÓL:
+
+```bash
+# 1. Kód visszaállítása a backup commitra
+git checkout <backup-commit-hash>
+
+# 2. Adatbázis visszaállítás
+scp -i ~/.ssh/vsys-hetzner backup/database-backup-YYYY-MM-DD.sql root@46.224.157.177:/tmp/
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "docker exec -i vsys-postgres psql -U vsys vsys_next < /tmp/database-backup-YYYY-MM-DD.sql"
+
+# 3. Kód szinkronizálás
+rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'dist' \
+  --exclude '.next' --exclude 'backup' --exclude '.env' \
   -e "ssh -i ~/.ssh/vsys-hetzner" \
-  /Users/hollosigabor/Downloads/NewvSys/ \
-  root@46.224.157.177:/root/vsys-next/
+  ./ root@46.224.157.177:/root/vsys-next/
 
-# 5. Konténerek újraépítése
-ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "cd /root/vsys-next && docker compose -f docker-compose.full.yml up -d --build"
+# 4. Konténerek újraépítése
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "cd /root/vsys-next && docker compose -f docker-compose.full.yml up -d --build"
+
+# 5. Landing page visszaállítás (ha szükséges)
+scp -i ~/.ssh/vsys-hetzner backup/www-vemiax-landing-YYYY-MM-DD.tar.gz root@46.224.157.177:/tmp/
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 \
+  "cd / && tar -xzf /tmp/www-vemiax-landing-YYYY-MM-DD.tar.gz"
+
+# 6. Nginx config visszaállítás (ha szükséges)
+scp -i ~/.ssh/vsys-hetzner backup/nginx-vemiax-YYYY-MM-DD.conf root@46.224.157.177:/etc/nginx/sites-available/vemiax
+ssh -i ~/.ssh/vsys-hetzner root@46.224.157.177 "nginx -t && systemctl reload nginx"
 ```
+
+---
+
+### BACKUP ELLENŐRZŐLISTA:
+
+| # | Tétel | Ellenőrzés |
+|---|-------|-----------|
+| 1 | DB dump létezik és >80000 sor | `wc -l backup/database-backup-*.sql` |
+| 2 | Landing page tömörítve ~140KB+ | `ls -lh backup/www-vemiax-*.tar.gz` |
+| 3 | Nginx config ~150+ sor | `wc -l backup/nginx-vemiax-*.conf` |
+| 4 | Env fájl NINCS a git staged-ben | `git diff --staged --stat` |
+| 5 | Git push sikeres | `git push` kimenet: nem tartalmaz "rejected" |
+| 6 | GitHub-on megjelenik a commit | Ellenőrizd: github.com/ghollosi/next |
 
 ---
 
