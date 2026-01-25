@@ -818,4 +818,43 @@ export const platformApi = {
     if (params.limit) searchParams.append('limit', params.limit.toString());
     return fetchWithAuth(`/platform-admin/networks/${networkId}/company-data/search?${searchParams}`);
   },
+
+  // ========== Analytics (Landing Page) ==========
+
+  // Get landing page stats (pageviews, visitors, bounces, etc)
+  async getAnalyticsStats(startAt: number, endAt: number): Promise<{
+    pageviews: number;
+    visitors: number;
+    visits: number;
+    bounces: number;
+    totaltime: number;
+    comparison: {
+      pageviews: number;
+      visitors: number;
+      visits: number;
+      bounces: number;
+      totaltime: number;
+    };
+  }> {
+    return fetchWithAuth(`/platform-admin/analytics/stats?startAt=${startAt}&endAt=${endAt}`);
+  },
+
+  // Get pageviews over time
+  async getAnalyticsPageviews(startAt: number, endAt: number, unit: 'hour' | 'day' | 'week' | 'month' = 'day'): Promise<{
+    pageviews: { x: string; y: number }[];
+    sessions: { x: string; y: number }[];
+  }> {
+    return fetchWithAuth(`/platform-admin/analytics/pageviews?startAt=${startAt}&endAt=${endAt}&unit=${unit}`);
+  },
+
+  // Get metrics (countries, browsers, devices, referrers, etc)
+  // Umami v3 API: 'path' for pages (not 'url')
+  async getAnalyticsMetrics(startAt: number, endAt: number, type: 'path' | 'referrer' | 'browser' | 'os' | 'device' | 'country' | 'language'): Promise<{ x: string; y: number }[]> {
+    return fetchWithAuth(`/platform-admin/analytics/metrics?startAt=${startAt}&endAt=${endAt}&type=${type}`);
+  },
+
+  // Get current active visitors
+  async getAnalyticsActive(): Promise<{ visitors: number }> {
+    return fetchWithAuth('/platform-admin/analytics/active');
+  },
 };

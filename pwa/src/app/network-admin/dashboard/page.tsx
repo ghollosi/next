@@ -19,6 +19,12 @@ interface WashEvent {
   id: string;
   status: string;
   tractorPlateManual?: string;
+  trailerPlateManual?: string;
+  driverNameManual?: string;
+  entryMode?: string;
+  driver?: { firstName: string; lastName: string };
+  tractorVehicle?: { plateNumber?: string };
+  trailerVehicle?: { plateNumber?: string };
   createdAt: string;
   location?: { name: string };
   totalPrice?: string;
@@ -111,9 +117,11 @@ export default function NetworkAdminDashboardPage() {
       const recent = allWashEvents.slice(0, 5).map((w) => ({
         id: w.id,
         status: w.status,
-        location: w.location?.name || 'Unknown',
-        plate: w.tractorPlateManual || '-',
-        time: formatTimeAgo(new Date(w.createdAt)),
+        location: w.location?.name || 'Ismeretlen',
+        plate: w.tractorPlateManual || w.tractorVehicle?.plateNumber || '',
+        trailerPlate: w.trailerPlateManual || w.trailerVehicle?.plateNumber || '',
+        entryMode: w.entryMode || 'MANUAL_OPERATOR',
+        createdAt: w.createdAt,
       }));
       setRecentWashes(recent);
       setLastUpdate(new Date());
@@ -212,51 +220,82 @@ export default function NetworkAdminDashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-xl shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Legutóbbi tevékenység</h2>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {recentWashes.length === 0 ? (
-            <div className="px-6 py-8 text-center text-gray-500">
-              Nincs aktivitás
-            </div>
-          ) : (
-            recentWashes.map((wash) => (
-              <div key={wash.id} className="px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${
-                    wash.status === 'COMPLETED' ? 'bg-green-500' :
-                    wash.status === 'IN_PROGRESS' ? 'bg-blue-500' :
-                    'bg-yellow-500'
-                  }`} />
-                  <div>
-                    <p className="font-medium text-gray-900">{wash.plate}</p>
-                    <p className="text-sm text-gray-500">{wash.location}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                    wash.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                    wash.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                    'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {wash.status.replace('_', ' ')}
-                  </span>
-                  <p className="text-xs text-gray-400 mt-1">{wash.time}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="px-6 py-4 border-t border-gray-200">
           <Link
             href="/network-admin/wash-events"
             className="text-primary-600 hover:text-primary-700 text-sm font-medium"
           >
-            Összes mosás megtekintése →
+            Összes mosás →
           </Link>
         </div>
+        {recentWashes.length === 0 ? (
+          <div className="px-6 py-8 text-center text-gray-500">
+            Nincs aktivitás
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Státusz</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Helyszín</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rendszámok</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Típus</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Létrehozva</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Műveletek</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {recentWashes.map((wash) => (
+                  <tr key={wash.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-mono text-sm text-gray-600">#{wash.id.slice(0, 8)}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        wash.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                        wash.status === 'IN_PROGRESS' ? 'bg-indigo-100 text-indigo-700' :
+                        wash.status === 'LOCKED' ? 'bg-gray-100 text-gray-700' :
+                        wash.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {wash.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                      {wash.location}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-mono text-sm">
+                        {wash.plate || '–'}
+                        {wash.trailerPlate && `  /  ${wash.trailerPlate}`}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-xs text-gray-500">
+                        {wash.entryMode === 'QR_DRIVER' ? '📱 Sofőr' : '👤 Manuális'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(wash.createdAt).toLocaleString('hu-HU')}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Link
+                        href={`/network-admin/wash-events/${wash.id}`}
+                        className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                      >
+                        Megtekintés
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}

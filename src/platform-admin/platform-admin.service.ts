@@ -2103,4 +2103,92 @@ A VSys Platform csapata
       // Don't throw - notification failure shouldn't break the update
     }
   }
+
+  // =========================================================================
+  // ANALYTICS (Umami proxy)
+  // =========================================================================
+
+  // Use Docker container name since both are on vsys-network
+  private readonly UMAMI_URL = 'http://umami:3000';
+  private readonly UMAMI_WEBSITE_ID = '6594d754-fc64-4f18-bd4b-5d946f60fb32';
+  private umamiToken: string | null = null;
+  private umamiTokenExpiry: number = 0;
+
+  private async getUmamiToken(): Promise<string> {
+    // Return cached token if still valid
+    if (this.umamiToken && Date.now() < this.umamiTokenExpiry) {
+      return this.umamiToken;
+    }
+
+    try {
+      const response = await fetch(`${this.UMAMI_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'umami' }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Umami login failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      this.umamiToken = data.token;
+      // Token valid for 1 hour, refresh after 50 minutes
+      this.umamiTokenExpiry = Date.now() + 50 * 60 * 1000;
+
+      return this.umamiToken!;
+    } catch (error) {
+      this.logger.error(`Umami authentication failed: ${error.message}`);
+      throw new Error('Analytics service unavailable');
+    }
+  }
+
+  private async umamiRequest(endpoint: string): Promise<any> {
+    const token = await this.getUmamiToken();
+
+    try {
+      const url = `${this.UMAMI_URL}${endpoint}`;
+      this.logger.debug(`Umami API request: ${url}`);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        this.logger.error(`Umami API error: ${response.status} - ${body} - URL: ${url}`);
+        throw new Error(`Umami API error: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      this.logger.error(`Umami API request failed: ${error.message}`);
+      throw new Error('Analytics data unavailable');
+    }
+  }
+
+  async getAnalyticsStats(startAt: string, endAt: string): Promise<any> {
+    return this.umamiRequest(
+      `/api/websites/${this.UMAMI_WEBSITE_ID}/stats?startAt=${startAt}&endAt=${endAt}`
+    );
+  }
+
+  async getAnalyticsPageviews(startAt: string, endAt: string, unit: string): Promise<any> {
+    return this.umamiRequest(
+      `/api/websites/${this.UMAMI_WEBSITE_ID}/pageviews?startAt=${startAt}&endAt=${endAt}&unit=${unit}`
+    );
+  }
+
+  async getAnalyticsMetrics(startAt: string, endAt: string, type: string): Promise<any> {
+    return this.umamiRequest(
+      `/api/websites/${this.UMAMI_WEBSITE_ID}/metrics?startAt=${startAt}&endAt=${endAt}&type=${type}`
+    );
+  }
+
+  async getAnalyticsActive(): Promise<any> {
+    return this.umamiRequest(`/api/websites/${this.UMAMI_WEBSITE_ID}/active`);
+  }
 }

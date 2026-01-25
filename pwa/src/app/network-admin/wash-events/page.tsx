@@ -9,6 +9,8 @@ interface WashEvent {
   status: string;
   tractorPlateManual?: string;
   trailerPlateManual?: string;
+  tractorVehicle?: { plateNumber?: string };
+  trailerVehicle?: { plateNumber?: string };
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -75,7 +77,9 @@ export default function WashEventsListPage() {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesPlate = event.tractorPlateManual?.toLowerCase().includes(query) ||
-                           event.trailerPlateManual?.toLowerCase().includes(query);
+                           event.trailerPlateManual?.toLowerCase().includes(query) ||
+                           event.tractorVehicle?.plateNumber?.toLowerCase().includes(query) ||
+                           event.trailerVehicle?.plateNumber?.toLowerCase().includes(query);
         const matchesDriver = event.driver?.name?.toLowerCase().includes(query);
         const matchesPartner = event.partnerCompany?.name?.toLowerCase().includes(query);
         if (!matchesPlate && !matchesDriver && !matchesPartner) {
@@ -292,8 +296,8 @@ export default function WashEventsListPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="font-mono text-sm">
-                        {event.tractorPlateManual || '-'}
-                        {event.trailerPlateManual && ` / ${event.trailerPlateManual}`}
+                        {event.tractorPlateManual || event.tractorVehicle?.plateNumber || '-'}
+                        {(event.trailerPlateManual || event.trailerVehicle?.plateNumber) && ` / ${event.trailerPlateManual || event.trailerVehicle?.plateNumber}`}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

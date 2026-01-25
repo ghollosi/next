@@ -109,12 +109,18 @@ export default function EmiChatWidget({
       };
 
       if (isAuthenticated) {
-        headers['Authorization'] = `Bearer ${token}`;
         headers['X-User-Role'] = userRole;
-        if (userId) headers['X-User-ID'] = userId;
-        if (networkId) headers['X-Network-ID'] = networkId;
-        if (partnerId) headers['X-Partner-ID'] = partnerId;
-        if (locationId) headers['X-Location-ID'] = locationId;
+
+        // Use the correct auth header based on role
+        if (userRole === 'network_admin' || userRole === 'platform_admin') {
+          headers['Authorization'] = `Bearer ${token}`;
+        } else if (userRole === 'driver') {
+          headers['x-driver-session'] = token!;
+        } else if (userRole === 'operator') {
+          headers['x-operator-session'] = token!;
+        } else if (userRole === 'partner_admin') {
+          headers['x-partner-session'] = token!;
+        }
       }
 
       const response = await fetch(endpoint, {
@@ -183,9 +189,22 @@ export default function EmiChatWidget({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
-          <svg className="w-6 h-6 sm:w-7 sm:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <svg viewBox="0 0 100 100" className="w-10 h-10 sm:w-11 sm:h-11 rounded-full">
+            <circle cx="50" cy="50" r="50" fill="#FDE8D0"/>
+            <ellipse cx="50" cy="42" rx="20" ry="22" fill="#FCCBA0"/>
+            <path d="M25 28 C25 10, 75 10, 75 28 C78 22, 80 30, 78 40 C82 30, 80 14, 68 8 C58 3, 42 3, 32 8 C20 14, 18 30, 22 40 C20 30, 22 22, 25 28Z" fill="#E8C860"/>
+            <path d="M22 38 C18 50, 20 62, 28 58 C24 52, 22 44, 24 38Z" fill="#E8C860"/>
+            <path d="M78 38 C82 50, 80 62, 72 58 C76 52, 78 44, 76 38Z" fill="#E8C860"/>
+            <ellipse cx="40" cy="40" rx="4" ry="3.5" fill="white"/>
+            <ellipse cx="60" cy="40" rx="4" ry="3.5" fill="white"/>
+            <circle cx="40" cy="40.5" r="2.5" fill="#3B7DD8"/>
+            <circle cx="60" cy="40.5" r="2.5" fill="#3B7DD8"/>
+            <circle cx="40" cy="40" r="1" fill="#1a1a2e"/>
+            <circle cx="60" cy="40" r="1" fill="#1a1a2e"/>
+            <circle cx="41.2" cy="39" r="0.8" fill="white"/>
+            <circle cx="61.2" cy="39" r="0.8" fill="white"/>
+            <path d="M44 53 Q50 57, 56 53" stroke="#E05070" strokeWidth="2.2" fill="#E86070" strokeLinecap="round"/>
+            <path d="M32 72 C32 68, 42 66, 50 72 C58 66, 68 68, 68 72 C70 85, 65 98, 50 98 C35 98, 30 85, 32 72Z" fill="white" opacity="0.9"/>
           </svg>
         )}
       </button>
@@ -203,8 +222,38 @@ export default function EmiChatWidget({
             className="px-4 py-3 text-white flex items-center gap-3"
             style={{ backgroundColor: primaryColor }}
           >
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <span className="text-lg">🤖</span>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden bg-white/20">
+              <svg viewBox="0 0 100 100" className="w-10 h-10">
+                <circle cx="50" cy="50" r="50" fill="#FDE8D0"/>
+                <ellipse cx="50" cy="42" rx="20" ry="22" fill="#FCCBA0"/>
+                {/* Flowing blonde hair */}
+                <path d="M25 28 C25 10, 75 10, 75 28 C78 22, 80 30, 78 40 C82 30, 80 14, 68 8 C58 3, 42 3, 32 8 C20 14, 18 30, 22 40 C20 30, 22 22, 25 28Z" fill="#E8C860"/>
+                <path d="M22 38 C18 50, 20 65, 28 60 C24 55, 22 45, 24 38Z" fill="#E8C860"/>
+                <path d="M78 38 C82 50, 80 65, 72 60 C76 55, 78 45, 76 38Z" fill="#E8C860"/>
+                <path d="M28 30 C26 40, 24 52, 26 58" stroke="#D4B050" strokeWidth="1.5" fill="none" opacity="0.5"/>
+                <path d="M72 30 C74 40, 76 52, 74 58" stroke="#D4B050" strokeWidth="1.5" fill="none" opacity="0.5"/>
+                {/* Eyes with lashes */}
+                <ellipse cx="40" cy="40" rx="4" ry="3.5" fill="white"/>
+                <ellipse cx="60" cy="40" rx="4" ry="3.5" fill="white"/>
+                <circle cx="40" cy="40.5" r="2.5" fill="#3B7DD8"/>
+                <circle cx="60" cy="40.5" r="2.5" fill="#3B7DD8"/>
+                <circle cx="40" cy="40" r="1" fill="#1a1a2e"/>
+                <circle cx="60" cy="40" r="1" fill="#1a1a2e"/>
+                <circle cx="41.2" cy="39" r="0.8" fill="white"/>
+                <circle cx="61.2" cy="39" r="0.8" fill="white"/>
+                <path d="M35 37 Q40 35, 44 37" stroke="#4A3520" strokeWidth="1.2" fill="none"/>
+                <path d="M56 37 Q60 35, 65 37" stroke="#4A3520" strokeWidth="1.2" fill="none"/>
+                {/* Lips */}
+                <path d="M44 53 Q50 57, 56 53" stroke="#E05070" strokeWidth="2.2" fill="#E86070" strokeLinecap="round"/>
+                <path d="M46 53 Q50 51, 54 53" stroke="#F08090" strokeWidth="1" fill="none"/>
+                {/* Blush */}
+                <ellipse cx="33" cy="48" rx="5" ry="3" fill="#FFB0A0" opacity="0.35"/>
+                <ellipse cx="67" cy="48" rx="5" ry="3" fill="#FFB0A0" opacity="0.35"/>
+                {/* Neck and top */}
+                <path d="M44 62 L44 68 Q44 70, 42 72 L58 72 Q56 70, 56 68 L56 62" fill="#FCCBA0"/>
+                <path d="M32 72 C32 68, 42 66, 50 72 C58 66, 68 68, 68 72 C70 85, 65 98, 50 98 C35 98, 30 85, 32 72Z" fill="#7C3AED"/>
+                <path d="M42 72 Q50 78, 58 72" stroke="#FCCBA0" strokeWidth="1" fill="#FCCBA0" opacity="0.8"/>
+              </svg>
             </div>
             <div className="flex-1">
               <h3 className="font-semibold">{isHu ? 'Émi' : 'Amy'}</h3>

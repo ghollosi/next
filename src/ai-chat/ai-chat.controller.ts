@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiBody } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { JwtService } from '@nestjs/jwt';
 import { AiChatService, ChatContext, ChatMessage, UserRole } from './ai-chat.service';
 import { SessionService, DriverSessionData, OperatorSessionData, PartnerSessionData } from '../common/session/session.service';
 import { SessionType } from '@prisma/client';
@@ -36,6 +37,7 @@ export class AiChatController {
   constructor(
     private readonly aiChatService: AiChatService,
     private readonly sessionService: SessionService,
+    private readonly jwtService: JwtService,
   ) {}
 
   // Public chat endpoint for landing page (guests)
@@ -109,10 +111,12 @@ export class AiChatController {
   @ApiHeader({ name: 'x-driver-session', required: false, description: 'Driver session ID' })
   @ApiHeader({ name: 'x-operator-session', required: false, description: 'Operator session ID' })
   @ApiHeader({ name: 'x-partner-session', required: false, description: 'Partner session ID' })
+  @ApiHeader({ name: 'Authorization', required: false, description: 'Bearer JWT token for network_admin/platform_admin' })
   @ApiHeader({ name: 'X-User-Role', required: true, description: 'User role: driver, operator, partner_admin, network_admin, platform_admin' })
   async authenticatedChat(
     @Body() body: ChatRequestDto,
     @Headers('x-user-role') userRole: string,
+    @Headers('authorization') authHeader?: string,
     @Headers('x-driver-session') driverSessionId?: string,
     @Headers('x-operator-session') operatorSessionId?: string,
     @Headers('x-partner-session') partnerSessionId?: string,
@@ -172,10 +176,28 @@ export class AiChatController {
       networkId = session.networkId;
       partnerId = session.partnerId;
       userId = session.partnerId;
+    } else if (userRole === 'network_admin' || userRole === 'platform_admin') {
+      // JWT-based auth for network_admin and platform_admin
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authorization Bearer token required');
+      }
+      const token = authHeader.substring(7);
+      try {
+        const payload = this.jwtService.verify(token);
+        const expectedType = userRole === 'network_admin' ? 'network' : 'platform';
+        if (payload.type !== expectedType) {
+          throw new UnauthorizedException('Token type mismatch');
+        }
+        userId = payload.sub;
+        if (userRole === 'network_admin') {
+          networkId = payload.networkId;
+        }
+      } catch (error) {
+        if (error instanceof UnauthorizedException) throw error;
+        throw new UnauthorizedException('Invalid or expired token');
+      }
     } else {
-      // network_admin and platform_admin use JWT-based auth - for now, restrict to session-based roles only
-      // These roles should not have access to dynamic context via this endpoint without proper JWT validation
-      throw new UnauthorizedException('This role requires JWT authentication which is not supported on this endpoint. Use the portal-specific endpoints instead.');
+      throw new BadRequestException('Invalid user role');
     }
 
     const context: ChatContext = {

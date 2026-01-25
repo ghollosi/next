@@ -752,4 +752,68 @@ export class PlatformAdminController {
       limit: limit ? parseInt(limit, 10) : 10,
     });
   }
+
+  // =========================================================================
+  // ANALYTICS (Umami proxy)
+  // =========================================================================
+
+  @Get('analytics/stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get landing page analytics stats' })
+  @ApiQuery({ name: 'startAt', required: true, description: 'Start timestamp in ms' })
+  @ApiQuery({ name: 'endAt', required: true, description: 'End timestamp in ms' })
+  @ApiResponse({ status: 200, description: 'Analytics stats' })
+  async getAnalyticsStats(
+    @Query('startAt') startAt: string,
+    @Query('endAt') endAt: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.getAnalyticsStats(startAt, endAt);
+  }
+
+  @Get('analytics/pageviews')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get landing page pageviews over time' })
+  @ApiQuery({ name: 'startAt', required: true })
+  @ApiQuery({ name: 'endAt', required: true })
+  @ApiQuery({ name: 'unit', required: false, enum: ['hour', 'day', 'week', 'month'] })
+  @ApiResponse({ status: 200, description: 'Pageviews data' })
+  async getAnalyticsPageviews(
+    @Query('startAt') startAt: string,
+    @Query('endAt') endAt: string,
+    @Query('unit') unit?: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.getAnalyticsPageviews(startAt, endAt, unit || 'day');
+  }
+
+  @Get('analytics/metrics')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get analytics metrics (countries, browsers, devices, etc)' })
+  @ApiQuery({ name: 'startAt', required: true })
+  @ApiQuery({ name: 'endAt', required: true })
+  @ApiQuery({ name: 'type', required: true, enum: ['url', 'referrer', 'browser', 'os', 'device', 'country', 'language'] })
+  @ApiResponse({ status: 200, description: 'Metrics data' })
+  async getAnalyticsMetrics(
+    @Query('startAt') startAt: string,
+    @Query('endAt') endAt: string,
+    @Query('type') type: string,
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.getAnalyticsMetrics(startAt, endAt, type);
+  }
+
+  @Get('analytics/active')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current active visitors' })
+  @ApiResponse({ status: 200, description: 'Active visitors count' })
+  async getAnalyticsActive(
+    @Headers('authorization') auth?: string,
+  ): Promise<any> {
+    await this.validateOwner(auth);
+    return this.platformAdminService.getAnalyticsActive();
+  }
 }
