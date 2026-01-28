@@ -34,7 +34,6 @@ import { AddressModule } from './modules/address/address.module';
 import { SecurityModule } from './common/security/security.module';
 import { TestPortalModule } from './test-portal/test-portal.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
-import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -79,8 +78,6 @@ import { AuthModule } from './auth/auth.module';
     // Test portal - enabled for UAT testing
     TestPortalModule,
     AiChatModule,
-    // Unified Login
-    AuthModule,
   ],
   providers: [
     // SECURITY: Apply user-aware rate limiting globally
