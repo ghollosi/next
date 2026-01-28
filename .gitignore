@@ -11,8 +11,9 @@ build/
 .env.*.local
 
 # Server env backups (contain secrets - NEVER commit!)
-backup/server-env-*.txt
-backup/*-env-*
+backup/**/server-env*.txt
+backup/**/*-env-*
+backup/**/*.env
 *.env.backup
 
 # IDE
@@ -42,12 +43,11 @@ tmp/
 temp/
 *.tmp
 
-# Database dumps (except for versioned artifacts)
+# Database dumps (except for versioned artifacts and backups)
 *.sql
 !docs/db/*.sql
 !prisma/migrations/**/*.sql
+!backup/**/*.sql
 
 # Docker volumes (if any local mounts)
 .docker/
-backup/**/database_dump.sql
-backup/

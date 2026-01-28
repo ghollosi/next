@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  umami-db:
+    image: postgres:16-alpine
+    container_name: umami-postgres
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: umami_analytics_2026
+      POSTGRES_DB: umami
+    volumes:
+      - umami_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - umami-network
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: umami
+    environment:
+      DATABASE_URL: postgresql://umami:umami_analytics_2026@umami-db:5432/umami
+      APP_SECRET: vsys-umami-secret-key-2026-xK9mP2vQ
+      DISABLE_UPDATES: 'true'
+      TRACKER_SCRIPT_NAME: collect
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - umami-network
+
+volumes:
+  umami_postgres_data:
+    driver: local
+
+networks:
+  umami-network:
+    name: umami-network

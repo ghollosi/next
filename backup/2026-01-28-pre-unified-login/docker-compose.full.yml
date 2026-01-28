@@ -1,0 +1,116 @@
+# VSys Next - Full Stack Docker Compose
+# Includes: API + PWA + PostgreSQL
+#
+# USAGE:
+# 1. Copy .env.production.example to .env on the server
+# 2. Fill in the sensitive values in .env
+# 3. docker compose -f docker-compose.full.yml up -d --build
+#
+# PORTS:
+# - API: 3000 (http://localhost:3000)
+# - PWA: 3001 (http://localhost:3001)
+#
+# SECURITY: All sensitive values are loaded from .env file
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vsys-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vsys}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-vsys_next}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - vsys_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vsys} -d ${POSTGRES_DB:-vsys_next}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - vsys-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: vsys-api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vsys}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vsys_next}?schema=public
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: info
+      CORS_ORIGIN: https://app.vemiax.com,https://vsys.vemiax.com,https://api.vemiax.com,https://www.vemiax.com,https://vemiax.com
+      # Sensitive values loaded from .env
+      SMTP_HOST: ${SMTP_HOST:-smtp.websupport.hu}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      # PWA Base URL for QR codes
+      PWA_BASE_URL: https://app.vemiax.com
+      # API URL for email verification links
+      API_URL: https://api.vemiax.com
+      FRONTEND_URL: https://app.vemiax.com
+      # SECURITY: Default Network ID for PWA endpoints (required)
+      DEFAULT_NETWORK_ID: ${DEFAULT_NETWORK_ID:?DEFAULT_NETWORK_ID is required}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - vsys-network
+
+  pwa:
+    build:
+      context: ./pwa
+      dockerfile: Dockerfile
+      args:
+        - API_URL=http://api:3000
+        # Client-side API calls must use HTTPS domain (not IP) to avoid mixed content errors
+        - NEXT_PUBLIC_API_URL=https://api.vemiax.com
+        # Test Portal Admin credentials (build-time)
+        - NEXT_PUBLIC_TEST_ADMIN_EMAIL=${NEXT_PUBLIC_TEST_ADMIN_EMAIL:-}
+        - NEXT_PUBLIC_TEST_ADMIN_PASSWORD=${NEXT_PUBLIC_TEST_ADMIN_PASSWORD:-}
+    container_name: vsys-pwa
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - vsys-network
+
+volumes:
+  vsys_postgres_data:
+    driver: local
+
+networks:
+  vsys-network:
+    name: vsys-network
