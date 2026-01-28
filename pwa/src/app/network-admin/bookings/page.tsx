@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 interface Booking {
   id: string;
@@ -59,6 +60,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function BookingsPage() {
+  const { isPlatformView } = usePlatformView();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,16 +153,18 @@ export default function BookingsPage() {
             &larr; Vissza
           </Link>
           <h1 className="text-2xl font-bold text-gray-900 mt-2">Foglalások</h1>
-          <p className="text-gray-500 mt-1">Online időpontfoglalások kezelése</p>
+          <p className="text-gray-500 mt-1">{isPlatformView ? 'Online időpontfoglalások megtekintése' : 'Online időpontfoglalások kezelése'}</p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/network-admin/booking-settings"
-            className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            Beállítások
-          </Link>
-        </div>
+        {!isPlatformView && (
+          <div className="flex gap-2">
+            <Link
+              href="/network-admin/booking-settings"
+              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Beállítások
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filters */}

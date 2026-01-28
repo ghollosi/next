@@ -8,6 +8,7 @@ import TrialBanner from '@/components/TrialBanner';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
 import EmiChatWidget from '@/components/EmiChatWidget';
+import { PlatformViewProvider } from '@/contexts/PlatformViewContext';
 
 // Platform View storage key
 const PLATFORM_VIEW_KEY = 'vsys_platform_view';
@@ -238,7 +239,9 @@ export default function NetworkAdminLayout({
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {children}
+        <PlatformViewProvider>
+          {children}
+        </PlatformViewProvider>
       </main>
 
       {/* Émi Chat Widget - Network Admin context */}

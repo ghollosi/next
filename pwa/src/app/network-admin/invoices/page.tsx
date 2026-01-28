@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 interface Invoice {
   id: string;
@@ -79,6 +80,7 @@ interface InvoiceDetail {
 }
 
 export default function InvoicesPage() {
+  const { isPlatformView } = usePlatformView();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState<InvoiceSummary | null>(null);
   const [partners, setPartners] = useState<PartnerCompany[]>([]);
@@ -272,14 +274,16 @@ export default function InvoicesPage() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Szamlak</h1>
-          <p className="text-gray-500 mt-1">Partner szamlak kezelese</p>
+          <p className="text-gray-500 mt-1">{isPlatformView ? 'Partner szamlak megtekintese' : 'Partner szamlak kezelese'}</p>
         </div>
-        <button
-          onClick={() => setShowNewInvoiceModal(true)}
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Uj szamla keszitese
-        </button>
+        {!isPlatformView && (
+          <button
+            onClick={() => setShowNewInvoiceModal(true)}
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Uj szamla keszitese
+          </button>
+        )}
       </div>
 
       {/* Error */}
@@ -424,7 +428,7 @@ export default function InvoicesPage() {
                       >
                         Reszletek
                       </button>
-                      {invoice.status === 'DRAFT' && (
+                      {!isPlatformView && invoice.status === 'DRAFT' && (
                         <button
                           onClick={() => handleIssueInvoice(invoice.id)}
                           className="text-green-600 hover:text-green-800 text-sm"
@@ -432,7 +436,7 @@ export default function InvoicesPage() {
                           Kiallitas
                         </button>
                       )}
-                      {['ISSUED', 'SENT', 'OVERDUE'].includes(invoice.status) && (
+                      {!isPlatformView && ['ISSUED', 'SENT', 'OVERDUE'].includes(invoice.status) && (
                         <button
                           onClick={() => handleMarkPaid(invoice.id)}
                           className="text-green-600 hover:text-green-800 text-sm"
@@ -681,7 +685,7 @@ export default function InvoicesPage() {
 
                   {/* Actions */}
                   <div className="flex gap-3 flex-wrap">
-                    {selectedInvoice.status === 'DRAFT' && (
+                    {!isPlatformView && selectedInvoice.status === 'DRAFT' && (
                       <>
                         <button
                           onClick={() => handleIssueInvoice(selectedInvoice.id)}
@@ -697,7 +701,7 @@ export default function InvoicesPage() {
                         </button>
                       </>
                     )}
-                    {['ISSUED', 'SENT', 'OVERDUE'].includes(selectedInvoice.status) && (
+                    {!isPlatformView && ['ISSUED', 'SENT', 'OVERDUE'].includes(selectedInvoice.status) && (
                       <>
                         <button
                           onClick={() => handleMarkPaid(selectedInvoice.id)}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 interface DeleteRequest {
   id: string;
@@ -25,6 +26,7 @@ interface DeleteRequest {
 }
 
 export default function DeleteRequestsPage() {
+  const { isPlatformView } = usePlatformView();
   const [requests, setRequests] = useState<DeleteRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -115,7 +117,7 @@ export default function DeleteRequestsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Törlési kérelmek</h1>
-        <p className="text-gray-500">Operátorok által kezdeményezett mosás törlések kezelése</p>
+        <p className="text-gray-500">{isPlatformView ? 'Operátorok által kezdeményezett mosás törlések megtekintése' : 'Operátorok által kezdeményezett mosás törlések kezelése'}</p>
       </div>
 
       {/* Filter Tabs */}
@@ -245,7 +247,7 @@ export default function DeleteRequestsPage() {
                 </div>
 
                 {/* Actions */}
-                {request.status === 'PENDING' && (
+                {!isPlatformView && request.status === 'PENDING' && (
                   <div className="flex gap-2 lg:flex-col">
                     <button
                       onClick={() => openReviewModal(request, 'approve')}

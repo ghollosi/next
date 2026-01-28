@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 type OperationType = 'OWN' | 'SUBCONTRACTOR';
 
@@ -100,6 +101,7 @@ const parseOpeningHours = (location: Location): ParsedOpeningHours[] => {
 };
 
 export default function LocationsPage() {
+  const { isPlatformView } = usePlatformView();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -159,14 +161,16 @@ export default function LocationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Helyszínek</h1>
-          <p className="text-gray-500">Mosóállomások kezelése</p>
+          <p className="text-gray-500">{isPlatformView ? 'Mosóállomások megtekintése' : 'Mosóállomások kezelése'}</p>
         </div>
-        <Link
-          href="/network-admin/locations/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Uj helyszin
-        </Link>
+        {!isPlatformView && (
+          <Link
+            href="/network-admin/locations/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Uj helyszin
+          </Link>
+        )}
       </div>
 
       {/* Error */}

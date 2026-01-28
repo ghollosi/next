@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 interface PartnerCompany {
   id: string;
@@ -19,6 +20,7 @@ interface PartnerCompany {
 }
 
 export default function PartnersPage() {
+  const { isPlatformView } = usePlatformView();
   const [partners, setPartners] = useState<PartnerCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -54,14 +56,16 @@ export default function PartnersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Partner cégek</h1>
-          <p className="text-gray-500">Fuvarozó cégek kezelése</p>
+          <p className="text-gray-500">{isPlatformView ? 'Fuvarozó cégek megtekintése' : 'Fuvarozó cégek kezelése'}</p>
         </div>
-        <Link
-          href="/network-admin/partners/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Uj partner
-        </Link>
+        {!isPlatformView && (
+          <Link
+            href="/network-admin/partners/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Uj partner
+          </Link>
+        )}
       </div>
 
       {/* Search */}

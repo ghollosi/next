@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 interface PartnerCompany {
   id: string;
@@ -26,6 +27,7 @@ interface InviteData {
 }
 
 export default function DriversPage() {
+  const { isPlatformView } = usePlatformView();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -135,22 +137,24 @@ export default function DriversPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sofőrök</h1>
-          <p className="text-gray-500">Regisztrált sofőrök kezelése</p>
+          <p className="text-gray-500">{isPlatformView ? 'Regisztrált sofőrök megtekintése' : 'Regisztrált sofőrök kezelése'}</p>
         </div>
-        <div className="flex gap-3">
-          <Link
-            href="/network-admin/drivers/approvals"
-            className="px-4 py-2 bg-yellow-100 text-yellow-700 font-medium rounded-lg hover:bg-yellow-200 transition-colors"
-          >
-            Jóváhagyásra vár
-          </Link>
-          <Link
-            href="/network-admin/drivers/new"
-            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            + Új sofőr
-          </Link>
-        </div>
+        {!isPlatformView && (
+          <div className="flex gap-3">
+            <Link
+              href="/network-admin/drivers/approvals"
+              className="px-4 py-2 bg-yellow-100 text-yellow-700 font-medium rounded-lg hover:bg-yellow-200 transition-colors"
+            >
+              Jóváhagyásra vár
+            </Link>
+            <Link
+              href="/network-admin/drivers/new"
+              className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              + Új sofőr
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Search */}
@@ -246,14 +250,16 @@ export default function DriversPage() {
                           href={`/network-admin/drivers/${driver.id}`}
                           className="text-primary-600 hover:text-primary-700 text-sm font-medium"
                         >
-                          Részletek
+                          {isPlatformView ? 'Megtekintés' : 'Részletek'}
                         </Link>
-                        <button
-                          onClick={() => openInviteModal(driver)}
-                          className="text-gray-600 hover:text-gray-700 text-sm font-medium"
-                        >
-                          Meghívó
-                        </button>
+                        {!isPlatformView && (
+                          <button
+                            onClick={() => openInviteModal(driver)}
+                            className="text-gray-600 hover:text-gray-700 text-sm font-medium"
+                          >
+                            Meghívó
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

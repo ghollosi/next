@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi, getNetworkAdmin } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 const POLLING_INTERVAL = 15000; // 15 seconds
 
@@ -31,6 +32,7 @@ interface WashEvent {
 }
 
 export default function NetworkAdminDashboardPage() {
+  const { isPlatformView } = usePlatformView();
   const [stats, setStats] = useState<DashboardStats>({
     todayWashes: 0,
     activeWashes: 0,
@@ -191,12 +193,14 @@ export default function NetworkAdminDashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">Vezérlőpult</h1>
           <p className="text-gray-500">Mosási műveletek áttekintése</p>
         </div>
-        <Link
-          href="/network-admin/wash-events/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Új mosás
-        </Link>
+        {!isPlatformView && (
+          <Link
+            href="/network-admin/wash-events/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Új mosás
+          </Link>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -299,15 +303,17 @@ export default function NetworkAdminDashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Link
-          href="/network-admin/wash-events/new"
-          className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
-        >
-          <div className="text-3xl mb-2">➕</div>
-          <h3 className="font-semibold text-gray-900">Új mosás</h3>
-          <p className="text-sm text-gray-500">Manuális rögzítés</p>
-        </Link>
+      <div className={`grid grid-cols-2 ${isPlatformView ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-4`}>
+        {!isPlatformView && (
+          <Link
+            href="/network-admin/wash-events/new"
+            className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
+          >
+            <div className="text-3xl mb-2">➕</div>
+            <h3 className="font-semibold text-gray-900">Új mosás</h3>
+            <p className="text-sm text-gray-500">Manuális rögzítés</p>
+          </Link>
+        )}
         <Link
           href="/network-admin/wash-events"
           className="bg-white rounded-xl shadow-sm p-6 hover:bg-gray-50 transition-colors"
@@ -322,7 +328,7 @@ export default function NetworkAdminDashboardPage() {
         >
           <div className="text-3xl mb-2">🏢</div>
           <h3 className="font-semibold text-gray-900">Partnerek</h3>
-          <p className="text-sm text-gray-500">Cégek kezelése</p>
+          <p className="text-sm text-gray-500">{isPlatformView ? 'Cégek megtekintése' : 'Cégek kezelése'}</p>
         </Link>
         <Link
           href="/network-admin/locations"
@@ -330,7 +336,7 @@ export default function NetworkAdminDashboardPage() {
         >
           <div className="text-3xl mb-2">📍</div>
           <h3 className="font-semibold text-gray-900">Helyszínek</h3>
-          <p className="text-sm text-gray-500">Mosóállomások</p>
+          <p className="text-sm text-gray-500">{isPlatformView ? 'Helyszínek megtekintése' : 'Mosóállomások'}</p>
         </Link>
         <Link
           href="/network-admin/drivers"
@@ -338,7 +344,7 @@ export default function NetworkAdminDashboardPage() {
         >
           <div className="text-3xl mb-2">👥</div>
           <h3 className="font-semibold text-gray-900">Sofőrök</h3>
-          <p className="text-sm text-gray-500">Sofőrök kezelése</p>
+          <p className="text-sm text-gray-500">{isPlatformView ? 'Sofőrök megtekintése' : 'Sofőrök kezelése'}</p>
         </Link>
       </div>
     </div>

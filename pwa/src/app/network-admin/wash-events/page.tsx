@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { usePlatformView } from '@/contexts/PlatformViewContext';
 
 interface WashEvent {
   id: string;
@@ -29,6 +30,7 @@ interface Location {
 }
 
 export default function WashEventsListPage() {
+  const { isPlatformView } = usePlatformView();
   const [washEvents, setWashEvents] = useState<WashEvent[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,14 +139,16 @@ export default function WashEventsListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mosások</h1>
-          <p className="text-gray-500">Összes mosás kezelése és megtekintése</p>
+          <p className="text-gray-500">{isPlatformView ? 'Összes mosás megtekintése' : 'Összes mosás kezelése és megtekintése'}</p>
         </div>
-        <Link
-          href="/network-admin/wash-events/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Új mosás
-        </Link>
+        {!isPlatformView && (
+          <Link
+            href="/network-admin/wash-events/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Új mosás
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
