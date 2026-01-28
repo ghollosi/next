@@ -28,6 +28,11 @@ const nextConfig = {
         source: '/health',
         destination: `${apiUrl}/health`,
       },
+      // Unified auth endpoints
+      {
+        source: '/auth/:path*',
+        destination: `${apiUrl}/auth/:path*`,
+      },
     ];
   },
 }
