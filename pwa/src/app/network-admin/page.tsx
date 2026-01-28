@@ -8,7 +8,6 @@ import { networkAdminApi, saveNetworkAdminSession } from '@/lib/network-admin-ap
 function NetworkAdminLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [slug, setSlug] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,7 +39,7 @@ function NetworkAdminLoginContent() {
     setVerificationMessage('');
 
     try {
-      const response = await networkAdminApi.login(email, password, slug);
+      const response = await networkAdminApi.login(email, password);
       saveNetworkAdminSession(response.accessToken, {
         id: response.adminId,
         name: response.name,
@@ -65,8 +64,8 @@ function NetworkAdminLoginContent() {
   };
 
   const handleResendVerification = async () => {
-    if (!email || !slug) {
-      setError('Kérlek add meg az email címet és a hálózat azonosítót.');
+    if (!email) {
+      setError('Kérlek add meg az email címet.');
       return;
     }
 
@@ -75,7 +74,7 @@ function NetworkAdminLoginContent() {
     setResendSuccess(false);
 
     try {
-      await networkAdminApi.resendVerificationEmail(email, slug);
+      await networkAdminApi.resendVerificationEmail(email);
       setResendSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nem sikerült újraküldeni az emailt');
@@ -101,20 +100,6 @@ function NetworkAdminLoginContent() {
         {/* Login form */}
         <div className="bg-gray-800 rounded-2xl p-6 shadow-xl">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Hálózat azonosító
-              </label>
-              <input
-                type="text"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                required
-                placeholder="pl. wash-center"
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Email cím

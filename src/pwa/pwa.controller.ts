@@ -16,6 +16,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { LoginThrottle, SensitiveThrottle } from '../common/throttler/login-throttle.decorator';
 import { Logger } from '@nestjs/common';
@@ -43,7 +44,7 @@ import { setSessionCookie, clearSessionCookie, getSessionId, SESSION_COOKIES } f
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
 import { BookingService } from '../modules/booking/booking.service';
 import { CreateBookingDto, CancelBookingDto } from '../modules/booking/dto/booking.dto';
-import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType, AuditAction } from '@prisma/client';
+import { WashEntryMode, DriverApprovalStatus, VerificationType, SessionType, AuditAction, SubscriptionStatus } from '@prisma/client';
 import { ActivateDto, ActivateByPhoneDto, ActivateByEmailDto, ActivateResponseDto } from './dto/activate.dto';
 import { CreateWashEventPwaDto } from './dto/create-wash-event.dto';
 import {
@@ -115,6 +116,59 @@ export class PwaController {
     }
 
     return session;
+  }
+
+  /**
+   * Check if the network's subscription/trial is active.
+   * Throws ForbiddenException if expired.
+   */
+  private async checkSubscriptionActive(networkId: string): Promise<void> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+      select: {
+        id: true,
+        name: true,
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        subscriptionEndAt: true,
+        isActive: true,
+      },
+    });
+
+    if (!network) {
+      throw new ForbiddenException('Hálózat nem található');
+    }
+
+    if (!network.isActive) {
+      throw new ForbiddenException('A hálózat inaktív.');
+    }
+
+    const now = new Date();
+
+    switch (network.subscriptionStatus) {
+      case SubscriptionStatus.ACTIVE:
+        if (network.subscriptionEndAt && network.subscriptionEndAt < now) {
+          this.logger.log(`Subscription expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException('Az előfizetés lejárt.');
+        }
+        return;
+
+      case SubscriptionStatus.TRIAL:
+        if (network.trialEndsAt && network.trialEndsAt < now) {
+          this.logger.log(`Trial expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException('A próbaidőszak lejárt.');
+        }
+        return;
+
+      case SubscriptionStatus.SUSPENDED:
+        throw new ForbiddenException('Az előfizetés felfüggesztve.');
+
+      case SubscriptionStatus.CANCELLED:
+        throw new ForbiddenException('Az előfizetés lemondva.');
+
+      default:
+        return;
+    }
   }
 
   // =========================================================================
@@ -1117,6 +1171,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
     const { ipAddress, userAgent } = this.getRequestMetadata(req);
 
     const updatedDriver = await this.driverService.detachFromPartner(session.driverId, {
@@ -1185,6 +1240,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
 
     const updatedDriver = await this.driverService.updateBillingInfo(session.driverId, body);
 
@@ -1253,6 +1309,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
 
     try {
       const vehicle = await this.vehicleService.createOrUpdateByDriver(
@@ -1290,6 +1347,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the vehicle belongs to this driver
     const vehicle = await this.vehicleService.findById(session.networkId, id);
@@ -1397,6 +1455,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
     const metadata = this.getRequestMetadata(req);
 
     // Validate that either vehicle ID or manual plate is provided for tractor
@@ -1454,6 +1513,7 @@ export class PwaController {
   @ApiResponse({ status: 200, description: 'Wash event started' })
   async startWashEvent(@Param('id') id: string, @Req() req: Request) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
     const metadata = this.getRequestMetadata(req);
 
     // First authorize (auto-authorize for driver-created events)
@@ -1485,6 +1545,7 @@ export class PwaController {
   @ApiResponse({ status: 200, description: 'Wash event completed' })
   async completeWashEvent(@Param('id') id: string, @Req() req: Request) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.complete(session.networkId, id, {
@@ -1655,6 +1716,7 @@ export class PwaController {
     @Req() req: Request,
   ): Promise<VerificationResponseDto> {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify new partner company exists
     const newPartnerCompany = await this.partnerCompanyService.findById(
@@ -2183,6 +2245,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Get driver details for customer info
     const driver = await this.prisma.driver.findUnique({
@@ -2225,6 +2288,7 @@ export class PwaController {
     @Req() req: Request,
   ) {
     const session = await this.getDriverSession(req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the booking belongs to this driver
     const booking = await this.bookingService.getBooking(session.networkId, id);

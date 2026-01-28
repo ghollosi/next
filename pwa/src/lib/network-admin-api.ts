@@ -331,12 +331,12 @@ interface TrialStatus {
 // Network Admin API
 export const networkAdminApi = {
   // Auth
-  async login(email: string, password: string, slug: string): Promise<NetworkAdminLoginResponse> {
+  async login(email: string, password: string): Promise<NetworkAdminLoginResponse> {
     const response = await fetch(`${API_URL}/network-admin/login`, {
       method: 'POST',
       credentials: 'include', // SECURITY: Send cookies with cross-origin requests
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, slug }),
+      body: JSON.stringify({ email, password }),
     });
 
     if (!response.ok) {
@@ -380,12 +380,12 @@ export const networkAdminApi = {
     return response.json();
   },
 
-  async resendVerificationEmail(email: string, slug: string): Promise<{ success: boolean; message: string }> {
+  async resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/network-admin/resend-verification`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, slug }),
+      body: JSON.stringify({ email }),
     });
 
     if (!response.ok) {
@@ -413,12 +413,12 @@ export const networkAdminApi = {
   },
 
   // Password Reset
-  async forgotPassword(email: string, slug: string): Promise<{ success: boolean; message: string }> {
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/network-admin/forgot-password`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, slug }),
+      body: JSON.stringify({ email }),
     });
 
     if (!response.ok) {

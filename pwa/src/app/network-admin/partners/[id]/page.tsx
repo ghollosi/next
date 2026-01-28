@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchOperatorApi, getNetworkAdmin } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface PartnerCompany {
   id: string;
@@ -41,6 +42,7 @@ interface RegistrationQRData {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function NetworkAdminPartnerDetailsPage() {
+  const { isReadOnly } = useSubscription();
   const params = useParams();
   const router = useRouter();
   const [partner, setPartner] = useState<PartnerCompany | null>(null);
@@ -414,39 +416,41 @@ export default function NetworkAdminPartnerDetailsPage() {
       </div>
 
       {/* Actions */}
-      <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
-          Műveletek
-        </h2>
+      {!isReadOnly && (
+        <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">
+            Műveletek
+          </h2>
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/network-admin/partners/${partner.id}/edit`}
-            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            Szerkesztés
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/network-admin/partners/${partner.id}/edit`}
+              className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Szerkesztés
+            </Link>
 
-          <button
-            onClick={handleToggleActive}
-            className={`px-4 py-2 font-medium rounded-lg transition-colors ${
-              partner.isActive
-                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                : 'bg-green-100 text-green-700 hover:bg-green-200'
-            }`}
-          >
-            {partner.isActive ? 'Deaktiválás' : 'Aktiválás'}
-          </button>
+            <button
+              onClick={handleToggleActive}
+              className={`px-4 py-2 font-medium rounded-lg transition-colors ${
+                partner.isActive
+                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              }`}
+            >
+              {partner.isActive ? 'Deaktiválás' : 'Aktiválás'}
+            </button>
 
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
-          >
-            {deleting ? 'Törlés...' : 'Törlés'}
-          </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Törlés...' : 'Törlés'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* QR Code Modal */}
       {showQrModal && qrData && (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { networkAdminApi, fetchOperatorApi, isPlatformViewMode } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface OpeningHourData {
   openTime: string;
@@ -166,6 +167,7 @@ function getOpeningHoursForDate(
 }
 
 export default function LocationDetailPage() {
+  const { isReadOnly } = useSubscription();
   const params = useParams();
   const router = useRouter();
   const locationId = params.id as string;
@@ -704,7 +706,7 @@ export default function LocationDetailPage() {
             </svg>
             QR kód
           </button>
-          {!isPlatformView && (
+          {!isPlatformView && !isReadOnly && (
             <Link
               href={`/network-admin/locations/${locationId}/edit`}
               className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
@@ -1149,7 +1151,7 @@ export default function LocationDetailPage() {
                       )}
                       {slot.reason && <p className="text-sm text-orange-600 mt-1">{slot.reason}</p>}
                     </div>
-                    {!isPlatformView && (
+                    {!isPlatformView && !isReadOnly && (
                       <button
                         onClick={() => deleteBlockedSlot(slot.id)}
                         className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -1239,7 +1241,7 @@ export default function LocationDetailPage() {
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Operátorok</h2>
-          {!isPlatformView && (
+          {!isPlatformView && !isReadOnly && (
             <button
               onClick={openCreateOperator}
               className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors text-sm"
@@ -1287,7 +1289,7 @@ export default function LocationDetailPage() {
                   >
                     {operator.isActive ? 'Aktív' : 'Inaktív'}
                   </span>
-                  {!isPlatformView && (
+                  {!isPlatformView && !isReadOnly && (
                     <>
                       <button
                         onClick={() => toggleOperatorStatus(operator)}
@@ -1342,7 +1344,7 @@ export default function LocationDetailPage() {
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Elérhető szolgáltatások</h2>
-          {!isPlatformView && (
+          {!isPlatformView && !isReadOnly && (
             <button
               onClick={openAddService}
               disabled={availableServices.length === 0}
@@ -1376,7 +1378,7 @@ export default function LocationDetailPage() {
                     <p className="text-sm text-gray-500 font-mono">{service.servicePackageCode}</p>
                   </div>
                 </div>
-                {!isPlatformView && (
+                {!isPlatformView && !isReadOnly && (
                   <button
                     onClick={() => removeService(service)}
                     className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

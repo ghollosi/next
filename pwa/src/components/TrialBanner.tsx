@@ -2,33 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { networkAdminApi } from '@/lib/network-admin-api';
-
-interface TrialStatus {
-  subscriptionStatus: string;
-  trialEndsAt?: string;
-  daysRemaining?: number;
-  minutesRemaining?: number;
-  isExpired: boolean;
-  isGracePeriod: boolean;
-  gracePeriodEndsAt?: string;
-  isFullyLocked: boolean;
-}
+import { useSubscription, TrialStatus } from '@/contexts/SubscriptionContext';
 
 interface TrialBannerProps {
   onStatusChange?: (status: TrialStatus) => void;
 }
 
 export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
-  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
+  const [status, setStatus] = useState<TrialStatus | null>(null);
   const [timeDisplay, setTimeDisplay] = useState<string>('');
+  const { setTrialStatus: setContextTrialStatus } = useSubscription();
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const status = await networkAdminApi.getTrialStatus();
-        setTrialStatus(status);
+        const data = await networkAdminApi.getTrialStatus();
+        setStatus(data);
+        // Update context
+        setContextTrialStatus(data);
+        // Call parent callback
         if (onStatusChange) {
-          onStatusChange(status);
+          onStatusChange(data);
         }
       } catch (err) {
         console.error('Failed to fetch trial status:', err);
@@ -36,17 +30,17 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
     };
 
     fetchStatus();
-  }, [onStatusChange]);
+  }, [onStatusChange, setContextTrialStatus]);
 
   // Update countdown every minute (or every second on last day)
   useEffect(() => {
-    if (!trialStatus || trialStatus.subscriptionStatus !== 'TRIAL' || !trialStatus.trialEndsAt) {
+    if (!status || status.subscriptionStatus !== 'TRIAL' || !status.trialEndsAt) {
       return;
     }
 
     const updateDisplay = () => {
       const now = new Date();
-      const endDate = new Date(trialStatus.trialEndsAt!);
+      const endDate = new Date(status.trialEndsAt!);
       const diff = endDate.getTime() - now.getTime();
 
       if (diff <= 0) {
@@ -70,19 +64,19 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
     updateDisplay();
 
     // On last day, update every minute
-    const isLastDay = trialStatus.daysRemaining !== undefined && trialStatus.daysRemaining <= 1;
+    const isLastDay = status.daysRemaining !== undefined && status.daysRemaining <= 1;
     const interval = setInterval(updateDisplay, isLastDay ? 60000 : 60000 * 5);
 
     return () => clearInterval(interval);
-  }, [trialStatus]);
+  }, [status]);
 
   // Don't show banner for active subscriptions
-  if (!trialStatus || trialStatus.subscriptionStatus === 'ACTIVE') {
+  if (!status || status.subscriptionStatus === 'ACTIVE') {
     return null;
   }
 
   // Fully locked state (after grace period)
-  if (trialStatus.isFullyLocked) {
+  if (status.isFullyLocked) {
     return (
       <div className="bg-red-600 text-white py-3 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -101,7 +95,7 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
   }
 
   // Grace period state (5 days after trial expiry - read only)
-  if (trialStatus.isGracePeriod) {
+  if (status.isGracePeriod) {
     return (
       <div className="bg-orange-600 text-white py-3 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -112,7 +106,7 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
             <span className="font-medium">A próbaidőszak lejárt - csak megtekintés mód</span>
           </div>
           <div className="text-sm">
-            Még {trialStatus.daysRemaining} napig megtekintheti az adatokat. Fizessen elő a folytatáshoz!
+            Még {status.daysRemaining} napig megtekintheti az adatokat. Fizessen elő a folytatáshoz!
           </div>
         </div>
       </div>
@@ -120,7 +114,7 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
   }
 
   // Trial is about to expire (3 days or less)
-  if (trialStatus.daysRemaining !== undefined && trialStatus.daysRemaining <= 3) {
+  if (status.daysRemaining !== undefined && status.daysRemaining <= 3) {
     return (
       <div className="bg-red-600 text-white py-3 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -147,7 +141,7 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
   }
 
   // Normal trial state (more than 3 days remaining)
-  if (trialStatus.subscriptionStatus === 'TRIAL') {
+  if (status.subscriptionStatus === 'TRIAL') {
     return (
       <div className="bg-blue-600 text-white py-2 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -155,7 +149,7 @@ export default function TrialBanner({ onStatusChange }: TrialBannerProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span>Próbaidőszak - {trialStatus.daysRemaining} nap van hátra</span>
+            <span>Próbaidőszak - {status.daysRemaining} nap van hátra</span>
           </div>
           <a
             href="/network-admin/settings?tab=subscription"

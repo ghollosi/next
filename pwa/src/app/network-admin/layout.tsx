@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getNetworkAdminToken, getNetworkAdmin, clearNetworkAdminSession } from '@/lib/network-admin-api';
@@ -8,6 +8,7 @@ import TrialBanner from '@/components/TrialBanner';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { SessionTimeoutWarning } from '@/components/SessionTimeoutWarning';
 import EmiChatWidget from '@/components/EmiChatWidget';
+import { SubscriptionProvider, TrialStatus } from '@/contexts/SubscriptionContext';
 
 // Platform View storage key
 const PLATFORM_VIEW_KEY = 'vsys_platform_view';
@@ -23,7 +24,7 @@ function getPlatformViewData(): { networkId: string; networkName: string } | nul
   }
 }
 
-export default function NetworkAdminLayout({
+function NetworkAdminLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -39,6 +40,36 @@ export default function NetworkAdminLayout({
   } | null>(null);
   const [isPlatformView, setIsPlatformView] = useState(false);
   const [platformViewNetwork, setPlatformViewNetwork] = useState<string | null>(null);
+  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
+  const [showTrialOverlay, setShowTrialOverlay] = useState(true);
+  const [subscriptionContextSetter, setSubscriptionContextSetter] = useState<((status: TrialStatus) => void) | null>(null);
+
+  // Callback for TrialBanner to update trial status
+  const handleTrialStatusChange = useCallback((status: TrialStatus, contextSetter?: (status: TrialStatus) => void) => {
+    setTrialStatus(status);
+    // Show overlay when trial is expired/grace period/fully locked
+    if (status.isExpired || status.isGracePeriod || status.isFullyLocked) {
+      setShowTrialOverlay(true);
+    }
+    // Store context setter for later use
+    if (contextSetter) {
+      setSubscriptionContextSetter(() => contextSetter);
+    }
+  }, []);
+
+  // Check if subscription is blocked (expired, grace period, or fully locked)
+  const isSubscriptionBlocked = trialStatus && (
+    trialStatus.isExpired ||
+    trialStatus.isGracePeriod ||
+    trialStatus.isFullyLocked
+  );
+
+  // Pages that are allowed even when subscription is blocked
+  const allowedPathsWhenBlocked = [
+    '/network-admin/subscription',
+    '/network-admin/settings',
+  ];
+  const isAllowedPath = allowedPathsWhenBlocked.some(p => pathname.startsWith(p));
 
   const handleLogout = () => {
     clearNetworkAdminSession();
@@ -50,6 +81,15 @@ export default function NetworkAdminLayout({
       sessionStorage.removeItem(PLATFORM_VIEW_KEY);
     }
     router.push('/platform-admin/networks');
+  };
+
+  // Handle "Continue in read-only mode" button
+  const handleContinueReadOnly = () => {
+    setShowTrialOverlay(false);
+    // Update context to notify all components
+    if (subscriptionContextSetter && trialStatus) {
+      subscriptionContextSetter(trialStatus);
+    }
   };
 
   // SECURITY: Session timeout for automatic logout after inactivity
@@ -137,6 +177,12 @@ export default function NetworkAdminLayout({
     ? navItems.filter(item => !['Beállítások', 'Előfizetés'].includes(item.label))
     : navItems;
 
+  // Should we show the overlay? (only if blocked, on non-allowed path, not platform view, and user hasn't dismissed it)
+  const shouldShowOverlay = isSubscriptionBlocked && !isAllowedPath && !isPlatformView && showTrialOverlay;
+
+  // For fully locked, always show overlay (can't dismiss)
+  const canDismissOverlay = trialStatus && !trialStatus.isFullyLocked;
+
   return (
     <div className={`min-h-screen ${isPlatformView ? 'bg-indigo-50' : 'bg-gray-100'}`}>
       {/* Platform View Banner */}
@@ -177,7 +223,7 @@ export default function NetworkAdminLayout({
       )}
 
       {/* Trial Banner - only for real admins */}
-      {!isPlatformView && <TrialBanner />}
+      {!isPlatformView && <TrialBanner onStatusChange={handleTrialStatusChange} />}
 
       {/* Top Navigation - Header Bar */}
       <nav className={`shadow-sm border-b ${isPlatformView ? 'bg-indigo-100 border-indigo-200' : 'bg-white border-gray-200'}`}>
@@ -238,6 +284,44 @@ export default function NetworkAdminLayout({
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Subscription Blocked Overlay */}
+        {shouldShowOverlay && (
+          <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center">
+              <div className={`w-16 h-16 ${trialStatus?.isFullyLocked ? 'bg-red-100' : 'bg-orange-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                <svg className={`w-8 h-8 ${trialStatus?.isFullyLocked ? 'text-red-600' : 'text-orange-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                {trialStatus?.isFullyLocked
+                  ? 'A hozzáférés le van tiltva'
+                  : 'A próbaidőszak lejárt'}
+              </h2>
+              <p className="text-gray-600 mb-6">
+                {trialStatus?.isFullyLocked
+                  ? 'A próbaidőszak és a türelmi idő is lejárt. Kérjük, fizessen elő a szolgáltatás használatához.'
+                  : `Még ${trialStatus?.daysRemaining || 0} napig megtekintheti az adatokat, de új adatok létrehozása és szerkesztése nem lehetséges.`}
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  href="/network-admin/subscription"
+                  className="w-full bg-primary-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+                >
+                  💳 Előfizetés kezelése
+                </Link>
+                {canDismissOverlay && (
+                  <button
+                    onClick={handleContinueReadOnly}
+                    className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    Tovább megtekintés módban
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {children}
       </main>
 
@@ -254,5 +338,17 @@ export default function NetworkAdminLayout({
         />
       )}
     </div>
+  );
+}
+
+export default function NetworkAdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SubscriptionProvider>
+      <NetworkAdminLayoutInner>{children}</NetworkAdminLayoutInner>
+    </SubscriptionProvider>
   );
 }

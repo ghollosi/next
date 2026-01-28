@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { networkAdminApi } from '@/lib/network-admin-api';
 import HelpTooltip from '@/components/ui/HelpTooltip';
 import { COUNTRIES } from '@/lib/countries';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface Settings {
   network: {
@@ -191,6 +192,7 @@ function TestEmailButton({ settings }: { settings: Settings }) {
 }
 
 export default function SettingsPage() {
+  const { isReadOnly } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1616,22 +1618,24 @@ export default function SettingsPage() {
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end gap-4">
-        <button
-          onClick={loadSettings}
-          disabled={saving}
-          className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
-        >
-          Változtatások elvetése
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
-        >
-          {saving ? 'Mentés...' : 'Beállítások mentése'}
-        </button>
-      </div>
+      {!isReadOnly && (
+        <div className="flex justify-end gap-4">
+          <button
+            onClick={loadSettings}
+            disabled={saving}
+            className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+          >
+            Változtatások elvetése
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-3 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Mentés...' : 'Beállítások mentése'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1454,9 +1454,8 @@ model NetworkAdmin {
   network            Network             @relation(fields: [networkId], references: [id], onDelete: Cascade)
   verificationTokens VerificationToken[]
 
-  @@unique([networkId, email])
+  @@unique([email])
   @@index([networkId])
-  @@index([email])
   @@map("network_admins")
 }
 

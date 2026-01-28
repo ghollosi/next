@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -57,13 +58,81 @@ export class NetworkAdminService {
   }
 
   // =========================================================================
+  // SUBSCRIPTION CHECK
+  // =========================================================================
+
+  /**
+   * Checks if the network's subscription/trial is active.
+   * Throws ForbiddenException if the subscription has expired or is in an invalid state.
+   * Should be called before any write operation (create, update, delete).
+   */
+  async checkSubscriptionActive(networkId: string): Promise<void> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+      select: {
+        id: true,
+        name: true,
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        subscriptionEndAt: true,
+        isActive: true,
+      },
+    });
+
+    if (!network) {
+      throw new ForbiddenException('Hálózat nem található');
+    }
+
+    if (!network.isActive) {
+      throw new ForbiddenException('A hálózat inaktív. Kérjük, vegye fel a kapcsolatot az ügyfélszolgálattal.');
+    }
+
+    const now = new Date();
+
+    switch (network.subscriptionStatus) {
+      case SubscriptionStatus.ACTIVE:
+        // Check if subscription has ended
+        if (network.subscriptionEndAt && network.subscriptionEndAt < now) {
+          this.logger.log(`Subscription expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException(
+            'Az előfizetés lejárt. Kérjük, hosszabbítsa meg előfizetését a szolgáltatások használatához.'
+          );
+        }
+        return; // OK
+
+      case SubscriptionStatus.TRIAL:
+        // Check if trial has ended
+        if (network.trialEndsAt && network.trialEndsAt < now) {
+          this.logger.log(`Trial expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException(
+            'A próbaidőszak lejárt. Kérjük, válasszon előfizetési csomagot a szolgáltatások további használatához.'
+          );
+        }
+        return; // OK
+
+      case SubscriptionStatus.SUSPENDED:
+        throw new ForbiddenException(
+          'Az előfizetés felfüggesztve. Kérjük, rendezze a függő számlákat a szolgáltatások használatához.'
+        );
+
+      case SubscriptionStatus.CANCELLED:
+        throw new ForbiddenException(
+          'Az előfizetés lemondva. Kérjük, aktiválja újra előfizetését a szolgáltatások használatához.'
+        );
+
+      default:
+        this.logger.warn(`Unknown subscription status for network ${networkId}: ${network.subscriptionStatus}`);
+        return; // Allow by default for unknown status (safety)
+    }
+  }
+
+  // =========================================================================
   // AUTH
   // =========================================================================
 
   async login(dto: NetworkAdminLoginDto, ipAddress?: string, userAgent?: string): Promise<NetworkAdminLoginResponseDto> {
     const email = dto.email.toLowerCase();
-    const slug = dto.slug.toLowerCase();
-    const lockKey = `${slug}:${email}`; // Lock per network+email combination
+    const lockKey = `network_admin:${email}`; // Lock per email
 
     // SECURITY: Check if account is locked (now async with DB)
     const lockStatus = await this.lockoutService.isLocked(lockKey);
@@ -71,7 +140,7 @@ export class NetworkAdminService {
       await this.auditLogService.log({
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
-        metadata: { slug, email, error: 'Account locked', remainingSeconds: lockStatus.remainingSeconds },
+        metadata: { email, error: 'Account locked', remainingSeconds: lockStatus.remainingSeconds },
         ipAddress,
         userAgent,
       });
@@ -80,38 +149,14 @@ export class NetworkAdminService {
       );
     }
 
-    // Find network by slug
-    const network = await this.prisma.network.findUnique({
-      where: { slug },
-    });
-
-    if (!network || network.deletedAt || !network.isActive) {
-      // SECURITY: Record failed attempt (now async with DB)
-      const lockResult = await this.lockoutService.recordFailedAttempt(lockKey);
-
-      // AUDIT: Log failed login - network not found
-      await this.auditLogService.log({
-        action: AuditAction.LOGIN_FAILED,
-        actorType: 'NETWORK_ADMIN',
-        metadata: {
-          slug,
-          email,
-          error: 'Network not found or inactive',
-          attemptsRemaining: lockResult.attemptsRemaining,
-          isNowLocked: lockResult.isNowLocked,
-        },
-        ipAddress,
-        userAgent,
-      });
-      throw new UnauthorizedException('Hálózat nem található vagy inaktív');
-    }
-
-    // Find admin
+    // Find admin by email (email is now unique)
     const admin = await this.prisma.networkAdmin.findFirst({
       where: {
-        networkId: network.id,
         email,
         deletedAt: null,
+      },
+      include: {
+        network: true,
       },
     });
 
@@ -121,11 +166,9 @@ export class NetworkAdminService {
 
       // AUDIT: Log failed login - admin not found
       await this.auditLogService.log({
-        networkId: network.id,
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
         metadata: {
-          slug,
           email,
           error: 'Admin not found or inactive',
           attemptsRemaining: lockResult.attemptsRemaining,
@@ -135,6 +178,27 @@ export class NetworkAdminService {
         userAgent,
       });
       throw new UnauthorizedException('Hibás email vagy jelszó');
+    }
+
+    const network = admin.network;
+    if (!network || network.deletedAt || !network.isActive) {
+      // SECURITY: Record failed attempt (now async with DB)
+      const lockResult = await this.lockoutService.recordFailedAttempt(lockKey);
+
+      // AUDIT: Log failed login - network not found
+      await this.auditLogService.log({
+        action: AuditAction.LOGIN_FAILED,
+        actorType: 'NETWORK_ADMIN',
+        metadata: {
+          email,
+          error: 'Network not found or inactive',
+          attemptsRemaining: lockResult.attemptsRemaining,
+          isNowLocked: lockResult.isNowLocked,
+        },
+        ipAddress,
+        userAgent,
+      });
+      throw new UnauthorizedException('A hálózat nem található vagy inaktív');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
@@ -149,7 +213,6 @@ export class NetworkAdminService {
         actorType: 'NETWORK_ADMIN',
         actorId: admin.id,
         metadata: {
-          slug,
           email,
           error: 'Invalid password',
           attemptsRemaining: lockResult.attemptsRemaining,
@@ -169,7 +232,7 @@ export class NetworkAdminService {
         action: AuditAction.LOGIN_FAILED,
         actorType: 'NETWORK_ADMIN',
         actorId: admin.id,
-        metadata: { slug, email, error: 'Email not verified' },
+        metadata: { email, error: 'Email not verified' },
         ipAddress,
         userAgent,
       });
@@ -206,7 +269,7 @@ export class NetworkAdminService {
       action: AuditAction.LOGIN_SUCCESS,
       actorType: 'NETWORK_ADMIN',
       actorId: admin.id,
-      metadata: { slug: dto.slug.toLowerCase(), email: dto.email.toLowerCase(), role: admin.role },
+      metadata: { email: dto.email.toLowerCase(), role: admin.role, networkSlug: network.slug },
       ipAddress,
       userAgent,
     });
@@ -456,26 +519,22 @@ export class NetworkAdminService {
     };
   }
 
-  async resendVerificationEmail(email: string, slug: string): Promise<{ success: boolean; message: string }> {
-    const network = await this.prisma.network.findUnique({
-      where: { slug: slug.toLowerCase() },
-    });
-
-    if (!network) {
-      throw new NotFoundException('Hálózat nem található');
-    }
-
+  async resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
     const admin = await this.prisma.networkAdmin.findFirst({
       where: {
-        networkId: network.id,
         email: email.toLowerCase(),
         deletedAt: null,
+      },
+      include: {
+        network: true,
       },
     });
 
     if (!admin) {
       throw new NotFoundException('Admin nem található');
     }
+
+    const network = admin.network;
 
     // Invalidate old tokens
     await this.prisma.verificationToken.updateMany({
@@ -547,7 +606,7 @@ Vemiax csapata`;
   // PASSWORD RESET
   // =========================================================================
 
-  async forgotPassword(email: string, slug: string): Promise<{ success: boolean; message: string }> {
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     // Always return success to prevent email enumeration attacks
     const successResponse = {
       success: true,
@@ -555,25 +614,21 @@ Vemiax csapata`;
     };
 
     try {
-      const network = await this.prisma.network.findUnique({
-        where: { slug: slug.toLowerCase() },
-      });
-
-      if (!network) {
-        return successResponse;
-      }
-
       const admin = await this.prisma.networkAdmin.findFirst({
         where: {
-          networkId: network.id,
           email: email.toLowerCase(),
           deletedAt: null,
+        },
+        include: {
+          network: true,
         },
       });
 
       if (!admin) {
         return successResponse;
       }
+
+      const network = admin.network;
 
       // Invalidate old password reset tokens
       await this.prisma.verificationToken.updateMany({
@@ -2654,6 +2709,10 @@ Vemiax csapata`;
   ): Promise<{ data: any[]; total: number }> {
     const where: any = {
       networkId,
+      // Always exclude Platform Admin actions from Network Admin audit logs
+      actorType: {
+        not: 'PLATFORM_ADMIN',
+      },
     };
 
     if (options.action) {
@@ -2661,6 +2720,7 @@ Vemiax csapata`;
     }
 
     if (options.actorType) {
+      // If specific actorType filter requested, use it but still exclude PLATFORM_ADMIN
       where.actorType = options.actorType;
     }
 

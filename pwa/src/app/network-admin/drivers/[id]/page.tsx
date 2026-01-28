@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface Driver {
   id: string;
@@ -31,6 +32,7 @@ interface PartnerCompany {
 }
 
 export default function DriverDetailPage() {
+  const { isReadOnly } = useSubscription();
   const params = useParams();
   const router = useRouter();
   const driverId = params.id as string;
@@ -169,20 +171,22 @@ export default function DriverDetailPage() {
         </div>
         <div className="flex gap-2">
           {!editing ? (
-            <>
-              <button
-                onClick={() => setEditing(true)}
-                className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                Szerkesztés
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-100 text-red-600 font-medium rounded-lg hover:bg-red-200 transition-colors"
-              >
-                Törlés
-              </button>
-            </>
+            !isReadOnly && (
+              <>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Szerkesztés
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-4 py-2 bg-red-100 text-red-600 font-medium rounded-lg hover:bg-red-200 transition-colors"
+                >
+                  Törlés
+                </button>
+              </>
+            )
           ) : (
             <>
               <button

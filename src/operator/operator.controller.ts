@@ -13,6 +13,8 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 import * as QRCode from 'qrcode';
@@ -31,7 +33,7 @@ import { LocationService } from '../modules/location/location.service';
 import { ServicePackageService } from '../modules/service-package/service-package.service';
 import { DriverService } from '../modules/driver/driver.service';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { WashEntryMode, BillingType, BillingCycle } from '@prisma/client';
+import { WashEntryMode, BillingType, BillingCycle, SubscriptionStatus } from '@prisma/client';
 import { CreateWashEventOperatorDto } from './dto/create-wash-event.dto';
 import { QueryWashEventsDto } from './dto/query-wash-events.dto';
 import {
@@ -52,6 +54,8 @@ import {
 @ApiTags('operator')
 @Controller('operator')
 export class OperatorController {
+  private readonly logger = new Logger(OperatorController.name);
+
   constructor(
     private readonly washEventService: WashEventService,
     private readonly partnerCompanyService: PartnerCompanyService,
@@ -60,6 +64,59 @@ export class OperatorController {
     private readonly driverService: DriverService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /**
+   * Check if the network's subscription/trial is active.
+   * Throws ForbiddenException if expired.
+   */
+  private async checkSubscriptionActive(networkId: string): Promise<void> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+      select: {
+        id: true,
+        name: true,
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        subscriptionEndAt: true,
+        isActive: true,
+      },
+    });
+
+    if (!network) {
+      throw new ForbiddenException('Hálózat nem található');
+    }
+
+    if (!network.isActive) {
+      throw new ForbiddenException('A hálózat inaktív.');
+    }
+
+    const now = new Date();
+
+    switch (network.subscriptionStatus) {
+      case SubscriptionStatus.ACTIVE:
+        if (network.subscriptionEndAt && network.subscriptionEndAt < now) {
+          this.logger.log(`Subscription expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException('Az előfizetés lejárt.');
+        }
+        return;
+
+      case SubscriptionStatus.TRIAL:
+        if (network.trialEndsAt && network.trialEndsAt < now) {
+          this.logger.log(`Trial expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException('A próbaidőszak lejárt.');
+        }
+        return;
+
+      case SubscriptionStatus.SUSPENDED:
+        throw new ForbiddenException('Az előfizetés felfüggesztve.');
+
+      case SubscriptionStatus.CANCELLED:
+        throw new ForbiddenException('Az előfizetés lemondva.');
+
+      default:
+        return;
+    }
+  }
 
   private getRequestMetadata(req: Request) {
     return {
@@ -105,6 +162,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
     const metadata = this.getRequestMetadata(req);
 
     const washEvent = await this.washEventService.createManualOperator(
@@ -211,6 +269,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.authorize(tenantId, id, {
@@ -245,6 +304,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.start(tenantId, id, {
@@ -279,6 +339,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.complete(tenantId, id, {
@@ -327,6 +388,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.reject(tenantId, id, reason, {
@@ -361,6 +423,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
     const metadata = this.getRequestMetadata(req);
 
     return this.washEventService.lock(tenantId, id, {
@@ -432,6 +495,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.partnerCompanyService.create(networkId, {
       ...dto,
@@ -458,6 +522,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.partnerCompanyService.update(networkId, id, {
       ...dto,
@@ -482,6 +547,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.partnerCompanyService.softDelete(networkId, id);
   }
@@ -548,6 +614,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.locationService.create(networkId, {
       ...dto,
@@ -573,6 +640,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.locationService.update(networkId, id, {
       ...dto,
@@ -596,6 +664,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.locationService.softDelete(networkId, id);
   }
@@ -649,6 +718,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     // Verify location exists
     await this.locationService.findById(networkId, id);
@@ -883,6 +953,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.driverService.create(networkId, dto);
   }
@@ -905,6 +976,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.driverService.update(networkId, id, dto);
   }
@@ -927,6 +999,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.driverService.updatePin(networkId, id, dto.pin);
   }
@@ -947,6 +1020,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.driverService.softDelete(networkId, id);
   }
@@ -968,6 +1042,7 @@ export class OperatorController {
     if (!networkId) {
       throw new BadRequestException('X-Network-ID header is required');
     }
+    await this.checkSubscriptionActive(networkId);
 
     return this.driverService.regenerateInvite(networkId, id);
   }
@@ -1031,6 +1106,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
 
     return this.driverService.approve(tenantId, id, approverId);
   }
@@ -1073,6 +1149,7 @@ export class OperatorController {
       networkId,
       userId,
     );
+    await this.checkSubscriptionActive(tenantId);
 
     return this.driverService.reject(tenantId, id, reason, rejecterId);
   }

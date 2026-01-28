@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface WashEvent {
   id: string;
@@ -27,6 +28,7 @@ interface Location {
 }
 
 export default function WashEventsListPage() {
+  const { isReadOnly } = useSubscription();
   const [washEvents, setWashEvents] = useState<WashEvent[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,12 +137,14 @@ export default function WashEventsListPage() {
           <h1 className="text-2xl font-bold text-gray-900">Mosások</h1>
           <p className="text-gray-500">Összes mosás kezelése és megtekintése</p>
         </div>
-        <Link
-          href="/network-admin/wash-events/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Új mosás
-        </Link>
+        {!isReadOnly && (
+          <Link
+            href="/network-admin/wash-events/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Új mosás
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -305,12 +309,14 @@ export default function WashEventsListPage() {
                       {formatDate(event.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Link
-                        href={`/network-admin/wash-events/${event.id}`}
-                        className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                      >
-                        Megtekintés
-                      </Link>
+                      {!isReadOnly && (
+                        <Link
+                          href={`/network-admin/wash-events/${event.id}`}
+                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                        >
+                          Megtekintés
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}

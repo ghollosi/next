@@ -26,10 +26,6 @@ export class NetworkAdminLoginDto {
   @IsString()
   @MinLength(6)
   password: string;
-
-  @ApiProperty({ description: 'Network slug' })
-  @IsString()
-  slug: string;
 }
 
 export class NetworkAdminLoginResponseDto {
@@ -167,20 +163,12 @@ export class ResendVerificationDto {
   @ApiProperty({ description: 'Email address' })
   @IsEmail()
   email: string;
-
-  @ApiProperty({ description: 'Network slug' })
-  @IsString()
-  slug: string;
 }
 
 export class ForgotPasswordDto {
   @ApiProperty({ description: 'Email address' })
   @IsEmail()
   email: string;
-
-  @ApiProperty({ description: 'Network slug' })
-  @IsString()
-  slug: string;
 }
 
 export class ResetPasswordDto {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface Invoice {
   id: string;
@@ -79,6 +80,7 @@ interface InvoiceDetail {
 }
 
 export default function InvoicesPage() {
+  const { isReadOnly } = useSubscription();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState<InvoiceSummary | null>(null);
   const [partners, setPartners] = useState<PartnerCompany[]>([]);
@@ -274,12 +276,14 @@ export default function InvoicesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Szamlak</h1>
           <p className="text-gray-500 mt-1">Partner szamlak kezelese</p>
         </div>
-        <button
-          onClick={() => setShowNewInvoiceModal(true)}
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Uj szamla keszitese
-        </button>
+        {!isReadOnly && (
+          <button
+            onClick={() => setShowNewInvoiceModal(true)}
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Uj szamla keszitese
+          </button>
+        )}
       </div>
 
       {/* Error */}

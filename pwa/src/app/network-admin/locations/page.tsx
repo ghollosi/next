@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 type OperationType = 'OWN' | 'SUBCONTRACTOR';
 
@@ -100,6 +101,7 @@ const parseOpeningHours = (location: Location): ParsedOpeningHours[] => {
 };
 
 export default function LocationsPage() {
+  const { isReadOnly } = useSubscription();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -161,12 +163,14 @@ export default function LocationsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Helyszínek</h1>
           <p className="text-gray-500">Mosóállomások kezelése</p>
         </div>
-        <Link
-          href="/network-admin/locations/new"
-          className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Uj helyszin
-        </Link>
+        {!isReadOnly && (
+          <Link
+            href="/network-admin/locations/new"
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Uj helyszin
+          </Link>
+        )}
       </div>
 
       {/* Error */}
@@ -268,24 +272,26 @@ export default function LocationsPage() {
                 </div>
               )}
 
-              <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-                <Link
-                  href={`/network-admin/locations/${location.id}`}
-                  className="flex-1 py-2 text-center text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                >
-                  Részletek
-                </Link>
-                <button
-                  onClick={() => loadQRCode(location.id)}
-                  disabled={loadingQr}
-                  className="flex-1 py-2 text-center text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
-                  QR
-                </button>
-              </div>
+              {!isReadOnly && (
+                <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
+                  <Link
+                    href={`/network-admin/locations/${location.id}`}
+                    className="flex-1 py-2 text-center text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                  >
+                    Részletek
+                  </Link>
+                  <button
+                    onClick={() => loadQRCode(location.id)}
+                    disabled={loadingQr}
+                    className="flex-1 py-2 text-center text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                    QR
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { networkAdminApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface Booking {
   id: string;
@@ -59,6 +60,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function BookingsPage() {
+  const { isReadOnly } = useSubscription();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,14 +155,16 @@ export default function BookingsPage() {
           <h1 className="text-2xl font-bold text-gray-900 mt-2">Foglalások</h1>
           <p className="text-gray-500 mt-1">Online időpontfoglalások kezelése</p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/network-admin/booking-settings"
-            className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            Beállítások
-          </Link>
-        </div>
+        {!isReadOnly && (
+          <div className="flex gap-2">
+            <Link
+              href="/network-admin/booking-settings"
+              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Beállítások
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -341,12 +345,14 @@ export default function BookingsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Link
-                        href={`/network-admin/bookings/${booking.id}`}
-                        className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                      >
-                        Részletek
-                      </Link>
+                      {!isReadOnly && (
+                        <Link
+                          href={`/network-admin/bookings/${booking.id}`}
+                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                        >
+                          Részletek
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}

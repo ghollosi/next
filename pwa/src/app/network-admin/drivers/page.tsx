@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface PartnerCompany {
   id: string;
@@ -26,6 +27,7 @@ interface InviteData {
 }
 
 export default function DriversPage() {
+  const { isReadOnly } = useSubscription();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -144,12 +146,14 @@ export default function DriversPage() {
           >
             Jóváhagyásra vár
           </Link>
-          <Link
-            href="/network-admin/drivers/new"
-            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            + Új sofőr
-          </Link>
+          {!isReadOnly && (
+            <Link
+              href="/network-admin/drivers/new"
+              className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              + Új sofőr
+            </Link>
+          )}
         </div>
       </div>
 
@@ -241,20 +245,22 @@ export default function DriversPage() {
                       {new Date(driver.createdAt).toLocaleDateString('hu-HU')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/network-admin/drivers/${driver.id}`}
-                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                        >
-                          Részletek
-                        </Link>
-                        <button
-                          onClick={() => openInviteModal(driver)}
-                          className="text-gray-600 hover:text-gray-700 text-sm font-medium"
-                        >
-                          Meghívó
-                        </button>
-                      </div>
+                      {!isReadOnly && (
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/network-admin/drivers/${driver.id}`}
+                            className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                          >
+                            Részletek
+                          </Link>
+                          <button
+                            onClick={() => openInviteModal(driver)}
+                            className="text-gray-600 hover:text-gray-700 text-sm font-medium"
+                          >
+                            Meghívó
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

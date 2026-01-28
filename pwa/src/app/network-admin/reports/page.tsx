@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { reportsApi } from '@/lib/network-admin-api';
 import { fetchOperatorApi } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface Location {
   id: string;
@@ -19,6 +20,7 @@ type ReportType = 'wash-stats' | 'revenue' | 'locations' | 'partners' | 'service
 type GroupBy = 'day' | 'week' | 'month' | 'location' | 'partner';
 
 export default function ReportsPage() {
+  const { isReadOnly } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [locations, setLocations] = useState<Location[]>([]);
@@ -160,15 +162,17 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Riportok</h1>
           <p className="text-gray-500">Mosasi statisztikak es bevételi kimutatások</p>
         </div>
-        <button
-          onClick={handleExportCsv}
-          className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          CSV Export
-        </button>
+        {!isReadOnly && (
+          <button
+            onClick={handleExportCsv}
+            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            CSV Export
+          </button>
+        )}
       </div>
 
       {/* Report Type Tabs */}

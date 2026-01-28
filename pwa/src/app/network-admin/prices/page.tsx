@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchOperatorApi, getNetworkId, isPlatformViewMode } from '@/lib/network-admin-api';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -101,6 +102,7 @@ const vehicleTypeOrder = [
 ];
 
 export default function PricesPage() {
+  const { isReadOnly } = useSubscription();
   const [servicePackages, setServicePackages] = useState<ServicePackage[]>([]);
   const [prices, setPrices] = useState<ServicePrice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,13 +264,15 @@ export default function PricesPage() {
           </p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            Excel letöltés
-          </button>
-          {!isPlatformView && (
+          {!isReadOnly && (
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Excel letöltés
+            </button>
+          )}
+          {!isPlatformView && !isReadOnly && (
             <Link
               href="/network-admin/prices/upload"
               className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
@@ -276,7 +280,7 @@ export default function PricesPage() {
               Excel feltöltés
             </Link>
           )}
-          {!isPlatformView && hasChanges && (
+          {!isPlatformView && !isReadOnly && hasChanges && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -416,7 +420,7 @@ export default function PricesPage() {
       </div>
 
       {/* Footer with save button - only for non-platform-view */}
-      {!isPlatformView && hasChanges && (
+      {!isPlatformView && !isReadOnly && hasChanges && (
         <div className="mt-4 flex justify-end">
           <button
             onClick={handleSave}

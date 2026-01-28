@@ -11,6 +11,7 @@ import {
   HttpStatus,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
   Req,
   Res,
 } from '@nestjs/common';
@@ -19,7 +20,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuditLogService } from '../modules/audit-log/audit-log.service';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WashEventService } from '../modules/wash-event/wash-event.service';
 import { LocationService } from '../modules/location/location.service';
@@ -71,6 +72,67 @@ export class OperatorPortalController {
       throw new UnauthorizedException('Invalid or expired session');
     }
     return session;
+  }
+
+  /**
+   * Check if the network's subscription/trial is active.
+   * Throws ForbiddenException if expired. Should be called before write operations.
+   */
+  private async checkSubscriptionActive(networkId: string): Promise<void> {
+    const network = await this.prisma.network.findUnique({
+      where: { id: networkId },
+      select: {
+        id: true,
+        name: true,
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        subscriptionEndAt: true,
+        isActive: true,
+      },
+    });
+
+    if (!network) {
+      throw new ForbiddenException('Hálózat nem található');
+    }
+
+    if (!network.isActive) {
+      throw new ForbiddenException('A hálózat inaktív. Kérjük, vegye fel a kapcsolatot az ügyfélszolgálattal.');
+    }
+
+    const now = new Date();
+
+    switch (network.subscriptionStatus) {
+      case SubscriptionStatus.ACTIVE:
+        if (network.subscriptionEndAt && network.subscriptionEndAt < now) {
+          this.logger.log(`Subscription expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException(
+            'Az előfizetés lejárt. Kérjük, hosszabbítsa meg előfizetését a szolgáltatások használatához.'
+          );
+        }
+        return;
+
+      case SubscriptionStatus.TRIAL:
+        if (network.trialEndsAt && network.trialEndsAt < now) {
+          this.logger.log(`Trial expired for network ${network.name} (${networkId})`);
+          throw new ForbiddenException(
+            'A próbaidőszak lejárt. Kérjük, válasszon előfizetési csomagot a szolgáltatások további használatához.'
+          );
+        }
+        return;
+
+      case SubscriptionStatus.SUSPENDED:
+        throw new ForbiddenException(
+          'Az előfizetés felfüggesztve. Kérjük, rendezze a függő számlákat a szolgáltatások használatához.'
+        );
+
+      case SubscriptionStatus.CANCELLED:
+        throw new ForbiddenException(
+          'Az előfizetés lemondva. Kérjük, aktiválja újra előfizetését a szolgáltatások használatához.'
+        );
+
+      default:
+        return;
+    }
   }
 
   @Post('login')
@@ -514,6 +576,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify event belongs to this location
     const event = await this.prisma.washEvent.findFirst({
@@ -544,6 +607,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify event belongs to this location
     const event = await this.prisma.washEvent.findFirst({
@@ -574,6 +638,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify event belongs to this location
     const event = await this.prisma.washEvent.findFirst({
@@ -605,6 +670,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId);
+    await this.checkSubscriptionActive(session.networkId);
 
     if (!reason) {
       throw new BadRequestException('Rejection reason is required');
@@ -903,6 +969,9 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId);
+
+    // SUBSCRIPTION CHECK: Block write operations for expired trials
+    await this.checkSubscriptionActive(session.networkId);
 
     // Validáció - kell legalább egy szolgáltatás (új vagy régi módon)
     const hasServices = body.services && body.services.length > 0;
@@ -1299,6 +1368,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId);
+    await this.checkSubscriptionActive(session.networkId);
 
     if (!reason || reason.trim().length < 5) {
       throw new BadRequestException('A törlés indoklása kötelező (min. 5 karakter)');
@@ -1492,6 +1562,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the booking belongs to this location
     const booking = await this.bookingService.getBooking(session.networkId, id);
@@ -1510,6 +1581,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the booking belongs to this location
     const booking = await this.bookingService.getBooking(session.networkId, id);
@@ -1529,6 +1601,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the booking belongs to this location
     const booking = await this.bookingService.getBooking(session.networkId, id);
@@ -1547,6 +1620,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the booking belongs to this location
     const booking = await this.bookingService.getBooking(session.networkId, id);
@@ -1566,6 +1640,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     // Verify the booking belongs to this location
     const booking = await this.bookingService.getBooking(session.networkId, id);
@@ -1609,6 +1684,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     const operatorIdentifier = session.operatorId
       ? `operator:${session.locationCode}:${session.operatorName}`
@@ -1635,6 +1711,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     const operatorIdentifier = session.operatorId
       ? `operator:${session.locationCode}:${session.operatorName}`
@@ -1659,6 +1736,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
     return this.bookingService.deleteBlockedTimeSlot(session.networkId, id);
   }
 
@@ -1727,6 +1805,7 @@ export class OperatorPortalController {
     @Req() req: Request,
   ) {
     const session = await this.getSession(sessionId, req);
+    await this.checkSubscriptionActive(session.networkId);
 
     const operatorIdentifier = session.operatorId
       ? `operator:${session.locationCode}:${session.operatorName}`

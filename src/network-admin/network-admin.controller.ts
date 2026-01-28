@@ -139,6 +139,26 @@ export class NetworkAdminController {
   }
 
   /**
+   * Validate auth and check subscription status for write operations.
+   * Use this for POST, PUT, PATCH, DELETE endpoints that modify data.
+   * Throws ForbiddenException if subscription/trial has expired.
+   */
+  private async validateAuthWithSubscription(
+    authHeader: string | undefined,
+  ): Promise<{
+    adminId: string;
+    role: string;
+    networkId: string;
+  }> {
+    const result = await this.validateAuth(authHeader);
+
+    // Check subscription status for write operations
+    await this.networkAdminService.checkSubscriptionActive(result.networkId);
+
+    return result;
+  }
+
+  /**
    * Validate auth with Platform View support
    * Platform Admin can view Network Admin data with special headers:
    * - x-platform-view: 'true'
@@ -354,7 +374,7 @@ export class NetworkAdminController {
     description: 'Verification email sent',
   })
   async resendVerification(@Body() dto: ResendVerificationDto): Promise<{ success: boolean; message: string }> {
-    return this.networkAdminService.resendVerificationEmail(dto.email, dto.slug);
+    return this.networkAdminService.resendVerificationEmail(dto.email);
   }
 
   // =========================================================================
@@ -370,7 +390,7 @@ export class NetworkAdminController {
     description: 'Password reset email sent (if account exists)',
   })
   async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ success: boolean; message: string }> {
-    return this.networkAdminService.forgotPassword(dto.email, dto.slug);
+    return this.networkAdminService.forgotPassword(dto.email);
   }
 
   @Post('reset-password')
@@ -458,7 +478,7 @@ export class NetworkAdminController {
     @Body() dto: CreateLocationDto,
     @Headers('authorization') auth?: string,
   ): Promise<LocationListItemDto> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.createLocation(networkId, dto);
   }
 
@@ -475,7 +495,7 @@ export class NetworkAdminController {
     @Body() dto: UpdateLocationDto,
     @Headers('authorization') auth?: string,
   ): Promise<LocationListItemDto> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateLocation(networkId, id, dto);
   }
 
@@ -488,7 +508,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.deleteLocation(networkId, id);
   }
 
@@ -525,7 +545,7 @@ export class NetworkAdminController {
     @Body() dto: LocationOpeningHoursDto,
     @Headers('authorization') auth?: string,
   ): Promise<LocationOpeningHoursResponseDto> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateLocationOpeningHours(networkId, id, dto.hours);
   }
 
@@ -563,7 +583,7 @@ export class NetworkAdminController {
     @Body() dto: CreatePartnerCompanyDto,
     @Headers('authorization') auth?: string,
   ): Promise<PartnerCompanyListItemDto> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.createPartnerCompany(networkId, dto);
   }
 
@@ -646,7 +666,7 @@ export class NetworkAdminController {
     @Body() dto: { name: string; code: string; description?: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.createServicePackage(networkId, dto);
   }
 
@@ -662,7 +682,7 @@ export class NetworkAdminController {
     @Body() dto: { name?: string; code?: string; description?: string; isActive?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateServicePackage(networkId, id, dto);
   }
 
@@ -675,7 +695,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.deleteServicePackage(networkId, id);
   }
 
@@ -711,7 +731,7 @@ export class NetworkAdminController {
     @Body() dto: { servicePackageId: string; vehicleType: string; price: number },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.createPrice(networkId, dto);
   }
 
@@ -727,7 +747,7 @@ export class NetworkAdminController {
     @Body() dto: { servicePackageId?: string; vehicleType?: string; price?: number },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updatePrice(networkId, id, dto);
   }
 
@@ -740,7 +760,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.deletePrice(networkId, id);
   }
 
@@ -773,7 +793,7 @@ export class NetworkAdminController {
     @Body() dto: any,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateSettings(networkId, dto);
   }
 
@@ -788,7 +808,7 @@ export class NetworkAdminController {
     @Body() dto: { testEmail: string },
     @Headers('authorization') auth?: string,
   ): Promise<{ success: boolean; message: string; provider?: string }> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.testEmailConfig(networkId, dto.testEmail);
   }
 
@@ -824,7 +844,7 @@ export class NetworkAdminController {
     @Body() dto: { name: string; rate: number; code?: string; isDefault?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.createVatRate(networkId, dto);
   }
 
@@ -840,7 +860,7 @@ export class NetworkAdminController {
     @Body() dto: { name?: string; rate?: number; code?: string; isDefault?: boolean; isActive?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateVatRate(networkId, id, dto);
   }
 
@@ -853,7 +873,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.deleteVatRate(networkId, id);
   }
 
@@ -889,7 +909,7 @@ export class NetworkAdminController {
     @Body() dto: { currencyCode: string; currencyName?: string; currencySymbol?: string; isDefault?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.addCurrency(networkId, dto);
   }
 
@@ -905,7 +925,7 @@ export class NetworkAdminController {
     @Body() dto: { currencyName?: string; currencySymbol?: string; isDefault?: boolean; isActive?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateCurrency(networkId, id, dto);
   }
 
@@ -918,7 +938,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.removeCurrency(networkId, id);
   }
 
@@ -1041,7 +1061,7 @@ export class NetworkAdminController {
     @Body() dto: { name: string; email: string; password: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.createLocationOperator(networkId, locationId, dto);
   }
 
@@ -1057,7 +1077,7 @@ export class NetworkAdminController {
     @Body() dto: { name?: string; email?: string; password?: string; isActive?: boolean },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.updateOperator(networkId, id, dto);
   }
 
@@ -1070,7 +1090,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.deleteOperator(networkId, id);
   }
 
@@ -1108,7 +1128,7 @@ export class NetworkAdminController {
     @Body() dto: { note?: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.approveDeleteRequest(networkId, id, adminId, dto.note);
   }
 
@@ -1125,7 +1145,7 @@ export class NetworkAdminController {
     @Body() dto: { note?: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.rejectDeleteRequest(networkId, id, adminId, dto.note);
   }
 
@@ -1213,7 +1233,7 @@ export class NetworkAdminController {
     @Body() dto: { servicePackageId: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.addLocationService(networkId, locationId, dto.servicePackageId);
   }
 
@@ -1227,7 +1247,7 @@ export class NetworkAdminController {
     @Param('servicePackageId') servicePackageId: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.removeLocationService(networkId, locationId, servicePackageId);
   }
 
@@ -1319,7 +1339,7 @@ export class NetworkAdminController {
     },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.prepareInvoice(networkId, {
       ...dto,
       startDate: new Date(dto.startDate),
@@ -1338,7 +1358,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.issueInvoice(networkId, id, adminId);
   }
 
@@ -1354,7 +1374,7 @@ export class NetworkAdminController {
     @Body() dto: { paidDate?: string; paymentMethod?: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.markInvoicePaid(networkId, id, adminId, {
       paidDate: dto.paidDate ? new Date(dto.paidDate) : new Date(),
       paymentMethod: dto.paymentMethod,
@@ -1373,7 +1393,7 @@ export class NetworkAdminController {
     @Body() dto: { reason?: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.cancelInvoice(networkId, id, adminId, dto.reason);
   }
 
@@ -1386,7 +1406,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.networkAdminService.deleteInvoice(networkId, id);
   }
 
@@ -1668,7 +1688,7 @@ export class NetworkAdminController {
     @Body() dto: CreateBookingDto,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.createBooking(networkId, dto, { type: 'NETWORK_ADMIN', id: adminId });
   }
 
@@ -1684,7 +1704,7 @@ export class NetworkAdminController {
     @Body() dto: UpdateBookingDto,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.updateBooking(networkId, id, dto);
   }
 
@@ -1700,7 +1720,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.confirmBooking(networkId, id);
   }
 
@@ -1717,7 +1737,7 @@ export class NetworkAdminController {
     @Body() dto: CancelBookingDto,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.cancelBooking(networkId, id, dto, `network_admin:${adminId}`);
   }
 
@@ -1733,7 +1753,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.startBooking(networkId, id);
   }
 
@@ -1750,7 +1770,7 @@ export class NetworkAdminController {
     @Body() dto: { washEventId?: string },
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.completeBooking(networkId, id, dto.washEventId);
   }
 
@@ -1766,7 +1786,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.markNoShow(networkId, id);
   }
 
@@ -1799,7 +1819,7 @@ export class NetworkAdminController {
     @Body() dto: UpdateBookingSettingsDto,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.updateBookingSettings(networkId, dto);
   }
 
@@ -1836,7 +1856,7 @@ export class NetworkAdminController {
     @Body() dto: CreateBlockedTimeSlotDto,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.createBlockedTimeSlot(networkId, dto, adminId);
   }
 
@@ -1852,7 +1872,7 @@ export class NetworkAdminController {
     @Body() dto: CreateRecurringBlockDto,
     @Headers('authorization') auth?: string,
   ): Promise<any> {
-    const { networkId, adminId } = await this.validateAuth(auth);
+    const { networkId, adminId } = await this.validateAuthWithSubscription(auth);
     return this.bookingService.createRecurringBlock(networkId, dto, adminId);
   }
 
@@ -1865,7 +1885,7 @@ export class NetworkAdminController {
     @Param('id') id: string,
     @Headers('authorization') auth?: string,
   ): Promise<void> {
-    const { networkId } = await this.validateAuth(auth);
+    const { networkId } = await this.validateAuthWithSubscription(auth);
     await this.bookingService.deleteBlockedTimeSlot(networkId, id);
   }
 
